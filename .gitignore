@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Runtime files
+*.log
+logs/
+tmp/
+temp/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tool caches
+.cache/
+.eslintcache
+.turbo/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+

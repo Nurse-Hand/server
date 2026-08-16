@@ -1,0 +1,122 @@
+# GitHub 협업 컨벤션
+
+## 1. 기본 브랜치
+
+| 브랜치 | 역할 | 직접 push |
+|---|---|---|
+| `main` | 배포 가능한 릴리스 | 금지 |
+| `dev` | 기능 통합 및 다음 릴리스 준비 | 금지 |
+
+저장소 최초 구성 커밋만 예외로 `main` 직접 push를 허용합니다. 최초 push 후 `main`에서 `dev`를 만들고, 이후 일반 작업은 `dev`에서 시작합니다.
+
+## 2. 작업 흐름
+
+1. GitHub Issue에 문제, 완료 조건, 범위를 작성합니다.
+2. Issue 번호가 정해지면 `dev` 최신 상태에서 브랜치를 만듭니다.
+3. 가능하면 별도 worktree에서 구현하고 테스트합니다.
+4. 첫 검증 가능한 커밋 이후 `dev` 대상 Draft PR을 만듭니다.
+5. 리뷰 반영과 검증이 끝나면 사람의 승인 후 병합합니다.
+6. `dev`에서 릴리스 검증 후 `main`으로 릴리스 PR을 만듭니다.
+
+## 3. 브랜치 이름
+
+형식:
+
+```text
+<type>/<issue-number>-<short-kebab-description>
+```
+
+허용 type:
+
+| type | 용도 |
+|---|---|
+| `feat` | 새로운 기능 |
+| `fix` | 버그 수정 |
+| `refactor` | 동작을 유지하는 구조 변경 |
+| `test` | 테스트 추가 및 수정 |
+| `docs` | 문서 변경 |
+| `chore` | 설정, 빌드, 의존성, 운영 작업 |
+| `hotfix` | 운영 긴급 수정 |
+
+예시:
+
+```text
+feat/12-rounding-session
+fix/27-audio-upload-timeout
+chore/31-server-ci
+hotfix/42-auth-failure
+```
+
+긴급 수정은 `main`에서 분기해 `main`으로 PR을 보내고, 병합 결과를 `dev`에도 반영합니다.
+
+## 4. Worktree
+
+여러 작업을 병렬로 진행할 때 저장소 내부에 중첩 clone을 만들지 않고 상위 프로젝트의 `.worktrees/server`를 사용합니다.
+
+```bash
+git fetch origin
+git worktree add ../.worktrees/server/12-rounding-session \
+  -b feat/12-rounding-session origin/dev
+```
+
+## 5. 커밋
+
+제목 형식:
+
+```text
+<type>(#<issue-number>): <한국어 요약>
+```
+
+전체 형식:
+
+```text
+feat(#12): 라운딩 세션 생성 API 추가
+
+녹음 청크를 환자별 라운딩 세션에 연결할 수 있도록 생성 흐름을 추가합니다.
+
+- src/rounding: 세션 생성과 입력 검증 추가
+- test/rounding: 중복 요청과 잘못된 환자 ID 테스트 추가
+
+Refs: #12
+```
+
+규칙:
+
+- `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore` 중 하나를 사용합니다.
+- 제목은 실제 결과를 짧게 표현합니다.
+- 본문에는 변경 목적과 주요 파일 또는 모듈의 변경 근거를 적습니다.
+- 한 커밋에는 한 가지 목적만 포함합니다.
+- 변경 파일을 `git add <path>`로 명시하고 `git add .`, `git add -A`는 사용하지 않습니다.
+- `#0`은 Issue 운영 전 최초 부트스트랩 커밋에만 사용합니다.
+
+## 6. Pull Request
+
+제목 형식:
+
+```text
+[<Type>/#<issue-number>]: <한국어 결과>
+```
+
+예시:
+
+```text
+[Feat/#12]: 라운딩 세션 생성 API 추가
+[Fix/#27]: 오디오 업로드 timeout 처리
+```
+
+본문은 `.github/pull_request_template.md`를 사용하며 다음 정보만 사실 기반으로 작성합니다.
+
+- 해결하려는 문제 또는 배경
+- 파일 및 모듈별 실제 변경 내용
+- 화면, 커밋, 테스트 명령이나 로그 등 검증 근거
+- 잠재 위험, 범위 밖, 후속 작업
+
+Issue를 완전히 해결하면 `Closes #<number>`, 일부만 다루면 `Refs #<number>`를 사용합니다.
+
+## 7. 병합
+
+- 기능 브랜치에서 `dev`: rebase merge
+- `dev`에서 `main`: release PR의 merge commit
+- `hotfix`에서 `main`: 리뷰 후 merge하고 `dev`에 동일 변경 동기화
+- Ready 전환과 병합은 사람의 승인을 받아 진행합니다.
+
