@@ -32,9 +32,17 @@ AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 �
 
 ### 2.3 업무 추출 경계
 
+모든 Task는 병동 기준 업무일인 `workDate`를 가진다. 직접 생성은 필수 미래 `dueAt`의 `Asia/Seoul` 날짜에서 파생한다. 추출 업무는 `dueAt`이 있으면 그 local date, 없으면 근거 라운딩의 근무일을 사용한다. PATCH로 `dueAt`을 추가하거나 변경하면 `workDate`도 같은 local date로 재계산하며, `dueAt`을 null로 되돌리는 변경은 허용하지 않는다. 목록의 필수 `date`는 `workDate`를 조회한다.
+
+직접 생성의 `patientId`, `description`, `priorityOverride`는 nullable이다. `priorityOverride`는 `confirmedPriority`로 매핑하고 null 또는 생략은 미확정으로 처리한다.
+
 Rounding 구현 전에는 `TaskExtractionEvidencePort`와 deterministic Mock으로 근거 조회와 orchestration을 완성한다. 실제 Rounding repository 또는 Prisma model을 Task 모듈이 직접 참조하지 않으며, Rounding 구현 후 같은 Port의 Adapter를 통합 작업에서 연결한다.
 
 업무 후보 추출과 우선순위 제안은 하나의 extraction job 결과로 원자적으로 저장한다. AI 제안은 후보 화면에 제공하지만, 선택 반영 시 간호사가 수락하거나 수정한 값만 `confirmedPriority`가 된다.
+
+비동기 extraction 예약은 Task 입력 snapshot과 공개 `202 + jobId` replay용 request receipt, Foundation `IdempotencyRecord`, `AiJob`을 하나의 transaction에서 생성한다. Foundation `IdempotencyRecord`는 job terminal 전까지 `PROCESSING`을 유지하고, 성공 transaction에서 후보·근거 저장, leaseVersion 조건부 `AiJob=SUCCEEDED`와 함께 `COMPLETED`로 전이한다.
+
+apply는 같은 key와 같은 요청을 replay하고 같은 key의 다른 hash, 이미 반영된 candidate를 다른 key로 다시 요청하는 경우 `409`를 반환한다. 선택 후보와 override 검증, Task 생성, candidate 반영 표시와 idempotency 완료를 하나의 transaction에서 처리하며 오류 시 일부 Task를 남기지 않는다. `duplicateTaskId`가 저장된 후보는 생성하지 않고 `skippedCandidateIds`에 포함하며, 동시 요청에서도 candidate당 Task는 최대 한 건만 생성한다.
 
 ## 3. 내부 AI 연동 경계
 
@@ -47,15 +55,28 @@ Python FastAPI에서 생성한 OpenAPI artifact가 제공되기 전에는 실제
 - 사전검증 질문은 AI 제안 원문, severity, 근거 Timeline event 또는 Task ID와 사용자 답변을 분리해 저장한다.
 - severity는 `CRITICAL`과 `RECOMMENDED`로 구분한다.
 - 사용자 답변은 `NO_ISSUE`, `INCLUDE_HANDOFF`, `UNVERIFIED`, `NOT_APPLICABLE`만 허용한다.
-- 초안 생성 입력에는 사용한 질문·답변과 근거 snapshot을 포함한다. 초안 생성 이후 그 초안이 참조한 사전검증 답변은 변경하지 않는다.
+- 초안 생성 접수 transaction에서 `precheckVersion`과 질문·답변·근거 snapshot을 고정한다. 접수 성공 직후 해당 precheck 답변 변경을 `422`로 거부한다.
+- 초안 생성은 `CRITICAL` 미응답이 있으면 `422`로 거부한다.
+- `includeUnverified=true`는 `UNVERIFIED` 항목을 확인되지 않은 정보로 AI 입력과 draft warning에 포함한다. false는 SBAR 본문 입력에서 제외하되 precheck warning과 final snapshot 후보에는 보존하며 사실로 승격하지 않는다.
 - SBAR template API가 별도로 없으므로 MVP에서는 서버 allowlist의 `SBAR_DEFAULT_V1`만 허용한다.
 - AI 원문 초안, 간호사의 현재 수정본, section별 citation과 수정 여부를 구분해 보존한다.
 - Handoff는 `TimelineReader`와 `TaskQueryPort`만 사용하며 Timeline·Task repository 또는 Prisma model을 직접 참조하지 않는다.
 
+### 4.1 초안 생성 상태와 재시도
+
+Handoff root 상태는 `GENERATING`, `DRAFT`, `FINALIZED`다. 성공한 generate 결과만 `GENERATING`에서 `DRAFT`로 publish하며 실패한 결과와 부분 draft는 공개하지 않는다. 상세 조회는 latest generation job의 `QUEUED`, `PROCESSING`, `SUCCEEDED`, `FAILED`와 안전한 failure code를 제공한다.
+
+목록 API는 status query가 없을 때도 `GENERATING` root를 제외한다. 생성 진행·실패와 재시도 상태는 POST에서 반환한 `handoffId`의 상세 조회로만 확인하며 목록 filter enum은 `DRAFT`, `FINALIZED`, `ACKNOWLEDGED`를 유지한다.
+
+precheck 예약은 입력 snapshot·precheck receipt·Foundation idempotency·`AiJob`을, generate 예약은 frozen snapshot·`GENERATING` root·Foundation idempotency·`AiJob`을 각각 하나의 transaction에서 만든다. 성공 결과도 feature 결과 저장, leaseVersion 조건부 job 성공과 Foundation idempotency 완료를 하나의 transaction에서 처리한다.
+
+같은 idempotency key와 같은 생성 요청은 기존 handoff를 replay하고 같은 key의 다른 요청은 `409`다. latest generation job이 `FAILED`일 때만 새 key로 같은 frozen snapshot의 재시도를 허용하며, 이미 `DRAFT` 또는 `FINALIZED`인 handoff는 재생성하지 않는다.
+
 ## 5. 발신 근무와 수신자 결정
 
 - 요청의 `shiftId`가 현재 demo session의 dataset, ward와 actor에게 속한 유효한 발신 근무인지 검증한다.
-- 서버는 `date`와 `targetDuty`로 같은 dataset과 ward의 수신 근무자를 유일하게 결정한다.
+- demo MVP의 근무일 시간대는 `Asia/Seoul`이다. 서버는 receiver shift `startsAt`의 local date와 `targetDuty`로 같은 dataset과 ward의 수신 근무자를 유일하게 결정한다.
+- 수신 근무의 `startsAt`은 발신 근무의 `startsAt`보다 늦어야 한다. 근무 시간의 인계 overlap은 허용하지만 과거 근무를 수신자로 선택하지 않는다.
 - 수신 근무자가 없으면 `404`, 둘 이상이면 임의 선택하지 않고 `409` 도메인 오류로 거부한다.
 - 발신 간호사만 사전검증, 답변, 초안 수정과 최종 확정을 수행한다.
 - 저장된 발신 간호사와 수신 간호사는 finalized handoff를 열람할 수 있다. 질문 또는 수신 확인은 저장된 수신 간호사만 기록할 수 있다.
@@ -83,7 +104,11 @@ Python FastAPI에서 생성한 OpenAPI artifact가 제공되기 전에는 실제
 
 finalize transaction은 현재 초안, AI 원문, 사용자 수정본, citation, 질문·답변, warning과 연결 업무 read model을 final snapshot으로 복사하고 Handoff를 `FINALIZED`로 전이한다. finalized snapshot은 수정하거나 재생성하지 않는다.
 
-수신자의 최초 열람, 질문과 `ACKNOWLEDGED` 기록은 append-only 이력으로 추가한다. 이 기록은 finalized 원본 상태나 snapshot을 변경하지 않으며, 목록의 수신 상태는 별도 projection으로 계산한다.
+수신자의 최초 열람, 질문과 `ACKNOWLEDGED` 기록은 append-only 이력으로 추가한다. 이 기록은 finalized 원본 상태나 snapshot을 변경하지 않는다.
+
+목록의 `ACKNOWLEDGED`는 `FINALIZED + receiver ACKNOWLEDGED`의 파생 상태다. `status=FINALIZED` 필터는 이 projection을 제외하고 latest acknowledgement가 `QUESTIONED`이면 `FINALIZED`로 유지한다.
+
+acknowledgement는 최초에 `QUESTIONED` 또는 `ACKNOWLEDGED`를 기록할 수 있고 `QUESTIONED` 이후 `ACKNOWLEDGED` append를 허용한다. `ACKNOWLEDGED`는 terminal이며 이후 `QUESTIONED`는 `422`로 거부한다. 같은 idempotency key와 같은 요청은 replay하고 같은 key의 다른 요청은 `409`, 다른 key의 동일 status 재요청도 `409`다.
 
 ## 7. 결과 보관과 `410`
 
