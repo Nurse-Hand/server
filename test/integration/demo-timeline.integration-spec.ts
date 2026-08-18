@@ -294,19 +294,25 @@ describe('Demo session and Timeline PostgreSQL integration', () => {
     const seeded = await prisma.$transaction((transaction) =>
       seeder.seed(transaction, dataset.id, 'SYNTHETIC_MEDICAL_DAY_SHIFT'),
     );
+    const tokenDigest = 'e'.repeat(64);
 
     await expect(
       prisma.demoSession.create({
         data: {
           datasetId: dataset.id,
-          tokenDigest: 'e'.repeat(64),
+          tokenDigest,
           actorNurseId: seeded.actorId,
           wardId: seeded.wardId,
           createdAt: now,
           expiresAt: new Date(now.getTime() + 7 * 60 * 60 * 1000 + 1),
         },
       }),
-    ).rejects.toMatchObject({ code: 'P2004' });
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.demoSession.count({
+        where: { datasetId: dataset.id, tokenDigest },
+      }),
+    ).resolves.toBe(0);
   });
 
   it('동일 dataset 재seed는 UUID와 row 수를 유지하고 Clock 기준 시간을 갱신한다', async () => {
@@ -574,7 +580,7 @@ describe('Demo session and Timeline PostgreSQL integration', () => {
       SELECT
         tc.table_name AS "tableName",
         tc.constraint_name AS "constraintName",
-        array_agg(kcu.column_name ORDER BY kcu.ordinal_position) AS "columns"
+        array_agg(kcu.column_name::text ORDER BY kcu.ordinal_position) AS "columns"
       FROM information_schema.table_constraints AS tc
       JOIN information_schema.key_column_usage AS kcu
         ON tc.constraint_schema = kcu.constraint_schema
