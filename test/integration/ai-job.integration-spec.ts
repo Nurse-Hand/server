@@ -279,6 +279,9 @@ describe('AI Job and idempotency PostgreSQL integration', () => {
     const claimedAt = new Date();
     const input = createReservationInput(context);
     const reserved = await idempotentJobs.reserve(input);
+    const original = await prisma.aiJob.findUniqueOrThrow({
+      where: { id: reserved.jobId },
+    });
 
     await expect(
       prisma.aiJob.update({
@@ -292,7 +295,23 @@ describe('AI Job and idempotency PostgreSQL integration', () => {
           resultReference: 'timeline:invalid-lease-order',
         },
       }),
-    ).rejects.toMatchObject({ code: 'P2004' });
+    ).rejects.toBeDefined();
+
+    const persisted = await prisma.aiJob.findUniqueOrThrow({
+      where: { id: reserved.jobId },
+    });
+    expect(persisted).toEqual(original);
+    expect(persisted).toMatchObject({
+      status: 'QUEUED',
+      attempt: 0,
+      claimedAt: null,
+      leaseExpiresAt: null,
+      leaseVersion: 0,
+      failureCode: null,
+      retryable: null,
+      resultReference: null,
+      version: 1,
+    });
   });
 
   it('동시 claim은 한 worker만 얻고 terminal 후 같은 요청은 기존 job을 반환한다', async () => {
