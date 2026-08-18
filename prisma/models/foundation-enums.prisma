@@ -1,0 +1,39 @@
+enum DemoDatasetKind {
+  SYNTHETIC
+}
+
+enum WardMembershipRole {
+  SENDER
+  RECEIVER
+}
+
+enum ShiftDuty {
+  DAY
+  EVENING
+  NIGHT
+}
+
+enum TimelineEventSource {
+  MANUAL
+  AI_AUDIO
+}
+
+enum TimelineEventType {
+  OBSERVATION
+  MEDICATION
+  PROCEDURE
+  REPORT
+  TASK
+}
+
+enum AiJobStatus {
+  QUEUED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+}

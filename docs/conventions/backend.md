@@ -196,3 +196,5 @@ npm run openapi:check
 - 병렬 작업은 시작 시 base SHA, 소유 경로, 금지 경로, 실행할 테스트를 기록한다.
 - 통합 시 생성 OpenAPI 파일을 수동 병합하지 않고 최신 코드에서 다시 생성한다.
 - 완료 보고에는 변경 파일, 실제 동작, 실행한 검증과 결과, 확인하지 못한 항목을 포함한다.
+
+Task/Handoff 병렬 작업의 구체적인 파일 소유권과 공통 파일 금지 경계는 `docs/decisions/domain-foundation-parallel-ownership.md`를 따른다.

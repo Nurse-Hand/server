@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import {
   APPLICATION_NAME,
@@ -20,6 +21,9 @@ const REQUEST_ID_RESPONSE_HEADER = {
   schema: { type: 'string', format: 'uuid' },
 };
 
+const DEMO_SESSIONS_PATH = '/api/v1/demo-sessions';
+const HEALTH_PATH = '/api/v1/health';
+
 export function createPublicOpenApiDocument(app: INestApplication) {
   const swaggerConfig = new DocumentBuilder()
     .setTitle(APPLICATION_NAME)
@@ -33,12 +37,37 @@ export function createPublicOpenApiDocument(app: INestApplication) {
       required: false,
       schema: { type: 'string', format: 'uuid' },
     })
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'X-Demo-Session-Id',
+        description:
+          '인증 제외 기간에 보호 API의 dataset/actor/ward 범위를 복원하는 opaque demo session 값',
+      },
+      'demo-session',
+    )
+    .addSecurityRequirements('demo-session')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig, {
     operationIdFactory: (controllerKey, methodKey) =>
       `${controllerKey}_${methodKey}`,
   });
+
+  if (!app.get(ConfigService).getOrThrow<boolean>('DEMO_MODE')) {
+    delete document.paths[DEMO_SESSIONS_PATH];
+  }
+
+  const healthOperation = document.paths[HEALTH_PATH]?.get;
+  if (healthOperation) {
+    healthOperation.security = [];
+  }
+
+  const demoSessionCreate = document.paths[DEMO_SESSIONS_PATH]?.post;
+  if (demoSessionCreate) {
+    demoSessionCreate.security = [];
+  }
 
   for (const pathItem of Object.values(document.paths)) {
     for (const method of HTTP_METHODS) {
