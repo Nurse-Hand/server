@@ -1,10 +1,12 @@
 # Dependencies
 node_modules/
+src/generated/
 
 # Build and test output
 dist/
 build/
 coverage/
+.tsbuildinfo
 .nyc_output/
 
 # Runtime files
