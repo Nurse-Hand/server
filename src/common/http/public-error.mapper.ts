@@ -23,6 +23,7 @@ const APPLICATION_ERROR_STATUS: Readonly<Record<ApplicationErrorKind, number>> =
     UPSTREAM_BAD_RESPONSE: HttpStatus.BAD_GATEWAY,
     DEPENDENCY_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
     UPSTREAM_TIMEOUT: HttpStatus.GATEWAY_TIMEOUT,
+    INTERNAL_ERROR: HttpStatus.INTERNAL_SERVER_ERROR,
   };
 
 const DEFAULT_ERRORS: Readonly<Record<number, Omit<PublicError, 'status'>>> = {

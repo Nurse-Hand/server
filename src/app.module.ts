@@ -6,9 +6,13 @@ import {
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
+import { ClockModule } from './common/time/clock.module';
 import { validateEnvironment } from './config/environment';
 import { PrismaModule } from './infrastructure/database/prisma.module';
+import { AiJobsModule } from './modules/ai-jobs/ai-jobs.module';
+import { DemoModule } from './modules/demo/demo.module';
 import { HealthModule } from './modules/health/health.module';
+import { TimelineModule } from './modules/timeline/timeline.module';
 
 @Module({
   imports: [
@@ -17,8 +21,12 @@ import { HealthModule } from './modules/health/health.module';
       isGlobal: true,
       validate: validateEnvironment,
     }),
+    ClockModule,
     PrismaModule,
+    DemoModule,
+    AiJobsModule,
     HealthModule,
+    TimelineModule,
   ],
 })
 export class AppModule implements NestModule {

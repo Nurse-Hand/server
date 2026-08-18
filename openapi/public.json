@@ -1,6 +1,116 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/demo-sessions": {
+      "post": {
+        "operationId": "DemoSessionsController_create",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDemoSessionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DEMO_MODE가 비활성화된 환경",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "격리된 synthetic demo session 생성",
+        "tags": [
+          "Demo"
+        ],
+        "security": []
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_getHealth",
@@ -59,7 +169,8 @@
         "summary": "서버 liveness 확인",
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     }
   },
@@ -72,26 +183,75 @@
   "tags": [],
   "servers": [],
   "components": {
+    "securitySchemes": {
+      "demo-session": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Demo-Session-Id",
+        "description": "인증 제외 기간에 보호 API의 dataset/actor/ward 범위를 복원하는 opaque demo session 값"
+      }
+    },
     "schemas": {
-      "HealthDataDto": {
+      "CreateDemoSessionRequestDto": {
         "type": "object",
         "properties": {
-          "status": {
+          "scenarioKey": {
             "type": "string",
             "enum": [
-              "ok"
-            ],
-            "example": "ok"
-          },
-          "timestamp": {
-            "type": "string",
-            "example": "2026-08-18T00:00:00.000Z",
-            "format": "date-time"
+              "SYNTHETIC_MEDICAL_DAY_SHIFT"
+            ]
           }
         },
         "required": [
-          "status",
-          "timestamp"
+          "scenarioKey"
+        ]
+      },
+      "DemoSessionCredentialDto": {
+        "type": "object",
+        "properties": {
+          "persona": {
+            "enum": [
+              "SENDER",
+              "RECEIVER"
+            ],
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "X-Demo-Session-Id header로 전달할 1회 발급 opaque session 값",
+            "example": "syntheticOpaqueSessionValueNotPersistedAsPlaintext"
+          }
+        },
+        "required": [
+          "persona",
+          "sessionId"
+        ]
+      },
+      "DemoSessionDataDto": {
+        "type": "object",
+        "properties": {
+          "scenarioKey": {
+            "type": "string",
+            "enum": [
+              "SYNTHETIC_MEDICAL_DAY_SHIFT"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-18T01:00:00.000Z"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DemoSessionCredentialDto"
+            }
+          }
+        },
+        "required": [
+          "scenarioKey",
+          "expiresAt",
+          "sessions"
         ]
       },
       "ApiMetaDto": {
@@ -106,11 +266,11 @@
           "requestId"
         ]
       },
-      "HealthResponseDto": {
+      "DemoSessionResponseDto": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/HealthDataDto"
+            "$ref": "#/components/schemas/DemoSessionDataDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ApiMetaDto"
@@ -156,7 +316,48 @@
           "error",
           "meta"
         ]
+      },
+      "HealthDataDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ],
+            "example": "ok"
+          },
+          "timestamp": {
+            "type": "string",
+            "example": "2026-08-18T00:00:00.000Z",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp"
+        ]
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HealthDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       }
     }
-  }
+  },
+  "security": [
+    {
+      "demo-session": []
+    }
+  ]
 }

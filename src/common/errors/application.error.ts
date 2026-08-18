@@ -9,6 +9,7 @@ export const APPLICATION_ERROR_KINDS = [
   'UPSTREAM_BAD_RESPONSE',
   'DEPENDENCY_UNAVAILABLE',
   'UPSTREAM_TIMEOUT',
+  'INTERNAL_ERROR',
 ] as const;
 
 export type ApplicationErrorKind = (typeof APPLICATION_ERROR_KINDS)[number];

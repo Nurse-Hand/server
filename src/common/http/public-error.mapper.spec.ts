@@ -39,4 +39,18 @@ describe('mapExceptionToPublicError', () => {
       message: '서버 오류가 발생했습니다.',
     });
   });
+
+  it('안정적인 내부 invariant 오류를 500으로 변환한다', () => {
+    const error = new ApplicationError({
+      code: 'AI_JOB_INVARIANT_VIOLATION',
+      kind: 'INTERNAL_ERROR',
+      publicMessage: 'AI 작업 상태를 안전하게 변경할 수 없습니다.',
+    });
+
+    expect(mapExceptionToPublicError(error)).toEqual({
+      status: 500,
+      code: 'AI_JOB_INVARIANT_VIOLATION',
+      message: 'AI 작업 상태를 안전하게 변경할 수 없습니다.',
+    });
+  });
 });

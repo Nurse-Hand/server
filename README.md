@@ -30,6 +30,15 @@ npm run openapi:check
 
 `openapi/public.json`은 생성 결과이므로 직접 수정하지 않습니다. Controller 또는 DTO를 변경한 뒤 `npm run openapi:generate`로 갱신합니다.
 
+실제 PostgreSQL constraint와 동시성은 별도 명령으로 검증합니다. 이 명령은 `TEST_DATABASE_URL`이 없거나 database/schema가 안전한 `nh_it_*` prefix가 아니면 즉시 실패하며, SQLite나 로컬 기본 DB로 대체하지 않습니다.
+
+```powershell
+$env:TEST_DATABASE_URL = 'postgresql://nh_it_user:nh_it_password@localhost:5432/nh_it_nurse_hand'
+npm run test:integration
+```
+
+runner는 격리된 `nh_it_*` schema를 생성해 migration, seed, 재seed, PostgreSQL integration test를 실행한 뒤 검증된 그 schema만 정리합니다.
+
 ## 문서
 
 - [GitHub 협업 컨벤션](docs/conventions/github.md)
@@ -38,6 +47,7 @@ npm run openapi:check
 - [API 계약 관리 규칙](docs/conventions/api-contract.md)
 - [Backend 구현 컨벤션](docs/conventions/backend.md)
 - [Prisma CLI 의존성 보안 예외](docs/decisions/prisma-cli-advisory.md)
+- [Domain Foundation 이후 병렬 작업 소유 규칙](docs/decisions/domain-foundation-parallel-ownership.md)
 
 ## 아키텍처 경계
 
@@ -46,4 +56,3 @@ npm run openapi:check
 - React Native 앱: 로컬 VAD, 녹음 제어, 사용자 확인 및 수정 UI
 
 환자 정보와 원본 음성은 민감정보로 취급합니다. 실제 데이터, 인증정보, 음성 파일을 저장소나 로그에 남기지 않습니다.
-

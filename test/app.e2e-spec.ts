@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { Controller, Get, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -7,12 +7,21 @@ import { configureApplication } from '../src/bootstrap/configure-application';
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+@Controller('_test/protected')
+class ProtectedProbeController {
+  @Get()
+  read(): { exposed: boolean } {
+    return { exposed: true };
+  }
+}
+
 describe('App (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
+      controllers: [ProtectedProbeController],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -64,6 +73,29 @@ describe('App (e2e)', () => {
       meta: {
         requestId: expect.stringMatching(UUID_PATTERN),
       },
+    });
+  });
+
+  it('DEMO_MODE=false이면 demo session route를 404로 숨긴다', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/demo-sessions')
+      .send({ scenarioKey: 'SYNTHETIC_MEDICAL_DAY_SHIFT' })
+      .expect(404);
+
+    expect(response.body.error).toEqual({
+      code: 'ROUTE_NOT_FOUND',
+      message: '요청한 경로를 찾을 수 없습니다.',
+    });
+  });
+
+  it('DEMO_MODE=false이면 skip되지 않은 새 route도 전역 guard가 404로 막는다', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/_test/protected')
+      .expect(404);
+
+    expect(response.body.error).toEqual({
+      code: 'ROUTE_NOT_FOUND',
+      message: '요청한 경로를 찾을 수 없습니다.',
     });
   });
 });
