@@ -29,10 +29,19 @@ async function main() {
     run('npx', ['prisma', 'migrate', 'deploy'], integrationEnvironment);
     run('npx', ['prisma', 'db', 'seed'], integrationEnvironment);
     run('npx', ['prisma', 'db', 'seed'], integrationEnvironment);
+    const jestEnvironment = {
+      ...integrationEnvironment,
+      NODE_OPTIONS: [
+        integrationEnvironment.NODE_OPTIONS,
+        '--experimental-vm-modules',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    };
     run(
       'npx',
       ['jest', '--config', 'test/jest-integration.config.cjs', '--runInBand'],
-      integrationEnvironment,
+      jestEnvironment,
     );
   } finally {
     if (schemaCreated) {
