@@ -59,6 +59,8 @@ git worktree add ../.worktrees/server/12-rounding-session \
   -b feat/12-rounding-session origin/dev
 ```
 
+Codex 앱이 별도의 관리형 worktree를 생성한 경우에는 앱이 관리하는 격리 경로를 허용합니다. 어떤 방식이든 두 작업이 같은 worktree를 공유하지 않습니다.
+
 ## 5. 커밋
 
 제목 형식:
@@ -88,6 +90,8 @@ Refs: #12
 - 한 커밋에는 한 가지 목적만 포함합니다.
 - 변경 파일을 `git add <path>`로 명시하고 `git add .`, `git add -A`는 사용하지 않습니다.
 - `#0`은 Issue 운영 전 최초 부트스트랩 커밋에만 사용합니다.
+- `hotfix`는 브랜치 type이며, 해당 브랜치의 버그 수정 커밋에는 `fix`를 사용합니다.
+- `style`은 커밋 type으로만 사용하며, 스타일 변경 브랜치는 `chore`를 사용합니다.
 
 ## 6. Pull Request
 
