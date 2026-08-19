@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -11,6 +13,7 @@ import {
   Req,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -34,15 +37,25 @@ import { TaskIdempotencyKeyPipe } from './task-idempotency-key.pipe';
 import {
   CreateTaskRequestDto,
   ListTasksQueryDto,
+  ReserveTaskExtractionRequestDto,
   UpdateTaskRequestDto,
 } from './task-request.dto';
 import {
+  TaskExtractionJobResponseDto,
+  TaskExtractionReservationResponseDto,
   TaskListResponseDto,
   TaskResponseDto,
   type TaskDataDto,
+  type TaskExtractionJobDataDto,
+  type TaskExtractionReservationDataDto,
   type TaskListDataDto,
 } from './task-response.dto';
-import { toTaskDataDto, toTaskListDataDto } from './task-response.mapper';
+import {
+  toTaskDataDto,
+  toTaskExtractionJobDataDto,
+  toTaskExtractionReservationDataDto,
+  toTaskListDataDto,
+} from './task-response.mapper';
 
 const IDEMPOTENCY_HEADER = {
   description: '같은 actor와 endpoint에서 요청 replay를 식별하는 opaque key',
@@ -102,6 +115,48 @@ export class TasksController {
     );
 
     return toTaskDataDto(result.task);
+  }
+
+  @Post('task-extraction-jobs')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: '라운딩 근거에서 업무 후보 추출 작업 접수' })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiAcceptedResponse({ type: TaskExtractionReservationResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiConflictResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async reserveExtraction(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Headers('x-idempotency-key') idempotencyKeyHeader: unknown,
+    @Req() request: RequestWithContext,
+    @Body() body: ReserveTaskExtractionRequestDto,
+  ): Promise<TaskExtractionReservationDataDto> {
+    const idempotencyKey = IDEMPOTENCY_KEY_PIPE.transform(idempotencyKeyHeader);
+    const reserved = await this.taskService.reserveExtraction(
+      context,
+      idempotencyKey,
+      ensureRequestId(request),
+      body,
+    );
+
+    return toTaskExtractionReservationDataDto(reserved);
+  }
+
+  @Get('task-extraction-jobs/:jobId')
+  @ApiOperation({ summary: '업무 후보 추출 작업 상태와 결과 조회' })
+  @ApiOkResponse({ type: TaskExtractionJobResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async findExtractionJob(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Param('jobId', UUID_V4_PIPE) jobId: string,
+  ): Promise<TaskExtractionJobDataDto> {
+    return toTaskExtractionJobDataDto(
+      await this.taskService.findExtractionJob(context, jobId),
+    );
   }
 
   @Patch('tasks/:taskId')

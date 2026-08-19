@@ -1,12 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { createCanonicalRequestHash } from '../../../common/idempotency/canonical-request-hash';
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
+  TaskExtractionEvidenceEmptyError,
+  TaskExtractionEvidenceInvalidError,
 } from '../domain/task.errors';
 import {
+  TASK_EVIDENCE_SOURCE_TYPES,
+  TASK_EXTRACTION_MAX_ATTEMPTS,
   TASK_LIST_SORTS,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -19,9 +24,16 @@ import {
   parseTaskWorkDate,
 } from '../domain/task-work-date';
 import {
+  TASK_EXTRACTION_EVIDENCE_PORT,
+  type TaskExtractionEvidence,
+  type TaskExtractionEvidencePort,
+  type TaskExtractionEvidenceSnapshot,
+} from './ports/task-extraction-evidence.port';
+import {
   TASK_REPOSITORY,
   type CreateTaskResult,
   type ListTasksResult,
+  type TaskExtractionJobView,
   type TaskRepository,
   type TaskView,
 } from './ports/task.repository';
@@ -43,6 +55,11 @@ type CreateTaskCommand = {
   priorityOverride?: TaskPriority | null;
 };
 
+type ReserveExtractionCommand = {
+  roundingSessionId: string;
+  recordIds: readonly string[];
+};
+
 type UpdateTaskCommand = {
   version: number;
   title?: string;
@@ -53,12 +70,15 @@ type UpdateTaskCommand = {
 };
 
 const TIME_ZONE_SUFFIX_PATTERN = /T.*(?:Z|[+-]\d{2}:\d{2})$/;
+const TASK_EXTRACTION_BATCH_MAX_SIZE = 100;
 
 @Injectable()
 export class TaskService {
   constructor(
     @Inject(TASK_REPOSITORY)
     private readonly repository: TaskRepository,
+    @Inject(TASK_EXTRACTION_EVIDENCE_PORT)
+    private readonly evidencePort: TaskExtractionEvidencePort,
     private readonly clock: Clock,
   ) {}
 
@@ -145,6 +165,79 @@ export class TaskService {
       confirmedPriority,
       now,
     });
+  }
+
+  async reserveExtraction(
+    context: DemoSessionContext,
+    idempotencyKey: string,
+    requestId: string,
+    command: ReserveExtractionCommand,
+  ) {
+    assertIdempotencyKey(idempotencyKey);
+    const recordIds = [...command.recordIds];
+
+    if (
+      !isUUID(command.roundingSessionId, '4') ||
+      recordIds.length === 0 ||
+      recordIds.length > TASK_EXTRACTION_BATCH_MAX_SIZE ||
+      new Set(recordIds).size !== recordIds.length ||
+      recordIds.some((recordId) => !isUUID(recordId, '4'))
+    ) {
+      throw new TaskCommandInvalidError();
+    }
+
+    const normalizedRecordIds = [...recordIds].sort();
+    const requestHash = createCanonicalRequestHash({
+      path: {},
+      query: {},
+      body: {
+        recordIds: normalizedRecordIds,
+        roundingSessionId: command.roundingSessionId,
+      },
+    });
+    const replay = await this.repository.findExtractionReservationReplay({
+      context,
+      idempotencyKey,
+      requestHash,
+    });
+
+    if (replay !== null) {
+      return replay;
+    }
+
+    const now = this.clock.now();
+    const snapshot = await this.evidencePort.read({
+      context,
+      roundingSessionId: command.roundingSessionId,
+      recordIds: normalizedRecordIds,
+    });
+
+    assertEvidenceSnapshot(
+      snapshot,
+      command.roundingSessionId,
+      normalizedRecordIds,
+    );
+
+    if (snapshot.evidence.length === 0) {
+      throw new TaskExtractionEvidenceEmptyError();
+    }
+
+    return this.repository.reserveExtraction({
+      context,
+      idempotencyKey,
+      requestHash,
+      requestId,
+      maxAttempts: TASK_EXTRACTION_MAX_ATTEMPTS,
+      evidenceSnapshot: snapshot,
+      now,
+    });
+  }
+
+  findExtractionJob(
+    context: DemoSessionContext,
+    jobId: string,
+  ): Promise<TaskExtractionJobView> {
+    return this.repository.findExtractionJob(context, jobId);
   }
 
   update(
@@ -272,5 +365,67 @@ function assertPriorityOrNull(
 function assertIdempotencyKey(value: string): void {
   if (typeof value !== 'string' || !/^[\x21-\x7e]{1,128}$/.test(value)) {
     throw new TaskCommandInvalidError('X-Idempotency-Key가 올바르지 않습니다.');
+  }
+}
+
+function assertEvidenceSnapshot(
+  snapshot: unknown,
+  expectedSessionId: string,
+  expectedRecordIds: readonly string[],
+): asserts snapshot is TaskExtractionEvidenceSnapshot {
+  if (
+    typeof snapshot !== 'object' ||
+    snapshot === null ||
+    !('roundingSessionId' in snapshot) ||
+    snapshot.roundingSessionId !== expectedSessionId ||
+    !('evidence' in snapshot) ||
+    !Array.isArray(snapshot.evidence)
+  ) {
+    throw new TaskExtractionEvidenceInvalidError();
+  }
+
+  const expectedIds = new Set(expectedRecordIds);
+  const actualRecordIds = new Set<string>();
+  const actualSourceIds = new Set<string>();
+
+  for (const value of snapshot.evidence) {
+    if (typeof value !== 'object' || value === null) {
+      throw new TaskExtractionEvidenceInvalidError();
+    }
+
+    const evidence = value as Partial<TaskExtractionEvidence>;
+
+    if (
+      typeof evidence.recordId !== 'string' ||
+      !isUUID(evidence.recordId, '4') ||
+      !expectedIds.has(evidence.recordId) ||
+      actualRecordIds.has(evidence.recordId) ||
+      typeof evidence.sourceType !== 'string' ||
+      !TASK_EVIDENCE_SOURCE_TYPES.includes(evidence.sourceType) ||
+      typeof evidence.sourceId !== 'string' ||
+      !isUUID(evidence.sourceId, '4') ||
+      actualSourceIds.has(evidence.sourceId) ||
+      (evidence.patientId !== null &&
+        (typeof evidence.patientId !== 'string' ||
+          !isUUID(evidence.patientId, '4'))) ||
+      !(evidence.workDate instanceof Date) ||
+      Number.isNaN(evidence.workDate.getTime()) ||
+      evidence.workDate.toISOString().slice(11) !== '00:00:00.000Z' ||
+      typeof evidence.summary !== 'string' ||
+      evidence.summary.trim().length === 0 ||
+      evidence.summary.length > 500
+    ) {
+      throw new TaskExtractionEvidenceInvalidError();
+    }
+
+    actualRecordIds.add(evidence.recordId);
+    actualSourceIds.add(evidence.sourceId);
+  }
+
+  if (
+    actualRecordIds.size !== 0 &&
+    actualRecordIds.size !== expectedRecordIds.length
+  ) {
+    throw new TaskExtractionEvidenceInvalidError();
   }
 }

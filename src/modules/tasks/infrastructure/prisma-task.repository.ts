@@ -8,12 +8,18 @@ import {
 } from '../../../common/idempotency/idempotency.errors';
 import { Clock } from '../../../common/time/clock';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
+import { AiJobClaimLostError } from '../../ai-jobs/domain/ai-job.errors';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type {
+  CompleteTaskExtractionInput,
   CreateTaskInput,
   CreateTaskResult,
   ListTasksInput,
   ListTasksResult,
+  ReserveTaskExtractionInput,
+  ReserveTaskExtractionResult,
+  TaskExtractionJobView,
+  TaskExtractionWorkItem,
   TaskRepository,
   TaskView,
   UpdateTaskInput,
@@ -33,7 +39,9 @@ import {
 import { decodeTaskCursor, encodeTaskCursor } from '../domain/task-cursor';
 import {
   TASK_CREATE_OPERATION,
+  TASK_EXTRACTION_OPERATION,
   type TaskAiConfidence,
+  type TaskEvidenceSourceType,
   type TaskPriority,
 } from '../domain/task.types';
 
@@ -371,6 +379,405 @@ export class PrismaTaskRepository implements TaskRepository {
     });
   }
 
+  async reserveExtraction(
+    input: ReserveTaskExtractionInput,
+  ): Promise<ReserveTaskExtractionResult> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await this.findIdempotencyRecord(
+          transaction,
+          input.context,
+          TASK_EXTRACTION_OPERATION,
+          input.idempotencyKey,
+        );
+
+        if (existing) {
+          return this.resolveExtractionReplay(transaction, input, existing);
+        }
+
+        const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
+          transaction,
+          input.context,
+          input.now,
+        );
+        const record = await transaction.idempotencyRecord.create({
+          data: {
+            ...input.context,
+            operation: TASK_EXTRACTION_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+          },
+          select: { id: true },
+        });
+        const aiJob = await transaction.aiJob.create({
+          data: {
+            ...input.context,
+            operation: TASK_EXTRACTION_OPERATION,
+            idempotencyRecordId: record.id,
+            requestId: input.requestId,
+            maxAttempts: input.maxAttempts,
+          },
+          select: { id: true },
+        });
+        await transaction.taskExtractionJob.create({
+          data: {
+            id: aiJob.id,
+            ...input.context,
+            operation: TASK_EXTRACTION_OPERATION,
+            roundingSessionId: input.evidenceSnapshot.roundingSessionId,
+            inputSnapshot: {
+              requestedAt: input.now.toISOString(),
+              currentDutyEndsAt: currentDutyEndsAt.toISOString(),
+              roundingSessionId: input.evidenceSnapshot.roundingSessionId,
+              evidence: input.evidenceSnapshot.evidence.map((evidence) => ({
+                recordId: evidence.recordId,
+                sourceType: evidence.sourceType,
+                sourceId: evidence.sourceId,
+                patientId: evidence.patientId,
+                workDate: evidence.workDate.toISOString().slice(0, 10),
+              })),
+            },
+          },
+        });
+        await transaction.taskExtractionEvidence.createMany({
+          data: input.evidenceSnapshot.evidence.map((evidence) => ({
+            datasetId: input.context.datasetId,
+            jobId: aiJob.id,
+            roundingRecordId: evidence.recordId,
+            ...toStoredEvidenceColumns(evidence),
+            patientId: evidence.patientId,
+            workDate: evidence.workDate,
+            summary: evidence.summary,
+          })),
+        });
+        await transaction.taskExtractionRequestReceipt.create({
+          data: {
+            ...input.context,
+            operation: TASK_EXTRACTION_OPERATION,
+            idempotencyRecordId: record.id,
+            jobId: aiJob.id,
+          },
+        });
+
+        return { jobId: aiJob.id, status: 'QUEUED', isReplay: false };
+      });
+    } catch (error: unknown) {
+      if (hasPrismaErrorCode(error, 'P2003')) {
+        throw new TaskNotFoundError();
+      }
+
+      if (!hasPrismaErrorCode(error, 'P2002')) {
+        throw error;
+      }
+
+      const existing = await this.findIdempotencyRecord(
+        this.prisma,
+        input.context,
+        TASK_EXTRACTION_OPERATION,
+        input.idempotencyKey,
+      );
+
+      if (!existing) {
+        throw error;
+      }
+
+      return this.resolveExtractionReplay(this.prisma, input, existing);
+    }
+  }
+
+  async findExtractionReservationReplay(input: {
+    context: DemoSessionContext;
+    idempotencyKey: string;
+    requestHash: string;
+  }): Promise<ReserveTaskExtractionResult | null> {
+    const existing = await this.findIdempotencyRecord(
+      this.prisma,
+      input.context,
+      TASK_EXTRACTION_OPERATION,
+      input.idempotencyKey,
+    );
+
+    if (!existing) {
+      return null;
+    }
+
+    return this.resolveExtractionReplay(this.prisma, input, existing);
+  }
+
+  async findExtractionWorkItem(
+    datasetId: string,
+    jobId: string,
+  ): Promise<TaskExtractionWorkItem> {
+    const [job, aiJob] = await Promise.all([
+      this.prisma.taskExtractionJob.findFirst({
+        where: { id: jobId, datasetId, operation: TASK_EXTRACTION_OPERATION },
+        include: {
+          evidence: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              roundingRecordId: true,
+              sourceType: true,
+              timelineEventId: true,
+              sourceTaskId: true,
+              patientId: true,
+              workDate: true,
+              summary: true,
+            },
+          },
+        },
+      }),
+      this.prisma.aiJob.findFirst({
+        where: {
+          id: jobId,
+          datasetId,
+          operation: TASK_EXTRACTION_OPERATION,
+        },
+        select: {
+          actorId: true,
+          wardId: true,
+          requestId: true,
+        },
+      }),
+    ]);
+
+    if (
+      !job ||
+      !aiJob ||
+      job.actorId !== aiJob.actorId ||
+      job.wardId !== aiJob.wardId
+    ) {
+      throw new TaskPersistenceInvariantError();
+    }
+
+    return {
+      jobId: job.id,
+      datasetId: job.datasetId,
+      actorId: job.actorId,
+      wardId: job.wardId,
+      requestId: aiJob.requestId,
+      evidence: job.evidence.map(
+        ({
+          roundingRecordId,
+          sourceType,
+          timelineEventId,
+          sourceTaskId,
+          ...evidence
+        }) => ({
+          ...evidence,
+          recordId: roundingRecordId,
+          ...readStoredEvidenceReference({
+            sourceType,
+            timelineEventId,
+            sourceTaskId,
+          }),
+        }),
+      ),
+    };
+  }
+
+  async completeExtraction(input: CompleteTaskExtractionInput): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      const aiJob = await transaction.aiJob.findFirst({
+        where: {
+          id: input.claim.jobId,
+          datasetId: input.claim.datasetId,
+          actorId: input.claim.actorId,
+          wardId: input.claim.wardId,
+          operation: TASK_EXTRACTION_OPERATION,
+          status: 'PROCESSING',
+          leaseVersion: input.claim.leaseVersion,
+          leaseExpiresAt: { gt: input.now },
+        },
+        select: { idempotencyRecordId: true },
+      });
+
+      if (!aiJob) {
+        throw new AiJobClaimLostError();
+      }
+
+      const featureJob = await transaction.taskExtractionJob.findFirst({
+        where: {
+          id: input.claim.jobId,
+          datasetId: input.claim.datasetId,
+          actorId: input.claim.actorId,
+          wardId: input.claim.wardId,
+          operation: TASK_EXTRACTION_OPERATION,
+        },
+        include: { evidence: true },
+      });
+
+      if (!featureJob) {
+        throw new TaskPersistenceInvariantError();
+      }
+
+      const evidenceBySourceId = new Map(
+        featureJob.evidence.map((evidence) => [
+          readStoredEvidenceReference(evidence).sourceId,
+          evidence,
+        ]),
+      );
+      const duplicateTasks = await this.findDuplicateTasks(transaction, input);
+
+      for (const candidate of input.candidates) {
+        const evidence = candidate.evidenceSourceIds.map((sourceId) =>
+          evidenceBySourceId.get(sourceId),
+        );
+
+        if (evidence.some((item) => item === undefined)) {
+          throw new TaskPersistenceInvariantError();
+        }
+
+        const created = await transaction.taskExtractionCandidate.create({
+          data: {
+            datasetId: input.claim.datasetId,
+            jobId: input.claim.jobId,
+            patientId: candidate.patientId,
+            title: candidate.title,
+            description: candidate.description,
+            dueAt: candidate.dueAt,
+            workDate: candidate.workDate,
+            aiSuggestedPriority: candidate.suggestedPriority,
+            aiReasons: [...candidate.reasons],
+            aiConfidence: candidate.confidence,
+            duplicateTaskId:
+              duplicateTasks.get(duplicateKey(candidate)) ?? null,
+          },
+          select: { id: true },
+        });
+        await transaction.taskExtractionCandidateEvidence.createMany({
+          data: evidence.map((item) => ({
+            datasetId: input.claim.datasetId,
+            jobId: input.claim.jobId,
+            candidateId: created.id,
+            evidenceId: item!.id,
+          })),
+        });
+      }
+
+      const completed = await transaction.aiJob.updateMany({
+        where: {
+          id: input.claim.jobId,
+          datasetId: input.claim.datasetId,
+          status: 'PROCESSING',
+          leaseVersion: input.claim.leaseVersion,
+          leaseExpiresAt: { gt: input.now },
+        },
+        data: {
+          status: 'SUCCEEDED',
+          resultReference: input.claim.jobId,
+          failureCode: null,
+          retryable: null,
+          version: { increment: 1 },
+          updatedAt: input.now,
+        },
+      });
+
+      if (completed.count !== 1) {
+        throw new AiJobClaimLostError();
+      }
+
+      const idempotency = await transaction.idempotencyRecord.updateMany({
+        where: {
+          id: aiJob.idempotencyRecordId,
+          datasetId: input.claim.datasetId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'COMPLETED',
+          resultReference: input.claim.jobId,
+          updatedAt: input.now,
+        },
+      });
+
+      if (idempotency.count !== 1) {
+        throw new TaskPersistenceInvariantError();
+      }
+    });
+  }
+
+  async findExtractionJob(
+    context: DemoSessionContext,
+    jobId: string,
+  ): Promise<TaskExtractionJobView> {
+    const [featureJob, aiJob] = await Promise.all([
+      this.prisma.taskExtractionJob.findFirst({
+        where: {
+          id: jobId,
+          datasetId: context.datasetId,
+          actorId: context.actorId,
+          wardId: context.wardId,
+          operation: TASK_EXTRACTION_OPERATION,
+        },
+        include: {
+          candidates: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            include: {
+              evidence: {
+                include: {
+                  evidence: {
+                    select: {
+                      sourceType: true,
+                      timelineEventId: true,
+                      sourceTaskId: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.aiJob.findFirst({
+        where: {
+          id: jobId,
+          datasetId: context.datasetId,
+          actorId: context.actorId,
+          wardId: context.wardId,
+          operation: TASK_EXTRACTION_OPERATION,
+        },
+        select: {
+          status: true,
+          failureCode: true,
+          retryable: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    if (!featureJob || !aiJob) {
+      throw new TaskNotFoundError();
+    }
+
+    return {
+      jobId,
+      status: aiJob.status,
+      failureCode: aiJob.failureCode,
+      retryable: aiJob.retryable,
+      candidates:
+        aiJob.status === 'SUCCEEDED'
+          ? featureJob.candidates.map((candidate) => ({
+              id: candidate.id,
+              patientId: candidate.patientId,
+              title: candidate.title,
+              description: candidate.description,
+              dueAt: candidate.dueAt,
+              workDate: candidate.workDate,
+              suggestedPriority: candidate.aiSuggestedPriority,
+              reasons: candidate.aiReasons,
+              confidence: candidate.aiConfidence,
+              evidence: candidate.evidence.map(({ evidence }) =>
+                readStoredEvidenceReference(evidence),
+              ),
+              duplicateTaskId: candidate.duplicateTaskId,
+            }))
+          : [],
+      createdAt: aiJob.createdAt,
+      updatedAt: aiJob.updatedAt,
+    };
+  }
+
   private async resolveCreateReplay(
     client: DatabaseClient,
     input: CreateTaskInput,
@@ -401,6 +808,52 @@ export class PrismaTaskRepository implements TaskRepository {
       task: deserializeTaskView(receipt.responseSnapshot),
       isReplay: true,
     };
+  }
+
+  private async resolveExtractionReplay(
+    client: DatabaseClient,
+    input: Pick<
+      ReserveTaskExtractionInput,
+      'context' | 'idempotencyKey' | 'requestHash'
+    >,
+    record: IdempotencyRow,
+  ): Promise<ReserveTaskExtractionResult> {
+    assertIdempotencyMatch(input.context.wardId, input.requestHash, record);
+    const receipt = await client.taskExtractionRequestReceipt.findFirst({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        operation: TASK_EXTRACTION_OPERATION,
+        idempotencyRecordId: record.id,
+      },
+      select: { jobId: true },
+    });
+
+    if (!receipt) {
+      throw new IdempotencyInvariantViolationError();
+    }
+
+    const job = await client.aiJob.findFirst({
+      where: {
+        id: receipt.jobId,
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        operation: TASK_EXTRACTION_OPERATION,
+      },
+      select: { status: true },
+    });
+
+    if (
+      !job ||
+      (record.status === 'COMPLETED' &&
+        record.resultReference !== receipt.jobId)
+    ) {
+      throw new IdempotencyInvariantViolationError();
+    }
+
+    return { jobId: receipt.jobId, status: job.status, isReplay: true };
   }
 
   private findIdempotencyRecord(
@@ -500,6 +953,40 @@ export class PrismaTaskRepository implements TaskRepository {
     }
   }
 
+  private async findDuplicateTasks(
+    transaction: Prisma.TransactionClient,
+    input: CompleteTaskExtractionInput,
+  ): Promise<Map<string, string>> {
+    if (input.candidates.length === 0) {
+      return new Map();
+    }
+
+    const rows = await transaction.task.findMany({
+      where: {
+        datasetId: input.claim.datasetId,
+        wardId: input.claim.wardId,
+        actorId: input.claim.actorId,
+        status: { in: ['TODO', 'IN_PROGRESS'] },
+        OR: input.candidates.map((candidate) => ({
+          patientId: candidate.patientId,
+          title: candidate.title,
+          dueAt: candidate.dueAt,
+          workDate: candidate.workDate,
+        })),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        patientId: true,
+        title: true,
+        dueAt: true,
+        workDate: true,
+      },
+    });
+
+    return new Map(rows.map((row) => [duplicateKey(row), row.id]));
+  }
+
   private toTaskView(
     row: TaskRow,
     now: Date,
@@ -537,6 +1024,66 @@ function assertIdempotencyMatch(
   ) {
     throw new IdempotencyKeyReusedError();
   }
+}
+
+function duplicateKey(input: {
+  patientId: string | null;
+  title: string;
+  dueAt: Date | null;
+  workDate: Date;
+}): string {
+  return JSON.stringify({
+    patientId: input.patientId,
+    title: input.title,
+    dueAt: input.dueAt?.toISOString() ?? null,
+    workDate: input.workDate.toISOString().slice(0, 10),
+  });
+}
+
+type StoredEvidenceColumns = {
+  sourceType: TaskEvidenceSourceType;
+  timelineEventId: string | null;
+  sourceTaskId: string | null;
+};
+
+function toStoredEvidenceColumns(input: {
+  sourceType: TaskEvidenceSourceType;
+  sourceId: string;
+}): StoredEvidenceColumns {
+  return input.sourceType === 'TIMELINE_EVENT'
+    ? {
+        sourceType: input.sourceType,
+        timelineEventId: input.sourceId,
+        sourceTaskId: null,
+      }
+    : {
+        sourceType: input.sourceType,
+        timelineEventId: null,
+        sourceTaskId: input.sourceId,
+      };
+}
+
+function readStoredEvidenceReference(input: StoredEvidenceColumns): {
+  sourceType: TaskEvidenceSourceType;
+  sourceId: string;
+} {
+  if (
+    input.sourceType === 'TIMELINE_EVENT' &&
+    input.timelineEventId !== null &&
+    input.sourceTaskId === null
+  ) {
+    return { sourceType: input.sourceType, sourceId: input.timelineEventId };
+  }
+
+  if (
+    input.sourceType === 'TASK' &&
+    input.sourceTaskId !== null &&
+    input.timelineEventId === null
+  ) {
+    return { sourceType: input.sourceType, sourceId: input.sourceTaskId };
+  }
+
+  throw new TaskPersistenceInvariantError();
 }
 
 function serializeTaskView(task: TaskView): Prisma.InputJsonObject {

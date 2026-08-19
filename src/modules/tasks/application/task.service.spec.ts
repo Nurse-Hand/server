@@ -5,7 +5,14 @@ import type { DemoSessionContext } from '../../demo/application/demo-session-con
 import {
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
+  TaskExtractionEvidenceEmptyError,
+  TaskExtractionEvidenceInvalidError,
 } from '../domain/task.errors';
+import { TASK_EXTRACTION_MAX_ATTEMPTS } from '../domain/task.types';
+import type {
+  TaskExtractionEvidencePort,
+  TaskExtractionEvidenceSnapshot,
+} from './ports/task-extraction-evidence.port';
 import type { TaskRepository, TaskView } from './ports/task.repository';
 import { TaskService } from './task.service';
 
@@ -16,6 +23,10 @@ const CONTEXT: DemoSessionContext = {
 };
 const NOW = new Date('2026-08-19T00:00:00.000Z');
 const REQUEST_ID = '00000000-0000-4000-8000-000000000401';
+const ROUNDING_SESSION_ID = '00000000-0000-4000-8000-000000000501';
+const RECORD_ID_A = '00000000-0000-4000-8000-000000000601';
+const RECORD_ID_B = '00000000-0000-4000-8000-000000000602';
+const JOB_ID = '00000000-0000-4000-8000-000000000701';
 
 class FixedClock extends Clock {
   constructor(private readonly current: Date) {
@@ -29,11 +40,16 @@ class FixedClock extends Clock {
 
 describe('TaskService', () => {
   let repository: jest.Mocked<TaskRepository>;
+  let evidencePort: jest.Mocked<TaskExtractionEvidencePort>;
   let service: TaskService;
 
   beforeEach(() => {
     repository = createRepositoryMock();
-    service = new TaskService(repository, new FixedClock(NOW));
+    evidencePort = { read: jest.fn() };
+    evidencePort.read.mockResolvedValue(
+      createEvidenceSnapshot([RECORD_ID_A, RECORD_ID_B]),
+    );
+    service = new TaskService(repository, evidencePort, new FixedClock(NOW));
   });
 
   describe('list', () => {
@@ -218,6 +234,143 @@ describe('TaskService', () => {
     });
   });
 
+  describe('reserveExtraction', () => {
+    it('저장된 PROCESSING receipt는 evidence를 다시 읽지 않고 replay한다', async () => {
+      repository.findExtractionReservationReplay.mockResolvedValue({
+        jobId: JOB_ID,
+        status: 'PROCESSING',
+        isReplay: true,
+      });
+
+      await expect(
+        service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+          roundingSessionId: ROUNDING_SESSION_ID,
+          recordIds: [RECORD_ID_A],
+        }),
+      ).resolves.toEqual({
+        jobId: JOB_ID,
+        status: 'PROCESSING',
+        isReplay: true,
+      });
+      expect(evidencePort.read).not.toHaveBeenCalled();
+      expect(repository.reserveExtraction).not.toHaveBeenCalled();
+    });
+
+    it('record ID 순서를 정규화해 evidence snapshot과 같은 hash를 예약한다', async () => {
+      evidencePort.read.mockImplementation(({ roundingSessionId, recordIds }) =>
+        Promise.resolve(createEvidenceSnapshot(recordIds, roundingSessionId)),
+      );
+
+      await service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+        roundingSessionId: ROUNDING_SESSION_ID,
+        recordIds: [RECORD_ID_B, RECORD_ID_A],
+      });
+      await service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+        roundingSessionId: ROUNDING_SESSION_ID,
+        recordIds: [RECORD_ID_A, RECORD_ID_B],
+      });
+
+      expect(evidencePort.read).toHaveBeenNthCalledWith(1, {
+        context: CONTEXT,
+        roundingSessionId: ROUNDING_SESSION_ID,
+        recordIds: [RECORD_ID_A, RECORD_ID_B],
+      });
+      const first = repository.reserveExtraction.mock.calls[0][0];
+      const second = repository.reserveExtraction.mock.calls[1][0];
+      expect(second.requestHash).toBe(first.requestHash);
+      expect(first).toMatchObject({
+        context: CONTEXT,
+        idempotencyKey: 'extract-key',
+        requestId: REQUEST_ID,
+        maxAttempts: TASK_EXTRACTION_MAX_ATTEMPTS,
+        now: NOW,
+      });
+    });
+
+    it.each([
+      [[]],
+      [[RECORD_ID_A, RECORD_ID_A]],
+      [
+        Array.from(
+          { length: 101 },
+          (_, index) =>
+            `00000000-0000-4000-8000-${(index + 1).toString().padStart(12, '0')}`,
+        ),
+      ],
+    ])(
+      '비어 있거나 중복·최대 크기 초과인 record ID %j를 evidence 조회 전에 거부한다',
+      async (recordIds) => {
+        await expect(
+          service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+            roundingSessionId: ROUNDING_SESSION_ID,
+            recordIds,
+          }),
+        ).rejects.toBeInstanceOf(TaskCommandInvalidError);
+        expect(evidencePort.read).not.toHaveBeenCalled();
+        expect(repository.reserveExtraction).not.toHaveBeenCalled();
+      },
+    );
+
+    it('빈 evidence snapshot은 422로 거부하고 예약하지 않는다', async () => {
+      evidencePort.read.mockResolvedValue({
+        roundingSessionId: ROUNDING_SESSION_ID,
+        evidence: [],
+      });
+
+      await expect(
+        service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+          roundingSessionId: ROUNDING_SESSION_ID,
+          recordIds: [RECORD_ID_A],
+        }),
+      ).rejects.toBeInstanceOf(TaskExtractionEvidenceEmptyError);
+      expect(repository.reserveExtraction).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        '다른 session ID',
+        {
+          ...createEvidenceSnapshot([RECORD_ID_A]),
+          roundingSessionId: JOB_ID,
+        },
+        [RECORD_ID_A],
+      ],
+      [
+        '요청 밖 record ID',
+        createEvidenceSnapshot([RECORD_ID_B]),
+        [RECORD_ID_A],
+      ],
+      [
+        '요청 record 일부 누락',
+        createEvidenceSnapshot([RECORD_ID_A]),
+        [RECORD_ID_A, RECORD_ID_B],
+      ],
+      [
+        '허용되지 않은 source type',
+        {
+          roundingSessionId: ROUNDING_SESSION_ID,
+          evidence: [
+            {
+              ...createEvidenceSnapshot([RECORD_ID_A]).evidence[0],
+              sourceType: 'ROUNDING_RECORD' as never,
+            },
+          ],
+        },
+        [RECORD_ID_A],
+      ],
+    ])('%s snapshot 전체를 거부한다', async (_label, snapshot, recordIds) => {
+      evidencePort.read.mockResolvedValue(snapshot);
+
+      await expect(
+        service.reserveExtraction(CONTEXT, 'extract-key', REQUEST_ID, {
+          roundingSessionId: ROUNDING_SESSION_ID,
+          recordIds,
+        }),
+      ).rejects.toBeInstanceOf(TaskExtractionEvidenceInvalidError);
+      expect(repository.reserveExtraction).not.toHaveBeenCalled();
+    });
+  });
+
   describe('update', () => {
     it('최소 한 수정 필드와 positive integer version을 요구한다', () => {
       expect(() =>
@@ -313,5 +466,31 @@ function createRepositoryMock(): jest.Mocked<TaskRepository> {
     list: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     create: jest.fn().mockResolvedValue({ task: TASK_VIEW, isReplay: false }),
     update: jest.fn().mockResolvedValue(TASK_VIEW),
+    findExtractionReservationReplay: jest.fn().mockResolvedValue(null),
+    reserveExtraction: jest.fn().mockResolvedValue({
+      jobId: JOB_ID,
+      status: 'QUEUED',
+      isReplay: false,
+    }),
+    findExtractionWorkItem: jest.fn(),
+    completeExtraction: jest.fn(),
+    findExtractionJob: jest.fn(),
+  };
+}
+
+function createEvidenceSnapshot(
+  recordIds: readonly string[],
+  roundingSessionId = ROUNDING_SESSION_ID,
+): TaskExtractionEvidenceSnapshot {
+  return {
+    roundingSessionId,
+    evidence: recordIds.map((recordId, index) => ({
+      recordId,
+      sourceType: 'TIMELINE_EVENT',
+      sourceId: recordId,
+      patientId: null,
+      workDate: new Date('2026-08-19T00:00:00.000Z'),
+      summary: `Synthetic evidence ${index + 1}`,
+    })),
   };
 }
