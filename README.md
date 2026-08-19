@@ -27,7 +27,7 @@ docker compose --env-file .env -f docker-compose.local.yml up -d
 - Demo UI: `http://localhost:5173`
 - PostgreSQL: `localhost:5432`
 
-`docker-compose.prod.yml`은 가비아 단일 서버 배포 기준으로 `db`, `api`, `ai`를 같이 띄웁니다. 운영 compose는 DB와 AI 서버 포트를 외부에 열지 않고, API도 서버 내부 Nginx 프록시를 전제로 `127.0.0.1:${APP_PORT:-3000}`에 바인딩합니다.
+`docker-compose.prod.yml`은 가비아 단일 서버 배포 기준으로 `db`, `api`, `ai`, `nginx`를 같이 띄웁니다. 운영 compose는 DB와 AI 서버 포트를 외부에 열지 않고, Docker Nginx가 `api.nursehand.com:80` 요청을 API 컨테이너의 `api:3000`으로 프록시합니다. `/` 요청은 Swagger UI인 `/docs`로 이동합니다.
 
 ```bash
 docker compose --env-file .env -f docker-compose.prod.yml up -d
