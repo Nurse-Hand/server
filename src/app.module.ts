@@ -13,7 +13,9 @@ import { AiJobsModule } from './modules/ai-jobs/ai-jobs.module';
 import { DemoModule } from './modules/demo/demo.module';
 import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
+import { HandoffsModule } from './modules/handoffs/handoffs.module';
 import { RoundingModule } from './modules/rounding/rounding.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
 
 @Module({
@@ -30,6 +32,8 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     FilesModule,
     HealthModule,
     RoundingModule,
+    TasksModule,
+    HandoffsModule,
     TimelineModule,
   ],
 })
