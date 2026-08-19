@@ -46,6 +46,19 @@ describe('handoff cursor', () => {
     Buffer.from(
       JSON.stringify({ updatedAt: 'invalid', id: HANDOFF_ID }),
     ).toString('base64url'),
+    Buffer.from(
+      JSON.stringify({
+        id: HANDOFF_ID,
+        updatedAt: UPDATED_AT.toISOString(),
+      }),
+    ).toString('base64url'),
+    Buffer.from(
+      JSON.stringify({
+        updatedAt: UPDATED_AT.toISOString(),
+        id: HANDOFF_ID,
+        extra: true,
+      }),
+    ).toString('base64url'),
     'not-a-json-cursor',
     `${encodeHandoffCursor({ updatedAt: UPDATED_AT, id: HANDOFF_ID })}=`,
   ])('잘못된 cursor를 domain 400으로 거부한다', (cursor) => {
