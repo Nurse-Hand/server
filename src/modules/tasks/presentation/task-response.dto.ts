@@ -177,16 +177,16 @@ export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
 
-  @ApiProperty({ type: ApiPaginatedMetaDto })
-  meta!: ApiPaginatedMetaDto;
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
 }
 
 export class TaskListResponseDto {
   @ApiProperty({ type: TaskListDataDto })
   data!: TaskListDataDto;
 
-  @ApiProperty({ type: ApiMetaDto })
-  meta!: ApiMetaDto;
+  @ApiProperty({ type: ApiPaginatedMetaDto })
+  meta!: ApiPaginatedMetaDto;
 }
 
 export class TaskExtractionReservationResponseDto {
