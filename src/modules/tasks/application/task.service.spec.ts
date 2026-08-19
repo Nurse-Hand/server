@@ -3,6 +3,7 @@ import { VersionConflictError } from '../../../common/errors/version-conflict.er
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
+  TaskApplyInvalidError,
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
   TaskExtractionEvidenceEmptyError,
@@ -27,6 +28,9 @@ const ROUNDING_SESSION_ID = '00000000-0000-4000-8000-000000000501';
 const RECORD_ID_A = '00000000-0000-4000-8000-000000000601';
 const RECORD_ID_B = '00000000-0000-4000-8000-000000000602';
 const JOB_ID = '00000000-0000-4000-8000-000000000701';
+const JOB_ID_B = '00000000-0000-4000-8000-000000000702';
+const CANDIDATE_ID_A = '00000000-0000-4000-8000-000000000801';
+const CANDIDATE_ID_B = '00000000-0000-4000-8000-000000000802';
 
 class FixedClock extends Clock {
   constructor(private readonly current: Date) {
@@ -439,6 +443,97 @@ describe('TaskService', () => {
       ).rejects.toMatchObject({ code: 'VERSION_CONFLICT', kind: 'CONFLICT' });
     });
   });
+
+  describe('applyCandidates', () => {
+    it.each([
+      ['빈 items', { items: [] }],
+      [
+        '중복 candidate',
+        {
+          items: [
+            { candidateId: CANDIDATE_ID_A, selected: true },
+            { candidateId: CANDIDATE_ID_A, selected: true },
+          ],
+        },
+      ],
+      [
+        '선택되지 않은 item의 override',
+        {
+          items: [
+            { candidateId: CANDIDATE_ID_A, selected: false, title: '수정' },
+          ],
+        },
+      ],
+      [
+        '선택된 후보 없음',
+        { items: [{ candidateId: CANDIDATE_ID_A, selected: false }] },
+      ],
+    ])('%s 요청을 repository 호출 전에 거부한다', (_label, command) => {
+      expect(() =>
+        service.applyCandidates(CONTEXT, JOB_ID, 'apply-key', command),
+      ).toThrow(TaskApplyInvalidError);
+      expect(repository.applyCandidates).not.toHaveBeenCalled();
+    });
+
+    it('선택 후보만 정렬·정규화하고 null override를 보존한다', async () => {
+      await service.applyCandidates(CONTEXT, JOB_ID, 'apply-key', {
+        items: [
+          {
+            candidateId: CANDIDATE_ID_B,
+            selected: true,
+            title: '  후보 B  ',
+            dueAt: null,
+            priorityOverride: null,
+          },
+          {
+            candidateId: CANDIDATE_ID_A,
+            selected: true,
+            dueAt: '2026-08-20T09:00:00+09:00',
+            priorityOverride: 'HIGH',
+          },
+        ],
+      });
+      expect(repository.applyCandidates).toHaveBeenCalledWith({
+        context: CONTEXT,
+        jobId: JOB_ID,
+        idempotencyKey: 'apply-key',
+        requestHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        items: [
+          {
+            candidateId: CANDIDATE_ID_A,
+            dueAt: new Date('2026-08-20T00:00:00.000Z'),
+            priorityOverride: 'HIGH',
+          },
+          {
+            candidateId: CANDIDATE_ID_B,
+            title: '후보 B',
+            dueAt: null,
+            priorityOverride: null,
+          },
+        ],
+        now: NOW,
+      });
+    });
+
+    it('item 순서는 hash에 영향을 주지 않고 jobId는 hash에 포함한다', async () => {
+      const first = {
+        items: [
+          { candidateId: CANDIDATE_ID_B, selected: true },
+          { candidateId: CANDIDATE_ID_A, selected: true },
+        ],
+      };
+      const second = { items: [...first.items].reverse() };
+      await service.applyCandidates(CONTEXT, JOB_ID, 'key', first);
+      await service.applyCandidates(CONTEXT, JOB_ID, 'key', second);
+      await service.applyCandidates(CONTEXT, JOB_ID_B, 'key', second);
+      expect(repository.applyCandidates.mock.calls[1][0].requestHash).toBe(
+        repository.applyCandidates.mock.calls[0][0].requestHash,
+      );
+      expect(repository.applyCandidates.mock.calls[2][0].requestHash).not.toBe(
+        repository.applyCandidates.mock.calls[0][0].requestHash,
+      );
+    });
+  });
 });
 
 const TASK_VIEW: TaskView = {
@@ -475,6 +570,7 @@ function createRepositoryMock(): jest.Mocked<TaskRepository> {
     findExtractionWorkItem: jest.fn(),
     completeExtraction: jest.fn(),
     findExtractionJob: jest.fn(),
+    applyCandidates: jest.fn(),
   };
 }
 

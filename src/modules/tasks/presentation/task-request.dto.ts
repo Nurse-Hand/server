@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -14,6 +15,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
   ValidateIf,
   type ValidationArguments,
   type ValidationOptions,
@@ -227,4 +229,56 @@ export class UpdateTaskRequestDto {
     message: 'version 외에 수정할 업무 필드를 하나 이상 전달해야 합니다.',
   })
   version!: number;
+}
+
+export class ApplyTaskCandidateRequestDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('4')
+  candidateId!: string;
+
+  @ApiProperty({
+    description: '실제 업무로 반영할 후보인지 여부',
+    example: true,
+  })
+  @IsBoolean()
+  selected!: boolean;
+
+  @ApiPropertyOptional({ maxLength: TITLE_MAX_LENGTH })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @Matches(NON_WHITESPACE_PATTERN)
+  @MaxLength(TITLE_MAX_LENGTH)
+  title?: string;
+
+  @ApiPropertyOptional({
+    description: 'null이면 후보 업무의 마감을 제거합니다.',
+    format: 'date-time',
+    nullable: true,
+    type: String,
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  @Matches(TIME_ZONE_SUFFIX_PATTERN)
+  dueAt?: string | null;
+
+  @ApiPropertyOptional({ enum: TASK_PRIORITIES, nullable: true })
+  @IsOptional()
+  @IsIn(TASK_PRIORITIES)
+  priorityOverride?: TaskPriority | null;
+}
+
+export class ApplyTaskCandidatesRequestDto {
+  @ApiProperty({ type: ApplyTaskCandidateRequestDto, isArray: true })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(TASK_BATCH_MAX_SIZE)
+  @ArrayUnique((item: unknown) => {
+    if (typeof item === 'object' && item !== null && 'candidateId' in item) {
+      return item.candidateId;
+    }
+    return item;
+  })
+  @ValidateNested({ each: true })
+  @Type(() => ApplyTaskCandidateRequestDto)
+  items!: ApplyTaskCandidateRequestDto[];
 }

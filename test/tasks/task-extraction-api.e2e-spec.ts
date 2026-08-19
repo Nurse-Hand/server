@@ -14,6 +14,8 @@ import type { RequestWithDemoSessionContext } from '../../src/modules/demo/prese
 import type { TaskExtractionJobView } from '../../src/modules/tasks/application/ports/task.repository';
 import { TaskService } from '../../src/modules/tasks/application/task.service';
 import {
+  TaskApplyInvalidError,
+  TaskCandidateAlreadyAppliedError,
   TaskExtractionEvidenceInvalidError,
   TaskNotFoundError,
 } from '../../src/modules/tasks/domain/task.errors';
@@ -55,6 +57,7 @@ const SUCCEEDED_JOB: TaskExtractionJobView = {
       confidence: 'MEDIUM',
       evidence: [{ sourceType: 'TIMELINE_EVENT', sourceId: RECORD_ID }],
       duplicateTaskId: null,
+      appliedTaskId: null,
     },
   ],
   createdAt: new Date('2026-08-19T01:00:00.000Z'),
@@ -62,7 +65,10 @@ const SUCCEEDED_JOB: TaskExtractionJobView = {
 };
 
 type TaskServiceDouble = jest.Mocked<
-  Pick<TaskService, 'reserveExtraction' | 'findExtractionJob'>
+  Pick<
+    TaskService,
+    'reserveExtraction' | 'findExtractionJob' | 'applyCandidates'
+  >
 >;
 
 class FixedDemoSessionGuard implements CanActivate {
@@ -174,6 +180,7 @@ describe('Task extraction public API (isolated e2e)', () => {
             },
             evidence: [{ sourceType: 'TIMELINE_EVENT', sourceId: RECORD_ID }],
             duplicateTaskId: null,
+            appliedTaskId: null,
           },
         ],
         createdAt: '2026-08-19T01:00:00.000Z',
@@ -304,11 +311,89 @@ describe('Task extraction public API (isolated e2e)', () => {
       meta: { requestId: REQUEST_ID },
     });
   });
+
+  it('선택·수정 후보를 demo context와 idempotency key로 반영한다', async () => {
+    taskService.applyCandidates.mockResolvedValueOnce({
+      createdTaskIds: [CANDIDATE_ID],
+      skippedCandidateIds: [],
+      isReplay: false,
+    });
+    const body = {
+      items: [
+        {
+          candidateId: CANDIDATE_ID,
+          selected: true,
+          title: '수정한 업무',
+          priorityOverride: 'CRITICAL',
+        },
+      ],
+    };
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/task-extraction-jobs/${JOB_ID}/apply`)
+      .set('X-Demo-Session-Id', DEMO_SESSION_ID)
+      .set('X-Request-Id', REQUEST_ID)
+      .set('X-Idempotency-Key', IDEMPOTENCY_KEY)
+      .send(body)
+      .expect(201);
+
+    expect(taskService.applyCandidates).toHaveBeenCalledWith(
+      DEMO_CONTEXT,
+      JOB_ID,
+      IDEMPOTENCY_KEY,
+      body,
+    );
+    expect(response.body).toEqual({
+      data: { createdTaskIds: [CANDIDATE_ID], skippedCandidateIds: [] },
+      meta: { requestId: REQUEST_ID },
+    });
+  });
+
+  it('apply DTO와 선택 규칙 오류를 400/422 envelope로 반환한다', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/v1/task-extraction-jobs/${JOB_ID}/apply`)
+      .set('X-Demo-Session-Id', DEMO_SESSION_ID)
+      .set('X-Idempotency-Key', IDEMPOTENCY_KEY)
+      .send({ items: [{ candidateId: 'invalid', selected: true }] })
+      .expect(400);
+
+    taskService.applyCandidates.mockRejectedValueOnce(
+      new TaskApplyInvalidError(),
+    );
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/task-extraction-jobs/${JOB_ID}/apply`)
+      .set('X-Demo-Session-Id', DEMO_SESSION_ID)
+      .set('X-Request-Id', REQUEST_ID)
+      .set('X-Idempotency-Key', IDEMPOTENCY_KEY)
+      .send({ items: [{ candidateId: CANDIDATE_ID, selected: false }] })
+      .expect(422);
+    expect(response.body.error.code).toBe('TASK_APPLY_INVALID');
+  });
+
+  it('이미 반영된 후보를 409 envelope로 반환한다', async () => {
+    taskService.applyCandidates.mockRejectedValueOnce(
+      new TaskCandidateAlreadyAppliedError(),
+    );
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/task-extraction-jobs/${JOB_ID}/apply`)
+      .set('X-Demo-Session-Id', DEMO_SESSION_ID)
+      .set('X-Request-Id', REQUEST_ID)
+      .set('X-Idempotency-Key', IDEMPOTENCY_KEY)
+      .send({ items: [{ candidateId: CANDIDATE_ID, selected: true }] })
+      .expect(409);
+    expect(response.body).toEqual({
+      error: {
+        code: 'TASK_CANDIDATE_ALREADY_APPLIED',
+        message: '이미 반영된 업무 후보가 포함되어 있습니다.',
+      },
+      meta: { requestId: REQUEST_ID },
+    });
+  });
 });
 
 function createTaskServiceDouble(): TaskServiceDouble {
   return {
     reserveExtraction: jest.fn(),
     findExtractionJob: jest.fn(),
+    applyCandidates: jest.fn(),
   };
 }
