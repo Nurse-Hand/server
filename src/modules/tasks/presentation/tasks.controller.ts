@@ -15,6 +15,7 @@ import {
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
+  ApiBadGatewayResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiHeader,
@@ -126,6 +127,7 @@ export class TasksController {
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  @ApiBadGatewayResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   async reserveExtraction(
     @DemoSessionContextParam() context: DemoSessionContext,
