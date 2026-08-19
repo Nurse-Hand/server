@@ -118,7 +118,7 @@ Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라�
 | # | Method | Endpoint | 기능 | 우선순위 | Python AI 책임 | Node.js 책임 | 구현 여부 |
 |---:|---|---|---|---|---|---|---|
 | 39 | `POST` | `/internal/v1/audio/analyze` | 음성 분석 | P0 | STT·화자 분리·구조화 추론과 FastAPI 계약 제공 | 입력 준비, 호출, timeout, 작업 상태와 결과 저장 | 연동 구현 |
-| 40 | `POST` | `/internal/v1/tasks/prioritize` | 업무 우선순위 제안 | P0 | 우선순위·근거·신뢰도 제안과 FastAPI 계약 제공 | 규칙 우선순위 계산, 제안 저장, 사용자 확정 반영 | 연동 구현 |
+| 40 | `POST` | `/internal/v1/tasks/prioritize` | 업무 우선순위 제안 | P0 | 우선순위·근거·score 제안과 FastAPI 계약 제공 | 규칙 우선순위 계산, 제안 저장, 사용자 확정 반영 | 연동 구현 |
 | 41 | `POST` | `/internal/v1/tasks/extract` | 업무 후보 추출 | P0 | 후보·근거·신뢰도 추론과 FastAPI 계약 제공 | 작업 오케스트레이션, 후보 저장, 선택 반영 | 연동 구현 |
 | 42 | `POST` | `/internal/v1/handoffs/precheck` | 인수인계 누락 검증 | P0 | 근거 기반 역질문 생성과 FastAPI 계약 제공 | 입력 구성, 결과 저장, 답변과 상태 관리 | 연동 구현 |
 | 43 | `POST` | `/internal/v1/handoffs/generate` | 인수인계 초안 생성 | P0 | 근거가 연결된 6개 임상 section 초안 생성과 FastAPI 계약 제공 | 생성 요청, 초안·근거 저장, 수정·확정 관리 | 연동 구현 |
@@ -129,7 +129,7 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 
 업무 우선순위는 AI, Node.js 규칙, 간호사의 역할을 분리한다.
 
-1. AI는 `suggestedPriority`, 제안 근거, 신뢰도를 반환한다. 이는 자동 확정값이 아니다.
+1. 명시적 우선순위 batch에서 AI는 `suggestedPriority`, 제안 근거, 같은 batch 표시용 `score`를 반환한다. 이는 자동 확정값이 아니다. 업무 추출 후보의 별도 계약만 `confidence`를 유지한다.
 2. Node.js는 마감 상태와 `dueAt`처럼 검증 가능한 구조화 데이터로 재현 가능한 `rulePriority`와 정렬 키를 계산한다. 이월 여부는 MVP 규칙의 입력으로 사용하지 않는다.
 3. 간호사는 AI 제안을 수락하거나 수정해 `confirmedPriority`를 확정할 수 있다.
 4. 표시와 정렬에는 간호사 확정값을 먼저 사용하고, 확정값이 없으면 Node.js 규칙을 사용한다.
@@ -137,7 +137,8 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 
 개념상 저장 값은 다음 책임을 구분해야 한다. 최종 필드명과 enum은 공개·내부 OpenAPI에서 확정한다.
 
-- `aiSuggestedPriority`, `aiReason`, `aiConfidence`: AI 제안과 근거
+- 명시적 우선순위 batch의 `aiSuggestedPriority`, `aiReasons`, `aiScore`: 현재 AI 제안과 같은 batch 표시 순서
+- 업무 추출 후보의 `aiSuggestedPriority`, `aiReasons`, `aiConfidence`: 기존 추출 계약의 제안과 근거
 - `rulePriority`: Node.js가 계산한 결정론적 값
 - `confirmedPriority`: 간호사가 수락 또는 수정한 값
 - `effectivePriority`: 조회 시 적용되는 최종 값
