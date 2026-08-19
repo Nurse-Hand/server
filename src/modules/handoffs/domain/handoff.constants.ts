@@ -32,14 +32,16 @@ export const HANDOFF_SOURCE_TYPES = ['TIMELINE_EVENT', 'TASK'] as const;
 
 export type HandoffSourceType = (typeof HANDOFF_SOURCE_TYPES)[number];
 
-export const HANDOFF_SBAR_SECTIONS = [
-  'SITUATION',
-  'BACKGROUND',
-  'ASSESSMENT',
-  'RECOMMENDATION',
+export const HANDOFF_CLINICAL_SECTIONS = [
+  'PATIENT_STATUS',
+  'PAIN',
+  'TREATMENT',
+  'DIET',
+  'ACTIVITY',
+  'OBSERVATION',
 ] as const;
 
-export type HandoffSbarSection = (typeof HANDOFF_SBAR_SECTIONS)[number];
+export type HandoffClinicalSection = (typeof HANDOFF_CLINICAL_SECTIONS)[number];
 
 export const HANDOFF_ACKNOWLEDGEMENT_STATUSES = [
   'QUESTIONED',
@@ -57,7 +59,7 @@ export const HANDOFF_UNVERIFIED_HANDLINGS = [
 export type HandoffUnverifiedHandling =
   (typeof HANDOFF_UNVERIFIED_HANDLINGS)[number];
 
-export const HANDOFF_TEMPLATE_IDS = ['SBAR_DEFAULT_V1'] as const;
+export const HANDOFF_TEMPLATE_IDS = ['NURSING_HANDOFF_V1'] as const;
 
 export type HandoffTemplateId = (typeof HANDOFF_TEMPLATE_IDS)[number];
 

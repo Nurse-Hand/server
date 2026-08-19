@@ -27,11 +27,13 @@ enum HandoffTaskPriority {
   NORMAL
 }
 
-enum HandoffSbarSection {
-  SITUATION
-  BACKGROUND
-  ASSESSMENT
-  RECOMMENDATION
+enum HandoffClinicalSection {
+  PATIENT_STATUS
+  PAIN
+  TREATMENT
+  DIET
+  ACTIVITY
+  OBSERVATION
 }
 
 enum HandoffWarningType {
@@ -260,8 +262,8 @@ model Handoff {
   @@unique(name: "handoff_dataset_id", [datasetId, id])
   @@unique(name: "handoff_dataset_scope_id", [datasetId, wardId, id])
   @@unique(name: "handoff_precheck", [datasetId, precheckId])
-  @@index([datasetId, wardId, senderActorId, handoffDate, status, createdAt(sort: Desc), id(sort: Desc)])
-  @@index([datasetId, wardId, receiverActorId, handoffDate, status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([datasetId, wardId, senderActorId, handoffDate, status, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([datasetId, wardId, receiverActorId, handoffDate, status, updatedAt(sort: Desc), id(sort: Desc)])
 }
 
 model HandoffGenerationAttempt {
@@ -353,7 +355,7 @@ model HandoffDraftSection {
   datasetId      String                   @db.Uuid
   handoffId      String                   @db.Uuid
   draftPatientId String                   @db.Uuid
-  section        HandoffSbarSection
+  section        HandoffClinicalSection
   aiOriginalText String                   @db.Text
   currentText    String                   @db.Text
   isModified     Boolean                  @default(false)

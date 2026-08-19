@@ -4,12 +4,14 @@ describe('assertFinalizationPolicy', () => {
   it.each(['RESOLVED', 'KEEP_WITH_WARNING'] as const)(
     'CRITICAL 미응답은 %s로도 우회하지 못한다',
     (handling) => {
-      expect(() =>
-        assertFinalizationPolicy(
-          [{ severity: 'CRITICAL', answer: null }],
-          handling,
-        ),
-      ).toThrow('HANDOFF_CRITICAL_ANSWER_REQUIRED');
+      expectPolicyError(
+        () =>
+          assertFinalizationPolicy(
+            [{ severity: 'CRITICAL', answer: null }],
+            handling,
+          ),
+        'HANDOFF_CRITICAL_ANSWER_REQUIRED',
+      );
     },
   );
 
@@ -23,7 +25,8 @@ describe('assertFinalizationPolicy', () => {
       hasWarning: false,
       warningItemIndexes: [],
     });
-    expect(() => assertFinalizationPolicy(items, 'KEEP_WITH_WARNING')).toThrow(
+    expectPolicyError(
+      () => assertFinalizationPolicy(items, 'KEEP_WITH_WARNING'),
       'HANDOFF_UNVERIFIED_POLICY_INVALID',
     );
   });
@@ -38,9 +41,19 @@ describe('assertFinalizationPolicy', () => {
         hasWarning: true,
         warningItemIndexes: [0],
       });
-      expect(() => assertFinalizationPolicy(items, 'RESOLVED')).toThrow(
+      expectPolicyError(
+        () => assertFinalizationPolicy(items, 'RESOLVED'),
         'HANDOFF_UNVERIFIED_POLICY_INVALID',
       );
     },
   );
 });
+
+function expectPolicyError(action: () => void, code: string): void {
+  try {
+    action();
+    throw new Error('finalization policy error가 발생해야 합니다.');
+  } catch (error) {
+    expect(error).toMatchObject({ code, kind: 'UNPROCESSABLE_ENTITY' });
+  }
+}
