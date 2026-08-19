@@ -14,6 +14,7 @@ import {
   TaskNotFoundError,
 } from '../domain/task.errors';
 import { encodeTaskCursor } from '../domain/task-cursor';
+import { getEffectiveTaskPriority } from '../domain/task-priority.policy';
 import { PrismaTaskRepository } from './prisma-task.repository';
 
 const DATASET_ID = '00000000-0000-4000-8000-000000000101';
@@ -22,6 +23,9 @@ const WARD_ID = '00000000-0000-4000-8000-000000000301';
 const PATIENT_ID = '00000000-0000-4000-8000-000000000401';
 const TASK_ID = '00000000-0000-4000-8000-000000000501';
 const JOB_ID = '00000000-0000-4000-8000-000000000502';
+const CANDIDATE_ID = '00000000-0000-4000-8000-000000000801';
+const DUPLICATE_CANDIDATE_ID = '00000000-0000-4000-8000-000000000802';
+const EVIDENCE_ID = '00000000-0000-4000-8000-000000000901';
 const IDEMPOTENCY_RECORD_ID = '00000000-0000-4000-8000-000000000601';
 const NOW = new Date('2026-08-19T00:00:00.000Z');
 const DUTY_ENDS_AT = new Date('2026-08-19T08:00:00.000Z');
@@ -341,6 +345,215 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
       isReplay: true,
     });
     expect(transaction.taskExtractionJob.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('apply 같은 key와 다른 canonical hash는 409로 거부한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.idempotencyRecord.findUnique.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+      wardId: WARD_ID,
+      requestHash: 'b'.repeat(64),
+      status: 'COMPLETED',
+      resultReference: 'receipt-id',
+    });
+
+    await expect(
+      createRepository(prisma).applyCandidates({
+        context: CONTEXT,
+        jobId: JOB_ID,
+        idempotencyKey: 'apply-key',
+        requestHash: REQUEST_HASH,
+        items: [{ candidateId: CANDIDATE_ID }],
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(IdempotencyKeyReusedError);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.taskApplyReceipt.findFirst).not.toHaveBeenCalled();
+    expect(transaction.taskExtractionJob.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('createable 후보와 duplicate 후보를 한 transaction에서 저장·skip하고 완료한다', async () => {
+    const { prisma, transaction } = createHarness();
+    const dueAt = new Date('2026-08-18T23:30:00.000Z');
+    transaction.taskExtractionJob.findFirst.mockResolvedValue({ id: JOB_ID });
+    transaction.aiJob.findFirst.mockResolvedValue({ status: 'SUCCEEDED' });
+    transaction.taskExtractionCandidate.findMany.mockResolvedValue([
+      {
+        id: CANDIDATE_ID,
+        patientId: null,
+        title: '후보 제목',
+        description: '후보 설명',
+        dueAt: null,
+        workDate: WORK_DATE,
+        aiSuggestedPriority: 'HIGH',
+        aiReasons: ['근무 중 처리 필요'],
+        aiConfidence: 'MEDIUM',
+        duplicateTaskId: null,
+        appliedAt: null,
+        evidence: [
+          {
+            evidence: {
+              sourceType: 'TIMELINE_EVENT',
+              timelineEventId: EVIDENCE_ID,
+              sourceTaskId: null,
+            },
+          },
+        ],
+      },
+      {
+        id: DUPLICATE_CANDIDATE_ID,
+        patientId: null,
+        duplicateTaskId: '00000000-0000-4000-8000-000000000599',
+        appliedAt: null,
+        evidence: [],
+      },
+    ]);
+    transaction.nurseShift.findMany.mockResolvedValue([
+      { endsAt: DUTY_ENDS_AT },
+    ]);
+    transaction.idempotencyRecord.create.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+    });
+    transaction.taskApplyReceipt.create.mockResolvedValue({ id: 'receipt-id' });
+    transaction.task.create.mockResolvedValue({ id: TASK_ID });
+    transaction.taskExtractionCandidate.updateMany.mockResolvedValue({
+      count: 1,
+    });
+    transaction.idempotencyRecord.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await createRepository(prisma).applyCandidates({
+      context: CONTEXT,
+      jobId: JOB_ID,
+      idempotencyKey: 'apply-key',
+      requestHash: REQUEST_HASH,
+      items: [
+        {
+          candidateId: CANDIDATE_ID,
+          title: '확정 제목',
+          dueAt,
+          priorityOverride: 'HIGH',
+        },
+        { candidateId: DUPLICATE_CANDIDATE_ID },
+      ],
+      now: NOW,
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(transaction.task.create).toHaveBeenCalledWith({
+      data: {
+        ...CONTEXT,
+        patientId: null,
+        title: '확정 제목',
+        description: '후보 설명',
+        dueAt,
+        workDate: WORK_DATE,
+        source: 'AI_EXTRACTED',
+        aiSuggestedPriority: 'HIGH',
+        aiReasons: ['근무 중 처리 필요'],
+        aiConfidence: 'MEDIUM',
+        rulePriority: 'CRITICAL',
+        confirmedPriority: 'HIGH',
+      },
+      select: { id: true },
+    });
+    const persistedTask = transaction.task.create.mock.calls[0][0].data;
+    expect(
+      getEffectiveTaskPriority(
+        persistedTask.rulePriority,
+        persistedTask.confirmedPriority,
+      ),
+    ).toBe('HIGH');
+    expect(transaction.taskEvidence.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          datasetId: DATASET_ID,
+          taskId: TASK_ID,
+          sourceType: 'TIMELINE_EVENT',
+          timelineEventId: EVIDENCE_ID,
+          sourceTaskId: null,
+        },
+      ],
+    });
+    expect(transaction.taskPriorityAudit.create).toHaveBeenCalledWith({
+      data: {
+        datasetId: DATASET_ID,
+        taskId: TASK_ID,
+        actorId: ACTOR_ID,
+        action: 'ACCEPT_AI',
+        newConfirmedPriority: 'HIGH',
+        aiSuggestedPriority: 'HIGH',
+      },
+    });
+    expect(transaction.idempotencyRecord.create).toHaveBeenCalledWith({
+      data: {
+        ...CONTEXT,
+        operation: 'tasks.extract.apply',
+        idempotencyKey: 'apply-key',
+        requestHash: REQUEST_HASH,
+      },
+      select: { id: true },
+    });
+    expect(transaction.taskApplyReceipt.create).toHaveBeenCalledWith({
+      data: {
+        ...CONTEXT,
+        operation: 'tasks.extract.apply',
+        jobId: JOB_ID,
+        idempotencyRecordId: IDEMPOTENCY_RECORD_ID,
+        createdTaskIds: [],
+        skippedCandidateIds: [],
+      },
+      select: { id: true },
+    });
+    expect(
+      transaction.taskExtractionCandidate.updateMany,
+    ).toHaveBeenNthCalledWith(1, {
+      where: { id: CANDIDATE_ID, datasetId: DATASET_ID, appliedAt: null },
+      data: {
+        appliedTaskId: TASK_ID,
+        applyReceiptId: 'receipt-id',
+        appliedByActorId: ACTOR_ID,
+        appliedAt: NOW,
+      },
+    });
+    expect(
+      transaction.taskExtractionCandidate.updateMany,
+    ).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: DUPLICATE_CANDIDATE_ID,
+        datasetId: DATASET_ID,
+        appliedAt: null,
+      },
+      data: {
+        applyReceiptId: 'receipt-id',
+        appliedByActorId: ACTOR_ID,
+        appliedAt: NOW,
+      },
+    });
+    expect(transaction.taskApplyReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-id' },
+      data: {
+        createdTaskIds: [TASK_ID],
+        skippedCandidateIds: [DUPLICATE_CANDIDATE_ID],
+      },
+    });
+    expect(transaction.idempotencyRecord.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: IDEMPOTENCY_RECORD_ID,
+        datasetId: DATASET_ID,
+        status: 'PROCESSING',
+      },
+      data: {
+        status: 'COMPLETED',
+        resultReference: 'receipt-id',
+        updatedAt: NOW,
+      },
+    });
+    expect(result).toEqual({
+      createdTaskIds: [TASK_ID],
+      skippedCandidateIds: [DUPLICATE_CANDIDATE_ID],
+      isReplay: false,
+    });
   });
 
   it('duplicate 후보는 Task 없이 조건부 mark하고 skipped receipt로 완료한다', async () => {
