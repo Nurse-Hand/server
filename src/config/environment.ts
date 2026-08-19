@@ -138,6 +138,16 @@ export function validateEnvironment(
     throw new Error('환경변수 검증 실패: DEMO_MODE');
   }
 
+  const hasAiBaseUrl = environment.AI_BASE_URL !== undefined;
+  const hasAiToken = environment.AI_INTERNAL_API_TOKEN !== undefined;
+  const hasAiTimeout = environment.AI_PRIORITY_TIMEOUT_MS !== undefined;
+  if (
+    hasAiBaseUrl !== hasAiToken ||
+    (hasAiTimeout && (!hasAiBaseUrl || !hasAiToken))
+  ) {
+    throw new Error('환경변수 검증 실패: AI_BASE_URL, AI_INTERNAL_API_TOKEN');
+  }
+
   return environment;
 }
 

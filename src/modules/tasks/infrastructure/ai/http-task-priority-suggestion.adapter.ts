@@ -54,7 +54,10 @@ export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestion
         throw new TaskAiUnavailableError();
       }
 
-      if (response.status !== 201) throw new TaskAiUnavailableError();
+      if (response.status !== 201) {
+        await cancelResponseBody(response);
+        throw new TaskAiUnavailableError();
+      }
 
       let body: unknown;
       try {
@@ -124,6 +127,7 @@ async function readBoundedBody(response: Response): Promise<string> {
       parsedContentLength < 0 ||
       parsedContentLength > MAX_RESPONSE_BODY_BYTES
     ) {
+      await cancelResponseBody(response);
       throw new TaskAiResponseInvalidError();
     }
   }
@@ -150,6 +154,14 @@ async function readBoundedBody(response: Response): Promise<string> {
     return body + decoder.decode();
   } finally {
     reader.releaseLock();
+  }
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Upstream body 정리 실패가 원래 응답 오류를 가리지 않게 한다.
   }
 }
 

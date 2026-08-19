@@ -89,6 +89,18 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
     },
   );
 
+  it('non-201 response body를 취소한 뒤 503 error로 변환한다', async () => {
+    const response = new Response('upstream error', { status: 500 });
+    if (!response.body) throw new Error('response body가 필요합니다.');
+    const cancel = jest.spyOn(response.body, 'cancel');
+    jest.spyOn(global, 'fetch').mockResolvedValue(response);
+
+    await expect(adapter().prioritize(input())).rejects.toBeInstanceOf(
+      TaskAiUnavailableError,
+    );
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it('잘못된 JSON을 502 error로 변환한다', async () => {
     jest
       .spyOn(global, 'fetch')
@@ -101,11 +113,14 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
   it('Content-Length가 256 KiB를 초과하면 body를 읽기 전에 거부한다', async () => {
     const response = new Response('{}', { status: 201 });
     response.headers.set('Content-Length', String(256 * 1024 + 1));
+    if (!response.body) throw new Error('response body가 필요합니다.');
+    const cancel = jest.spyOn(response.body, 'cancel');
     jest.spyOn(global, 'fetch').mockResolvedValue(response);
 
     await expect(adapter().prioritize(input())).rejects.toBeInstanceOf(
       TaskAiResponseInvalidError,
     );
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it('streaming body가 256 KiB를 초과하면 읽기를 중단하고 거부한다', async () => {
