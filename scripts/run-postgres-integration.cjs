@@ -91,8 +91,12 @@ function assertSafeName(value, label) {
 }
 
 function run(command, args, environment) {
-  const executable = process.platform === 'win32' ? `${command}.cmd` : command;
-  const result = spawnSync(executable, args, {
+  const isWindows = process.platform === 'win32';
+  const executable = isWindows ? (process.env.ComSpec ?? 'cmd.exe') : command;
+  const executableArgs = isWindows
+    ? ['/d', '/s', '/c', command, ...args]
+    : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: process.cwd(),
     env: environment,
     stdio: 'inherit',
