@@ -34,7 +34,15 @@ describe('Task OpenAPI response meta', () => {
         meta: { $ref: '#/components/schemas/ApiPaginatedMetaDto' },
       },
     });
-    expect(schemas?.ApiMetaDto?.properties).not.toHaveProperty('page');
+    expect(schemas?.ApiMetaDto).toMatchObject({
+      required: ['requestId'],
+      properties: {
+        requestId: { type: 'string', format: 'uuid' },
+      },
+    });
+    expect(schemas?.ApiMetaDto).not.toMatchObject({
+      properties: { page: expect.anything() },
+    });
     expect(schemas?.ApiPaginatedMetaDto).toMatchObject({
       required: ['requestId', 'page'],
       properties: {
