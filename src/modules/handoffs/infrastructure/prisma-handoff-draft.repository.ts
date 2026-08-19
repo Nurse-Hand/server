@@ -41,6 +41,7 @@ import {
   HandoffStateInvalidError,
 } from '../domain/handoff.errors';
 import { toSeoulDate } from '../domain/seoul-work-date';
+import { appendFirstHandoffView } from './handoff-first-view';
 
 type DatabaseClient = Prisma.TransactionClient | PrismaService;
 
@@ -102,6 +103,7 @@ const precheckAggregateInclude = {
 } satisfies Prisma.HandoffPrecheckInclude;
 
 const draftDetailInclude = {
+  finalSnapshot: { select: { id: true } },
   generationAttempts: {
     orderBy: [{ sequence: 'desc' as const }, { id: 'desc' as const }],
     take: 1,
@@ -432,6 +434,7 @@ export class PrismaHandoffDraftRepository implements HandoffDraftRepository {
   async get(
     context: HandoffDraftContext,
     handoffId: string,
+    viewedAt: Date,
   ): Promise<HandoffDraftDetail> {
     const handoff = await this.prisma.handoff.findFirst({
       where: {
@@ -446,6 +449,9 @@ export class PrismaHandoffDraftRepository implements HandoffDraftRepository {
       include: draftDetailInclude,
     });
     if (!handoff) throw new HandoffNotFoundError();
+    if (handoff.status === 'FINALIZED' && !handoff.finalSnapshot) {
+      throw new IdempotencyInvariantViolationError();
+    }
     const attempt = handoff.generationAttempts[0];
     if (!attempt) throw new IdempotencyInvariantViolationError();
     const job = await this.prisma.aiJob.findFirst({
@@ -458,6 +464,15 @@ export class PrismaHandoffDraftRepository implements HandoffDraftRepository {
       select: { id: true, status: true, failureCode: true, retryable: true },
     });
     if (!job) throw new IdempotencyInvariantViolationError();
+    await appendFirstHandoffView(this.prisma, {
+      datasetId: context.datasetId,
+      wardId: context.wardId,
+      handoffId: handoff.id,
+      senderActorId: handoff.senderActorId,
+      receiverActorId: handoff.receiverActorId,
+      actorId: context.actorId,
+      viewedAt,
+    });
     return mapDetail(handoff, job);
   }
 

@@ -91,7 +91,7 @@ export class HandoffDraftsService {
     context: HandoffDraftContext,
     handoffId: string,
   ): Promise<HandoffDraftDetail> {
-    return this.repository.get(context, handoffId);
+    return this.repository.get(context, handoffId, this.clock.now());
   }
 
   async create(
@@ -150,7 +150,11 @@ export class HandoffDraftsService {
     handoffId: string,
     body: UpdateHandoffRequest,
   ) {
-    const detail = await this.repository.get(context, handoffId);
+    const detail = await this.repository.get(
+      context,
+      handoffId,
+      this.clock.now(),
+    );
     if (detail.status !== 'DRAFT' || detail.draft === null) {
       throw new HandoffStateInvalidError();
     }
