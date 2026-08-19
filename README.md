@@ -10,9 +10,17 @@ Nurse Hand 모바일 앱의 API와 비동기 작업을 담당하는 Node.js 서�
 
 ```powershell
 npm ci
-Copy-Item .env.example .env
 npm run start:dev
 ```
+
+로컬 Docker 실행은 git에 올리지 않는 `.env.local`을 사용합니다.
+
+```bash
+docker build -t nurse-hand-server:dev .
+docker compose --env-file .env.local -f docker-compose.prod.yml up -d
+```
+
+운영 서버 배포는 git에 올리지 않는 `.env`를 사용합니다.
 
 - Health: `GET http://localhost:3000/api/v1/health`
 - Swagger UI: `http://localhost:3000/docs`

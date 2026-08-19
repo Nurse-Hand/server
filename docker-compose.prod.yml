@@ -9,6 +9,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-25200}
       FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}
     ports:
       - "${APP_PORT:-3000}:3000"

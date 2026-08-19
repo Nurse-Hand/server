@@ -18,7 +18,6 @@ temp/
 # Local configuration and secrets
 .env
 .env.*
-!.env.example
 *.pem
 *.key
 
