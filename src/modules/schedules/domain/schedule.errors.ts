@@ -59,3 +59,14 @@ export class MonthlyScheduleInvalidError extends ApplicationError {
     });
   }
 }
+
+export class ScheduleOcrEngineUnavailableError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'SCHEDULE_OCR_ENGINE_UNAVAILABLE',
+      kind: 'DEPENDENCY_UNAVAILABLE',
+      publicMessage:
+        '이 이미지는 DEMO OCR 대상이 아닙니다. 수동으로 근무표를 등록해 주세요.',
+    });
+  }
+}

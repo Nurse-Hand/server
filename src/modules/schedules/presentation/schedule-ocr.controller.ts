@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
+  ApiBadRequestResponse,
   ApiBody,
   ApiConflictResponse,
   ApiConsumes,
@@ -22,6 +23,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiPayloadTooLargeResponse,
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
@@ -58,6 +60,8 @@ export class ScheduleOcrController {
   @ApiOperation({ summary: '근무표 OCR 작업 접수' })
   @ApiAcceptedResponse({ type: ScheduleOcrJobResponseDto })
   @ApiConflictResponse({ type: ApiErrorResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiPayloadTooLargeResponse({ type: ApiErrorResponseDto })
   @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
   async create(
     @DemoSessionContextParam() context: DemoSessionContext,

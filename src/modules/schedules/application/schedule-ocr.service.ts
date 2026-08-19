@@ -1,13 +1,19 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { createCanonicalRequestHash } from '../../../common/idempotency/canonical-request-hash';
 import { Clock } from '../../../common/time/clock';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
-import { IdempotentAiJobService } from '../../ai-jobs/application/idempotent-ai-job.service';
+import {
+  IdempotencyInvariantViolationError,
+  IdempotencyKeyReusedError,
+} from '../../../common/idempotency/idempotency.errors';
+import { Prisma } from '../../../generated/prisma/client';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type { UploadedFilePayload } from '../../files/application/uploaded-file';
 import {
   ScheduleOcrJobNotFoundError,
+  ScheduleOcrEngineUnavailableError,
   ScheduleOcrRequestInvalidError,
   ScheduleOcrResultExpiredError,
 } from '../domain/schedule.errors';
@@ -16,12 +22,14 @@ import {
   daysInYearMonth,
   isYearMonth,
   needsOcrReview,
+  SCHEDULE_OCR_ALLOWED_ROWS,
   SCHEDULE_OCR_OPERATION,
   SCHEDULE_OCR_ORPHAN_TTL_MS,
   SCHEDULE_OCR_RESULT_TTL_MS,
   SCHEDULE_OCR_SUPPORTED_TEMPLATES,
   type ScheduleOcrToken,
 } from '../domain/schedule-policy';
+import { isAllowedSyntheticScheduleFixture } from '../domain/synthetic-schedule-fixture-registry';
 import {
   SCHEDULE_OCR_GATEWAY,
   type ScheduleOcrGateway,
@@ -37,7 +45,7 @@ export type ScheduleOcrJobReadModel = {
   yearMonth: string;
   templateId: string;
   rowIndex: number;
-  failure: { code: string; retryable: boolean } | null;
+  failure: { code: string; retryable: boolean; message: string } | null;
   resultExpiresAt: Date | null;
   candidates: Array<{
     date: string;
@@ -51,8 +59,8 @@ export type ScheduleOcrJobReadModel = {
 export class ScheduleOcrService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jobs: IdempotentAiJobService,
     private readonly clock: Clock,
+    private readonly config: ConfigService,
     @Inject(SCHEDULE_OCR_GATEWAY)
     private readonly gateway: ScheduleOcrGateway,
     @Inject(SCHEDULE_OCR_STORAGE)
@@ -74,9 +82,9 @@ export class ScheduleOcrService {
       !SCHEDULE_OCR_SUPPORTED_TEMPLATES.includes(
         input.templateId as (typeof SCHEDULE_OCR_SUPPORTED_TEMPLATES)[number],
       ) ||
-      !Number.isInteger(input.rowIndex) ||
-      input.rowIndex < 0 ||
-      input.rowIndex > 200 ||
+      !SCHEDULE_OCR_ALLOWED_ROWS[
+        input.templateId as keyof typeof SCHEDULE_OCR_ALLOWED_ROWS
+      ]?.includes(input.rowIndex) ||
       input.idempotencyKey.length < 1 ||
       input.idempotencyKey.length > 128
     ) {
@@ -102,51 +110,44 @@ export class ScheduleOcrService {
         yearMonth: input.yearMonth,
       },
     });
-    const storageUri = await this.storage.store(
-      input.file.buffer,
-      image.extension,
-    );
-    const reservation = await this.jobs
-      .reserve({
-        ...input.context,
-        operation: SCHEDULE_OCR_OPERATION,
-        idempotencyKey: input.idempotencyKey,
-        requestHash,
-        requestId: input.requestId,
-        maxAttempts: 3,
-      })
-      .catch(async (error: unknown) => {
-        await this.storage.delete(storageUri);
-        throw error;
+    const isAllowedFixture =
+      this.config.get<boolean>('DEMO_MODE') === true &&
+      isAllowedSyntheticScheduleFixture({
+        fileHash,
+        templateId: input.templateId,
+        rowIndex: input.rowIndex,
+        width: image.width,
+        height: image.height,
       });
+    const storageUri = isAllowedFixture
+      ? await this.storage.store(input.file.buffer, image.extension)
+      : null;
+    const reservation = await this.reserve({
+      ...input,
+      fileHash,
+      requestHash,
+      storageUri,
+      imageWidth: image.width,
+      imageHeight: image.height,
+      isAllowedFixture,
+    }).catch(async (error: unknown) => {
+      if (storageUri !== null) await this.storage.delete(storageUri);
+      throw error;
+    });
 
     if (reservation.isReplay) {
-      await this.storage.delete(storageUri);
+      if (storageUri !== null) await this.storage.delete(storageUri);
       return { jobId: reservation.jobId, status: 'QUEUED', isReplay: true };
     }
 
-    await this.prisma.scheduleOcrJob.create({
-      data: {
-        aiJobId: reservation.jobId,
-        datasetId: input.context.datasetId,
-        actorId: input.context.actorId,
-        wardId: input.context.wardId,
-        yearMonth: input.yearMonth,
-        templateId: input.templateId,
-        rowIndex: input.rowIndex,
-        fileHash,
+    if (isAllowedFixture && storageUri !== null) {
+      await this.process({
+        ...input,
+        file: input.file,
+        jobId: reservation.jobId,
         storageUri,
-        imageWidth: image.width,
-        imageHeight: image.height,
-      },
-    });
-
-    await this.process({
-      ...input,
-      file: input.file,
-      jobId: reservation.jobId,
-      storageUri,
-    });
+      });
+    }
     return { jobId: reservation.jobId, status: 'QUEUED', isReplay: false };
   }
 
@@ -199,6 +200,10 @@ export class ScheduleOcrService {
           : {
               code: row.aiJob.failureCode,
               retryable: row.aiJob.retryable ?? false,
+              message:
+                row.aiJob.failureCode === 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
+                  ? '이 이미지는 DEMO OCR 대상이 아닙니다. 수동으로 근무표를 등록해 주세요.'
+                  : 'OCR 후보를 만들 수 없습니다. 수동으로 근무표를 등록해 주세요.',
             },
       resultExpiresAt: row.resultExpiresAt,
       candidates: row.cells.map((cell) => ({
@@ -214,6 +219,111 @@ export class ScheduleOcrService {
     return this.storage.sweepOrphans(
       new Date(this.clock.now().getTime() - SCHEDULE_OCR_ORPHAN_TTL_MS),
     );
+  }
+
+  private async reserve(input: {
+    context: DemoSessionContext;
+    yearMonth: string;
+    templateId: string;
+    rowIndex: number;
+    idempotencyKey: string;
+    requestId: string;
+    fileHash: string;
+    requestHash: string;
+    storageUri: string | null;
+    imageWidth: number;
+    imageHeight: number;
+    isAllowedFixture: boolean;
+  }): Promise<{ jobId: string; isReplay: boolean }> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await this.findReservation(transaction, input);
+        if (existing) return existing;
+
+        const idempotencyRecordId = randomUUID();
+        const jobId = randomUUID();
+        await transaction.idempotencyRecord.create({
+          data: {
+            id: idempotencyRecordId,
+            ...input.context,
+            operation: SCHEDULE_OCR_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+            status: input.isAllowedFixture ? 'PROCESSING' : 'COMPLETED',
+            resultReference: input.isAllowedFixture ? null : jobId,
+          },
+        });
+        await transaction.aiJob.create({
+          data: {
+            id: jobId,
+            ...input.context,
+            operation: SCHEDULE_OCR_OPERATION,
+            idempotencyRecordId,
+            requestId: input.requestId,
+            maxAttempts: 3,
+            status: input.isAllowedFixture ? 'QUEUED' : 'FAILED',
+            failureCode: input.isAllowedFixture
+              ? null
+              : 'SCHEDULE_OCR_ENGINE_UNAVAILABLE',
+            retryable: input.isAllowedFixture ? null : false,
+            resultReference: input.isAllowedFixture ? null : jobId,
+          },
+        });
+        await transaction.scheduleOcrJob.create({
+          data: {
+            aiJobId: jobId,
+            ...input.context,
+            yearMonth: input.yearMonth,
+            templateId: input.templateId,
+            rowIndex: input.rowIndex,
+            fileHash: input.fileHash,
+            storageUri: input.storageUri,
+            imageWidth: input.imageWidth,
+            imageHeight: input.imageHeight,
+          },
+        });
+        return { jobId, isReplay: false };
+      });
+    } catch (error: unknown) {
+      if (!hasPrismaErrorCode(error, 'P2002')) throw error;
+      const existing = await this.findReservation(this.prisma, input);
+      if (!existing) throw error;
+      return existing;
+    }
+  }
+
+  private async findReservation(
+    client: Prisma.TransactionClient | PrismaService,
+    input: {
+      context: DemoSessionContext;
+      idempotencyKey: string;
+      requestHash: string;
+    },
+  ): Promise<{ jobId: string; isReplay: true } | null> {
+    const existing = await client.idempotencyRecord.findUnique({
+      where: {
+        idempotency_scope_key: {
+          datasetId: input.context.datasetId,
+          actorId: input.context.actorId,
+          operation: SCHEDULE_OCR_OPERATION,
+          idempotencyKey: input.idempotencyKey,
+        },
+      },
+      select: {
+        wardId: true,
+        requestHash: true,
+        aiJob: { select: { id: true } },
+      },
+    });
+    if (!existing) return null;
+    if (
+      existing.wardId !== input.context.wardId ||
+      existing.requestHash !== input.requestHash
+    ) {
+      throw new IdempotencyKeyReusedError();
+    }
+    if (!existing.aiJob) throw new IdempotencyInvariantViolationError();
+    return { jobId: existing.aiJob.id, isReplay: true };
   }
 
   private async process(input: {
@@ -285,14 +395,17 @@ export class ScheduleOcrService {
           },
         });
       });
-    } catch {
+    } catch (error: unknown) {
       const now = this.clock.now();
       await this.prisma.$transaction(async (transaction) => {
         const job = await transaction.aiJob.update({
           where: { id: input.jobId },
           data: {
             status: 'FAILED',
-            failureCode: 'SCHEDULE_OCR_FAILED',
+            failureCode:
+              error instanceof ScheduleOcrEngineUnavailableError
+                ? 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
+                : 'SCHEDULE_OCR_FAILED',
             retryable: false,
             version: { increment: 1 },
             updatedAt: now,
@@ -316,6 +429,18 @@ export class ScheduleOcrService {
       await this.storage.delete(input.storageUri);
     }
   }
+}
+
+function hasPrismaErrorCode(
+  error: unknown,
+  expectedCode: string,
+): error is { code: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === expectedCode
+  );
 }
 
 function assertCandidates(

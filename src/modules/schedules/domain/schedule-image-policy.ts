@@ -3,6 +3,7 @@ import { ScheduleOcrFileInvalidError } from './schedule.errors';
 import {
   SCHEDULE_OCR_MAX_DIMENSION,
   SCHEDULE_OCR_MAX_FILE_BYTES,
+  SCHEDULE_OCR_MAX_PIXEL_AREA,
   SCHEDULE_OCR_MIN_DIMENSION,
 } from './schedule-policy';
 
@@ -42,7 +43,8 @@ export function validateScheduleImage(
     dimensions.width < SCHEDULE_OCR_MIN_DIMENSION ||
     dimensions.height < SCHEDULE_OCR_MIN_DIMENSION ||
     dimensions.width > SCHEDULE_OCR_MAX_DIMENSION ||
-    dimensions.height > SCHEDULE_OCR_MAX_DIMENSION
+    dimensions.height > SCHEDULE_OCR_MAX_DIMENSION ||
+    dimensions.width * dimensions.height > SCHEDULE_OCR_MAX_PIXEL_AREA
   )
     throw new ScheduleOcrFileInvalidError();
   return {

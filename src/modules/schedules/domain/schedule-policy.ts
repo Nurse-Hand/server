@@ -4,10 +4,18 @@ export const SCHEDULE_OCR_ORPHAN_TTL_MS = 60 * 60 * 1_000;
 export const SCHEDULE_OCR_MAX_FILE_BYTES = 10 * 1_024 * 1_024;
 export const SCHEDULE_OCR_MIN_DIMENSION = 320;
 export const SCHEDULE_OCR_MAX_DIMENSION = 12_000;
+export const SCHEDULE_OCR_MAX_PIXEL_AREA = 4_000_000;
 export const SCHEDULE_OCR_SUPPORTED_TEMPLATES = [
   'FIXED_V1',
   'FIXED_V2',
 ] as const;
+
+export const SCHEDULE_OCR_ALLOWED_ROWS: Readonly<
+  Record<(typeof SCHEDULE_OCR_SUPPORTED_TEMPLATES)[number], readonly number[]>
+> = {
+  FIXED_V1: [2],
+  FIXED_V2: [2],
+};
 export const SCHEDULE_DUTIES = ['DAY', 'EVENING', 'NIGHT', 'OFF'] as const;
 export const SCHEDULE_OCR_TOKENS = ['D', 'E', 'N', 'OFF', 'UNKNOWN'] as const;
 

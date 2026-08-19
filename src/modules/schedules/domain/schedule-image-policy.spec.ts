@@ -1,23 +1,15 @@
 import { ScheduleOcrFileInvalidError } from './schedule.errors';
 import { validateScheduleImage } from './schedule-image-policy';
-
-function png(width = 640, height = 480): Buffer {
-  const buffer = Buffer.alloc(24);
-  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(buffer);
-  buffer.write('IHDR', 12, 'ascii');
-  buffer.writeUInt32BE(width, 16);
-  buffer.writeUInt32BE(height, 20);
-  return buffer;
-}
+import { createSyntheticScheduleFixture } from '../infrastructure/synthetic-schedule-fixture';
 
 describe('schedule image policy', () => {
   it('PNG signature와 해상도를 함께 검증한다', () => {
     expect(
       validateScheduleImage({
-        buffer: png(),
+        buffer: createSyntheticScheduleFixture(),
         mimeType: 'image/png',
         originalName: 'synthetic.png',
-        sizeBytes: 24,
+        sizeBytes: createSyntheticScheduleFixture().length,
       }),
     ).toEqual({ extension: '.png', width: 640, height: 480 });
   });
@@ -36,10 +28,22 @@ describe('schedule image policy', () => {
   it('최소 해상도보다 작은 이미지를 거부한다', () => {
     expect(() =>
       validateScheduleImage({
-        buffer: png(100, 100),
+        buffer: createSyntheticScheduleFixture(100, 100),
         mimeType: 'image/png',
         originalName: 'synthetic.png',
-        sizeBytes: 24,
+        sizeBytes: createSyntheticScheduleFixture(100, 100).length,
+      }),
+    ).toThrow(ScheduleOcrFileInvalidError);
+  });
+
+  it('허용 pixel area를 넘는 압축 이미지를 거부한다', () => {
+    const image = createSyntheticScheduleFixture(2_100, 2_000);
+    expect(() =>
+      validateScheduleImage({
+        buffer: image,
+        mimeType: 'image/png',
+        originalName: 'synthetic.png',
+        sizeBytes: image.length,
       }),
     ).toThrow(ScheduleOcrFileInvalidError);
   });

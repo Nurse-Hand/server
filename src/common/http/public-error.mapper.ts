@@ -56,6 +56,10 @@ const DEFAULT_ERRORS: Readonly<Record<number, Omit<PublicError, 'status'>>> = {
     code: 'UNPROCESSABLE_ENTITY',
     message: '요청을 현재 상태에서 처리할 수 없습니다.',
   },
+  [HttpStatus.PAYLOAD_TOO_LARGE]: {
+    code: 'PAYLOAD_TOO_LARGE',
+    message: '업로드 파일 크기가 허용 범위를 초과했습니다.',
+  },
   [HttpStatus.TOO_MANY_REQUESTS]: {
     code: 'TOO_MANY_REQUESTS',
     message: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',

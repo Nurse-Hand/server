@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { ApplicationError } from '../errors/application.error';
 import { mapExceptionToPublicError } from './public-error.mapper';
 
@@ -37,6 +37,14 @@ describe('mapExceptionToPublicError', () => {
       status: 500,
       code: 'INTERNAL_SERVER_ERROR',
       message: '서버 오류가 발생했습니다.',
+    });
+  });
+
+  it('multipart 용량 초과를 공개 413 오류로 보존한다', () => {
+    expect(mapExceptionToPublicError(new PayloadTooLargeException())).toEqual({
+      status: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+      message: '업로드 파일 크기가 허용 범위를 초과했습니다.',
     });
   });
 

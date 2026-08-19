@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, Matches, Max, Min } from 'class-validator';
+import { IsIn, IsInt, Matches } from 'class-validator';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
 import type { ScheduleOcrJobReadModel } from '../application/schedule-ocr.service';
 import { SCHEDULE_OCR_SUPPORTED_TEMPLATES } from '../domain/schedule-policy';
@@ -17,11 +17,10 @@ export class CreateScheduleOcrJobRequestDto {
   @IsIn(SCHEDULE_OCR_SUPPORTED_TEMPLATES)
   templateId!: string;
 
-  @ApiProperty({ minimum: 0, maximum: 200 })
-  @Transform(({ value }) => Number(value))
+  @ApiProperty({ enum: [2] })
+  @Transform(({ value }) => parseStrictInteger(value))
   @IsInt()
-  @Min(0)
-  @Max(200)
+  @IsIn([2])
   rowIndex!: number;
 }
 
@@ -48,7 +47,7 @@ export class ScheduleOcrJobDataDto {
   @ApiProperty()
   rowIndex!: number;
   @ApiPropertyOptional({ type: Object, nullable: true })
-  failure!: { code: string; retryable: boolean } | null;
+  failure!: { code: string; retryable: boolean; message: string } | null;
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   resultExpiresAt!: string | null;
   @ApiProperty({ type: ScheduleOcrCandidateDto, isArray: true })
@@ -69,4 +68,12 @@ export function mapScheduleOcrJobDto(
     ...model,
     resultExpiresAt: model.resultExpiresAt?.toISOString() ?? null,
   };
+}
+
+function parseStrictInteger(value: unknown): unknown {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value)) {
+    return Number(value);
+  }
+  return value;
 }
