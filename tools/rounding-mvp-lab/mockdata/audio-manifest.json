@@ -1,0 +1,62 @@
+{
+  "scenarioKey": "SYNTHETIC_MEDICAL_DAY_SHIFT",
+  "notes": "원본 음성은 커밋하지 않고 로컬 record_data 경로 metadata만 유지한다.",
+  "baseDirectoryWorkspaceRelativePath": "record_data",
+  "baseDirectoryRelativeFromToolDir": "../../../../../record_data",
+  "items": [
+    {
+      "audioAssetId": "audio-r1-p101",
+      "visitId": "visit-r1-p101",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+      "roundLabel": "1차 라운딩",
+      "fileName": "1차 라운딩 환자1.m4a",
+      "workspaceRelativePath": "record_data/1차 라운딩 환자1.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/1차 라운딩 환자1.m4a"
+    },
+    {
+      "audioAssetId": "audio-r1-p102",
+      "visitId": "visit-r1-p102",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+      "roundLabel": "1차 라운딩",
+      "fileName": "1차 라운딩 환자 2.m4a",
+      "workspaceRelativePath": "record_data/1차 라운딩 환자 2.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/1차 라운딩 환자 2.m4a"
+    },
+    {
+      "audioAssetId": "audio-r1-p103",
+      "visitId": "visit-r1-p103",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+      "roundLabel": "1차 라운딩",
+      "fileName": "1차 라운딩 환자 3.m4a",
+      "workspaceRelativePath": "record_data/1차 라운딩 환자 3.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/1차 라운딩 환자 3.m4a"
+    },
+    {
+      "audioAssetId": "audio-r2-p101",
+      "visitId": "visit-r2-p101",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+      "roundLabel": "2차 라운딩",
+      "fileName": "2차 라운딩 환자 1.m4a",
+      "workspaceRelativePath": "record_data/2차 라운딩 환자 1.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/2차 라운딩 환자 1.m4a"
+    },
+    {
+      "audioAssetId": "audio-r2-p102",
+      "visitId": "visit-r2-p102",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+      "roundLabel": "2차 라운딩",
+      "fileName": "2차 라운딩 환자 2.m4a",
+      "workspaceRelativePath": "record_data/2차 라운딩 환자 2.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/2차 라운딩 환자 2.m4a"
+    },
+    {
+      "audioAssetId": "audio-r2-p103",
+      "visitId": "visit-r2-p103",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+      "roundLabel": "2차 라운딩",
+      "fileName": "2차 라운딩 환자 3.m4a",
+      "workspaceRelativePath": "record_data/2차 라운딩 환자 3.m4a",
+      "relativePathFromToolDir": "../../../../../record_data/2차 라운딩 환자 3.m4a"
+    }
+  ]
+}

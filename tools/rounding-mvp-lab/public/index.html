@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nurse Hand Rounding MVP Lab</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="lab-layout">
+      <section class="phone-frame" aria-label="Rounding MVP Lab mobile harness">
+        <header class="phone-header">
+          <p class="eyebrow">Nurse Hand server / Issue #21</p>
+          <div class="title-row">
+            <div>
+              <h1>Rounding MVP Lab</h1>
+              <p class="subtitle" id="scenario-caption">
+                mock fallback과 실제 API 호출 상태를 한 화면에서 점검합니다.
+              </p>
+            </div>
+            <span class="mini-status accent" id="mode-badge">mock</span>
+          </div>
+        </header>
+
+        <div class="phone-scroll">
+          <section class="tool-section">
+            <div class="section-heading">
+              <h2>Connection</h2>
+              <button
+                type="button"
+                class="ghost-button"
+                data-action="reset-lab"
+              >
+                초기화
+              </button>
+            </div>
+
+            <div
+              class="segmented-control"
+              role="radiogroup"
+              aria-label="API mode"
+            >
+              <label class="segment">
+                <input type="radio" name="mode" value="mock" checked />
+                <span>Mock</span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="mode" value="real" />
+                <span>Real API</span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="mode" value="real-fallback" />
+                <span>Real + Fallback</span>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>BASE_URL</span>
+              <input
+                id="base-url"
+                type="text"
+                spellcheck="false"
+                value="http://localhost:3000"
+                placeholder="http://localhost:3000"
+              />
+            </label>
+            <p class="field-note">
+              root URL만 입력합니다. `file://`로 열면 embedded mockdata만으로
+              동작합니다.
+            </p>
+
+            <div
+              class="segmented-control"
+              role="radiogroup"
+              aria-label="Active persona"
+            >
+              <label class="segment">
+                <input type="radio" name="persona" value="SENDER" checked />
+                <span>Sender</span>
+              </label>
+              <label class="segment">
+                <input type="radio" name="persona" value="RECEIVER" />
+                <span>Receiver</span>
+              </label>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Sender session</span>
+                <input
+                  id="sender-session-id"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="X-Demo-Session-Id"
+                />
+              </label>
+              <label class="field">
+                <span>Receiver session</span>
+                <input
+                  id="receiver-session-id"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="X-Demo-Session-Id"
+                />
+              </label>
+            </div>
+
+            <div class="inline-actions">
+              <button type="button" class="action-button" data-action="health">
+                Health
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="create-demo-session"
+              >
+                Demo Session
+              </button>
+              <button
+                type="button"
+                class="action-button primary"
+                data-action="start-rounding"
+              >
+                라운딩 시작
+              </button>
+            </div>
+          </section>
+
+          <section class="tool-section">
+            <div class="section-heading">
+              <h2>Visit Flow</h2>
+              <span class="mini-status" id="session-state">IDLE</span>
+            </div>
+            <div class="summary-grid" id="session-summary"></div>
+            <ol class="route-list" id="visit-route"></ol>
+            <div class="current-visit" id="current-visit"></div>
+            <div class="inline-actions wrap">
+              <button
+                type="button"
+                class="action-button"
+                data-action="complete-current-patient"
+              >
+                현재 환자 종료
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="next-patient"
+              >
+                다음 환자
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="complete-rounding"
+              >
+                전체 라운딩 종료
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="analyze-server"
+              >
+                서버 분석
+              </button>
+            </div>
+          </section>
+
+          <section class="tool-section">
+            <div class="section-heading">
+              <h2>Review Flow</h2>
+              <span class="mini-status accent" id="next-action-pill"
+                >다음 액션 대기</span
+              >
+            </div>
+            <div class="inline-actions wrap">
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-full-script"
+              >
+                전체 스크립트
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-patient-script"
+              >
+                환자별 스크립트
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-top3"
+              >
+                Top3 후보
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-evidence"
+              >
+                Evidence
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="extract-tasks"
+              >
+                업무 후보
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-handoff-precheck"
+              >
+                인수인계 질문
+              </button>
+              <button
+                type="button"
+                class="action-button"
+                data-action="show-handoff-draft"
+              >
+                인수인계 초안
+              </button>
+            </div>
+            <div class="detail-snapshot" id="detail-snapshot"></div>
+          </section>
+
+          <section class="tool-section">
+            <div class="section-heading">
+              <h2>Audio Manifest</h2>
+              <span class="mini-status" id="manifest-note">metadata only</span>
+            </div>
+            <div class="manifest-list" id="manifest-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="console-frame">
+        <section class="console-section">
+          <div class="section-heading">
+            <h2>요청</h2>
+            <span class="mini-status" id="last-action-label">none</span>
+          </div>
+          <pre class="code-block" id="request-view">{}</pre>
+        </section>
+
+        <section class="console-section">
+          <div class="section-heading">
+            <h2>응답</h2>
+            <span class="mini-status" id="response-status">idle</span>
+          </div>
+          <pre class="code-block" id="response-view">{}</pre>
+        </section>
+
+        <section class="console-section">
+          <div class="section-heading">
+            <h2>Step Summary</h2>
+            <span class="mini-status accent" id="result-origin">mock</span>
+          </div>
+          <div class="summary-view" id="summary-view"></div>
+        </section>
+
+        <section class="console-section">
+          <div class="section-heading">
+            <h2>Status Feed</h2>
+            <button type="button" class="ghost-button" id="clear-log">
+              비우기
+            </button>
+          </div>
+          <ul class="log-list" id="log-list"></ul>
+        </section>
+      </section>
+    </main>
+
+    <script src="../mockdata/embedded-mockdata.js"></script>
+    <script defer src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "scenarioKey": "SYNTHETIC_MEDICAL_DAY_SHIFT",
+  "generatedAt": "2026-08-19T09:00:00+09:00",
+  "items": [
+    {
+      "nurseId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d62",
+      "persona": "SENDER",
+      "displayName": "송신 간호사 A",
+      "role": "DAY_SHIFT_LEAD",
+      "wardId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d61",
+      "wardLabel": "7A 내과 병동",
+      "shiftStartAt": "2026-08-19T07:00:00+09:00",
+      "shiftEndAt": "2026-08-19T15:00:00+09:00"
+    },
+    {
+      "nurseId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d64",
+      "persona": "RECEIVER",
+      "displayName": "수신 간호사 B",
+      "role": "EVENING_SHIFT_LEAD",
+      "wardId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d61",
+      "wardLabel": "7A 내과 병동",
+      "shiftStartAt": "2026-08-19T15:00:00+09:00",
+      "shiftEndAt": "2026-08-19T23:00:00+09:00"
+    }
+  ]
+}
