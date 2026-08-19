@@ -41,6 +41,7 @@ model WardMembership {
   ward               Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
   demoSessions       DemoSession[]       @relation("DemoSessionMembership")
   nurseShifts        NurseShift[]        @relation("ShiftMembership")
+  roundingSessions   RoundingSession[]   @relation("RoundingSessionMembership")
   storedFiles        StoredFile[]        @relation("StoredFileMembership")
   aiJobs             AiJob[]             @relation("AiJobMembership")
   idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
@@ -71,17 +72,18 @@ model NurseShift {
 }
 
 model Patient {
-  id                 String              @id @default(uuid()) @db.Uuid
-  datasetId          String              @db.Uuid
-  logicalKey         String              @db.VarChar(64)
-  wardId             String              @db.Uuid
-  displayName        String              @db.VarChar(100)
-  roomLabel          String              @db.VarChar(32)
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  ward               Ward                @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
-  patientAssignments PatientAssignment[] @relation("AssignmentPatient")
-  timelineEvents     TimelineEvent[]     @relation("TimelineEventPatient")
+  id                 String                   @id @default(uuid()) @db.Uuid
+  datasetId          String                   @db.Uuid
+  logicalKey         String                   @db.VarChar(64)
+  wardId             String                   @db.Uuid
+  displayName        String                   @db.VarChar(100)
+  roomLabel          String                   @db.VarChar(32)
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  ward               Ward                     @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  patientAssignments PatientAssignment[]      @relation("AssignmentPatient")
+  timelineEvents     TimelineEvent[]          @relation("TimelineEventPatient")
+  roundingSegments   RoundingPatientSegment[] @relation("RoundingSegmentPatient")
 
   @@unique(name: "patient_dataset_id", [datasetId, id])
   @@unique(name: "patient_dataset_logical_key", [datasetId, logicalKey])

@@ -23,6 +23,20 @@
 
 인증을 제외하는 동안 actor와 병동 범위를 임의 body 값으로 받지 않도록 `POST /api/v1/demo-sessions`를 서버 지원 API로 추가한다. 이 API는 Notion export의 43개에는 포함하지 않으며 로그인·회원가입을 대신하는 실제 인증 기능으로 취급하지 않는다. 첫 업무 API를 구현하기 전에 synthetic 사용자·병동·환자 배정과 함께 제공해야 한다.
 
+### 2.1 Notion 43개 외 서버 지원 API
+
+Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라운딩 resource 연결에 필요한 공개 API는 별도 지원 API로 관리한다. 지원 API를 추가·삭제할 때도 Controller·DTO·OpenAPI·테스트와 아래 표를 같은 변경에서 갱신한다.
+
+| Method | Endpoint | 목적 | 기존 기능과의 경계 |
+|---|---|---|---|
+| `POST` | `/api/v1/demo-sessions` | 인증 제외 기간의 검증된 synthetic context 생성 | 인증 5개를 구현한 것으로 계산하지 않음 |
+| `POST` | `/api/v1/rounding-sessions/{sessionId}/patient-segments` | 한 라운딩 안의 현재 환자 구간 전환 기록 | 라운딩 세션 시작·종료·조회 API를 대체하지 않음 |
+| `POST` | `/api/v1/files/audio` | 빠른 기록 등 단일 오디오 파일 저장 | 장시간 라운딩의 `audio-chunks` API를 대체하지 않음 |
+| `POST` | `/api/v1/files/photos` | 사진 파일 저장 | 파일 ID를 실제 라운딩·빠른 기록 resource에 연결해야 함 |
+| `POST` | `/api/v1/quick-notes` | 활성 라운딩 밖에서 환자를 선택해 빠른 기록 생성 | 세션 안의 `/rounding-sessions/{sessionId}/records`를 대체하지 않음 |
+
+지원 파일은 demo session scope를 검증하고, 연결되지 않은 orphan의 정리 정책을 파일 저장 Issue에서 고정해야 한다. 파일 업로드 성공만으로 라운딩 기록이나 빠른 기록이 생성된 것으로 취급하지 않는다.
+
 ## 3. 43개 API 전수 매핑
 
 ### 3.1 인증 — 5개, MVP 제외
@@ -55,7 +69,9 @@
 | 14 | `POST` | `/api/v1/rounding-sessions/{sessionId}/records` | 빠른 기록 생성 | P1 | Node.js | 구현 |
 | 15 | `POST` | `/api/v1/rounding-sessions/{sessionId}/audio-chunks` | 음성 청크 업로드 | P0 | Node.js, 분석은 AI Adapter 연동 | 구현 |
 
-업로드 저장소가 필요한 경우 Local/S3 호환 Adapter 같은 구현 세부사항은 라운딩 Issue에서 결정한다. 저장소 제품이 미정이라는 이유로 음성 업로드 API 자체를 범위에서 제외하지 않는다.
+가비아 단일 서버 데모에서는 사진과 음성을 서버 로컬 디스크에 저장하고 DB에는 검증된 metadata와 비공개 storage URI만 둔다. 파일 저장 구현은 교체 가능한 Port/Adapter 뒤에 두되 S3 연동은 MVP 범위에서 제외한다. 저장소 선택과 무관하게 음성 업로드 API 자체는 범위에서 제외하지 않는다.
+
+파일 저장 모듈은 domain API와 위 지원 API가 함께 사용하는 내부 capability다. Notion 전수표의 `/rounding-sessions/{sessionId}/audio-chunks`, 라운딩 기록과 빠른 기록 endpoint가 파일 소유 resource와 접근 범위를 검증한 뒤 저장 Port를 호출한다. 지원 API가 반환한 파일 ID도 최종 domain resource에 연결될 때 같은 scope를 다시 검증한다.
 
 ### 3.4 환자 Timeline — 7개, Node.js 구현
 
@@ -105,7 +121,7 @@
 | 40 | `POST` | `/internal/v1/tasks/prioritize` | 업무 우선순위 제안 | P0 | 우선순위·근거·신뢰도 제안과 FastAPI 계약 제공 | 규칙 우선순위 계산, 제안 저장, 사용자 확정 반영 | 연동 구현 |
 | 41 | `POST` | `/internal/v1/tasks/extract` | 업무 후보 추출 | P0 | 후보·근거·신뢰도 추론과 FastAPI 계약 제공 | 작업 오케스트레이션, 후보 저장, 선택 반영 | 연동 구현 |
 | 42 | `POST` | `/internal/v1/handoffs/precheck` | 인수인계 누락 검증 | P0 | 근거 기반 역질문 생성과 FastAPI 계약 제공 | 입력 구성, 결과 저장, 답변과 상태 관리 | 연동 구현 |
-| 43 | `POST` | `/internal/v1/handoffs/generate` | 인수인계 초안 생성 | P0 | 근거가 연결된 SBAR 초안 생성과 FastAPI 계약 제공 | 생성 요청, 초안·근거 저장, 수정·확정 관리 | 연동 구현 |
+| 43 | `POST` | `/internal/v1/handoffs/generate` | 인수인계 초안 생성 | P0 | 근거가 연결된 6개 임상 section 초안 생성과 FastAPI 계약 제공 | 생성 요청, 초안·근거 저장, 수정·확정 관리 | 연동 구현 |
 
 Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라도 Node.js의 Adapter, Mock, 요청·응답 검증, timeout, 오류 변환, 멱등성, 작업 상태 관리는 서버 구현 범위다.
 
@@ -128,10 +144,15 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 
 숫자형 AI score는 저장·노출·정렬에 사용하지 않는다. AI 제안 수락은 별도 사용자 행동으로 감사 이력에 남긴다. 정확한 Node.js 규칙과 AI·간호사 간 결정 경계는 `docs/decisions/task-handoff-policy.md`를 따른다.
 
+화면의 선택형 긴급도는 `priorityOverride`, 시간 조건은 `dueAt`으로 기존 계약에 매핑한다. 합의되지 않은 가중치나 별도 `priorityScore` 필드를 추가하지 않는다.
+
 ## 5. 인수인계 공통 정책
 
 - 사전검증과 초안 생성 결과에는 근거가 된 Timeline 이벤트 또는 업무 ID를 연결한다.
 - AI가 생성한 질문과 경고는 원문 사실과 구분해 저장한다.
+- MVP template은 `NURSING_HANDOFF_V1`이고 환자별 초안은 `PATIENT_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION` 6개 section을 가진다.
+- Evidence의 세부 topic과 인수인계 표시 section은 별도 필드로 보존한다. 활력징후·호흡·의식상태 topic은 `PATIENT_STATUS`로 매핑한다.
+- citation은 source 식별자뿐 아니라 시각과 표시 텍스트를 제공한다. 실제 발화, summary, 업무 제목을 구분하고 summary를 원문으로 표시하지 않는다.
 - 역질문이 해결되었다는 상태는 요청 본문만 신뢰하지 않고, 서버에 저장된 답변과 검증 결과로 판단한다.
 - 최종 확정 전 필수 항목, version 충돌, 이미 확정된 문서 여부를 서버가 검사한다.
 - 최종 확정 시 현재 초안, 근거, 질문·답변, 경고를 변경 불가능한 snapshot으로 저장한다.
@@ -139,6 +160,8 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 - AI 경고를 확정 차단 조건으로 사용할지는 결정론적 서버 규칙과 분리한다. 경고를 허용하는 경우 사용자의 명시적 확인과 감사 이력을 남긴다.
 
 역질문 답변과 경고를 최종 확정에 반영하는 정확한 규칙, snapshot과 수신 이력의 경계는 `docs/decisions/task-handoff-policy.md`를 따른다.
+
+전체 transcript와 화자 후보·수정은 #17, Evidence 저장·검색과 Timeline 원문 역추적은 #18, 빠른 기록 입력은 #19, 로컬 파일 저장 Port/Adapter는 #14가 소유한다. Handoff는 이 결과를 Port로 읽고 해당 기능을 중복 구현하지 않는다. 근무표 Calendar CRUD와 OCR은 이 문서의 근무표 API 4개 범위에서 후속 구현한다.
 
 ## 6. 구현 단계
 
@@ -155,7 +178,7 @@ Task와 Handoff는 공유 Domain Foundation까지 `dev`에 병합된 뒤 각각�
 
 ## 7. 완료 기준
 
-- 33개 공개 API가 NestJS Controller와 DTO, 서비스, 저장 계층, 테스트에 구현되어 있다.
+- Notion 기준 인증 외 공개 API 33개가 NestJS Controller와 DTO, 서비스, 저장 계층, 테스트에 구현되어 있다. 2.1의 지원 API는 이 33개에 포함하지 않으며 표에 등록된 항목만 추가로 노출한다.
 - 5개 내부 AI API 각각에 FastAPI OpenAPI와 일치하는 Node.js Adapter가 있다.
 - 인증 5개만 명시적으로 제외되어 있으며 다른 P1 기능이 누락되지 않는다.
 - 공개 OpenAPI가 NestJS 코드에서 재생성되고 저장소의 생성 결과와 일치한다.

@@ -20,6 +20,8 @@
 
 AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 보존한다. 제안 수락, 수동 변경과 확정 해제는 append-only 감사 기록으로 남긴다.
 
+화면의 선택형 `긴급도`는 별도 점수 필드가 아니라 기존 `priorityOverride`로 간호사가 확정한 처리 긴급도를 표현한다. `시간민감도`는 마감 시각인 `dueAt`으로 표현한다. 서로 합의되지 않은 가중치, 임계값 또는 `priorityScore`를 추가 입력·저장·정렬 필드로 만들지 않는다.
+
 ### 2.2 Node.js 규칙
 
 `TODO` 또는 `IN_PROGRESS` 업무의 규칙 우선순위는 요청의 검증된 demo session에서 확인한 현재 근무와 서버 Clock을 기준으로 계산한다.
@@ -57,12 +59,39 @@ Python FastAPI에서 생성한 OpenAPI artifact가 제공되기 전에는 실제
 - 사용자 답변은 `NO_ISSUE`, `INCLUDE_HANDOFF`, `UNVERIFIED`, `NOT_APPLICABLE`만 허용한다.
 - 초안 생성 접수 transaction에서 `precheckVersion`과 질문·답변·근거 snapshot을 고정한다. 접수 성공 직후 해당 precheck 답변 변경을 `422`로 거부한다.
 - 초안 생성은 `CRITICAL` 미응답이 있으면 `422`로 거부한다.
-- `includeUnverified=true`는 `UNVERIFIED` 항목을 확인되지 않은 정보로 AI 입력과 draft warning에 포함한다. false는 SBAR 본문 입력에서 제외하되 precheck warning과 final snapshot 후보에는 보존하며 사실로 승격하지 않는다.
-- SBAR template API가 별도로 없으므로 MVP에서는 서버 allowlist의 `SBAR_DEFAULT_V1`만 허용한다.
+- `includeUnverified=true`는 `UNVERIFIED` 항목을 확인되지 않은 정보로 AI 입력과 draft warning에 포함한다. false는 임상 section 본문 입력에서 제외하되 precheck warning과 final snapshot 후보에는 보존하며 사실로 승격하지 않는다.
+- template API가 별도로 없으므로 MVP에서는 서버 allowlist의 `NURSING_HANDOFF_V1`만 허용한다.
 - AI 원문 초안, 간호사의 현재 수정본, section별 citation과 수정 여부를 구분해 보존한다.
 - Handoff는 `TimelineReader`와 `TaskQueryPort`만 사용하며 Timeline·Task repository 또는 Prisma model을 직접 참조하지 않는다.
 
-### 4.1 초안 생성 상태와 재시도
+### 4.1 임상 section과 근거 표시
+
+인수인계 초안은 다음 6개 section을 환자별로 모두 가진다.
+
+| Section | 의미 |
+|---|---|
+| `PATIENT_STATUS` | 활력징후, 호흡, 의식 상태 등 환자 상태 |
+| `PAIN` | 통증과 변화 |
+| `TREATMENT` | 투약을 포함한 처치 |
+| `DIET` | 식이와 섭취 |
+| `ACTIVITY` | 활동, 이동과 안전 관련 수행 |
+| `OBSERVATION` | 보호자 문의, 낙상 위험 등 관찰·특이사항 |
+
+Evidence의 세부 `topic`과 인수인계 표시 `section`은 서로 다른 축이다. 세부 검색 topic은 `VITAL_SIGNS`, `RESPIRATION`, `MENTAL_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION`을 사용할 수 있고, 앞의 세 topic은 `PATIENT_STATUS`로 묶는다. 나머지는 같은 이름의 section으로 매핑한다. 이 매핑은 검색 분류이며 원문 내용을 바꾸지 않는다.
+
+공개 citation은 `sourceType`, `sourceId`, `sourceReference`, nullable `occurredAt`, `excerptKind`, `excerpt`를 제공한다. Timeline 기반 `UTTERANCE`와 `SUMMARY`는 `TimelineEvent.occurredAt`을 사용한다. `TASK_TITLE`은 발생 시각을 임의로 마감·생성·수정 시각 중 하나로 바꾸지 않고 `occurredAt=null`로 제공하며, 업무의 `dueAt`은 연결 업무 read model에서 별도로 표시한다. `excerptKind`는 다음 의미를 가진다.
+
+- `UTTERANCE`: upstream이 제공한 실제 발화 텍스트
+- `SUMMARY`: 구조화·요약된 근거이며 원문으로 표시하면 안 됨
+- `TASK_TITLE`: 연결 업무의 제목
+
+상세 화면은 citation의 텍스트와 시각을 펼쳐 보여 줄 수 있어야 한다. MVP citation에는 오디오 URL을 넣거나 녹음 재생 기능을 추가하지 않는다. finalize는 위 citation 표시값도 불변 snapshot에 복사한다.
+
+전체 transcript와 화자 후보·수정은 #17, Evidence 저장·검색과 Timeline 원문 역추적은 #18, 활성 라운딩 밖의 환자 선택 빠른 기록은 #19가 소유한다. #18과 #19에서 사용하는 세부 topic 수가 이 문서의 6개 인수인계 section 수를 뜻하지 않도록 구현 전에 해당 이슈 계약을 동기화한다. Handoff는 위 source를 직접 구현하지 않고 `TimelineReader`와 `TaskQueryPort`의 검증된 read model만 소비한다.
+
+로컬 파일 저장은 #14의 Port/Adapter, 라운딩 파일 연결은 Rounding domain이 소유한다. Calendar CRUD와 OCR은 Schedule 범위이며 Task/Handoff branch에서 구현하지 않는다.
+
+### 4.2 초안 생성 상태와 재시도
 
 Handoff root 상태는 `GENERATING`, `DRAFT`, `FINALIZED`다. 성공한 generate 결과만 `GENERATING`에서 `DRAFT`로 publish하며 실패한 결과와 부분 draft는 공개하지 않는다. 상세 조회는 latest generation job의 `QUEUED`, `PROCESSING`, `SUCCEEDED`, `FAILED`와 안전한 failure code를 제공한다.
 
