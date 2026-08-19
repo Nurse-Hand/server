@@ -69,7 +69,8 @@ jobs:
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/gabia_deploy_key
+          printf '%b\n' "${SSH_PRIVATE_KEY}" \
+            | sed 's/\r$//' > ~/.ssh/gabia_deploy_key
           chmod 600 ~/.ssh/gabia_deploy_key
 
           ssh -i ~/.ssh/gabia_deploy_key \
