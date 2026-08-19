@@ -186,11 +186,16 @@ describe('Task priority suggestions PostgreSQL integration', () => {
       };
     });
     const concurrentKey = keyFor('concurrent');
-    const firstRequest = postBatch(concurrentKey).expect(201);
+    const firstRequest = postBatch(concurrentKey)
+      .expect(201)
+      .then((response) => response);
     await startedPromise;
-    const second = await postBatch(concurrentKey).expect(409);
-    expect(second.body.error.code).toBe('IDEMPOTENCY_REQUEST_IN_PROGRESS');
-    release?.();
+    try {
+      const second = await postBatch(concurrentKey).expect(409);
+      expect(second.body.error.code).toBe('IDEMPOTENCY_REQUEST_IN_PROGRESS');
+    } finally {
+      release?.();
+    }
     await firstRequest;
   });
 
