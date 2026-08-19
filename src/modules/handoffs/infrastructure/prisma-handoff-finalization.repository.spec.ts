@@ -1,5 +1,6 @@
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { FinalizeHandoffCommand } from '../application/handoff-finalization.models';
+import { HANDOFF_JOB_OPERATIONS } from '../domain/handoff.constants';
 import { PrismaHandoffFinalizationRepository } from './prisma-handoff-finalization.repository';
 
 const DATASET_ID = '00000000-0000-4000-8000-000000000101';
@@ -36,11 +37,16 @@ describe('PrismaHandoffFinalizationRepository', () => {
       version: 3,
     });
     expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(transaction.aiJob.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: 'SUCCEEDED' }),
-      }),
-    );
+    expect(transaction.aiJob.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: '00000000-0000-4000-8000-000000000902',
+        datasetId: DATASET_ID,
+        wardId: WARD_ID,
+        operation: HANDOFF_JOB_OPERATIONS.GENERATE,
+        status: 'SUCCEEDED',
+      },
+      select: { id: true },
+    });
     const snapshotData =
       transaction.handoffFinalSnapshot.create.mock.calls[0]![0].data;
     expect(snapshotData).toMatchObject({
@@ -210,6 +216,31 @@ describe('PrismaHandoffFinalizationRepository', () => {
       kind: 'UNPROCESSABLE_ENTITY',
     });
   });
+
+  it.each([
+    [
+      '다른 ward',
+      {
+        wardId: '00000000-0000-4000-8000-000000000399',
+        operation: HANDOFF_JOB_OPERATIONS.GENERATE,
+      },
+    ],
+    [
+      '다른 operation',
+      { wardId: WARD_ID, operation: HANDOFF_JOB_OPERATIONS.PRECHECK },
+    ],
+  ])(
+    '%s의 SUCCEEDED job은 generation 성공 근거로 인정하지 않는다',
+    async (_case, availableJob) => {
+      mockAvailableGenerationJob(transaction, availableJob);
+
+      await expect(repository.finalize(command())).rejects.toMatchObject({
+        code: 'HANDOFF_STATE_INVALID',
+        kind: 'UNPROCESSABLE_ENTITY',
+      });
+      expect(transaction.handoffFinalSnapshot.create).not.toHaveBeenCalled();
+    },
+  );
 
   it('DB의 CRITICAL 미응답은 KEEP_WITH_WARNING으로도 우회하지 못한다', async () => {
     transaction.handoff.findFirst.mockResolvedValueOnce(
@@ -477,4 +508,22 @@ function createPrisma(transaction: ReturnType<typeof createTransaction>) {
     idempotencyRecord: { findUnique: jest.fn() },
     handoff: { findFirst: jest.fn() },
   };
+}
+
+function mockAvailableGenerationJob(
+  transaction: ReturnType<typeof createTransaction>,
+  availableJob: { wardId: string; operation: string },
+): void {
+  transaction.aiJob.findFirst.mockImplementationOnce(
+    async (query: {
+      where: {
+        wardId: string;
+        operation: string;
+      };
+    }) =>
+      query.where.wardId === availableJob.wardId &&
+      query.where.operation === availableJob.operation
+        ? { id: 'job-id' }
+        : null,
+  );
 }

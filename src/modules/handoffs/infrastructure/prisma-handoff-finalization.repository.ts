@@ -17,7 +17,10 @@ import type {
 import type { HandoffFinalizationRepository } from '../application/ports/handoff-finalization.repository';
 import type { HandoffPrecheckEvidence } from '../application/handoff-precheck.models';
 import { assertFinalizationPolicy } from '../domain/handoff-finalization.policy';
-import { HANDOFF_CLINICAL_SECTIONS } from '../domain/handoff.constants';
+import {
+  HANDOFF_CLINICAL_SECTIONS,
+  HANDOFF_JOB_OPERATIONS,
+} from '../domain/handoff.constants';
 import {
   HandoffNotFoundError,
   HandoffStateInvalidError,
@@ -134,6 +137,8 @@ export class PrismaHandoffFinalizationRepository implements HandoffFinalizationR
               where: {
                 id: latestAttempt.aiJobId,
                 datasetId: input.context.datasetId,
+                wardId: input.context.wardId,
+                operation: HANDOFF_JOB_OPERATIONS.GENERATE,
                 status: 'SUCCEEDED',
               },
               select: { id: true },
