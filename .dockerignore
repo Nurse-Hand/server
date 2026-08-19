@@ -8,6 +8,7 @@ coverage
 logs
 tmp
 temp
+.local
 
 .env
 .env.*

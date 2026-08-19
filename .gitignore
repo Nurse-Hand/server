@@ -44,6 +44,9 @@ tools/**/fixtures/audio/
 .cache/
 .eslintcache
 .turbo/
+.local/
+.serena/
+.worktrees/
 
 # Editors and operating systems
 .DS_Store

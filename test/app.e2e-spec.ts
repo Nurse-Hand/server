@@ -50,6 +50,17 @@ describe('App (e2e)', () => {
     });
   });
 
+  it('로컬 UI origin에서 API 호출을 허용한다', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .set('Origin', 'http://localhost:5173')
+      .expect(200);
+
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'http://localhost:5173',
+    );
+  });
+
   it('유효하지 않은 Request ID를 서버 UUID로 교체한다', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/health')

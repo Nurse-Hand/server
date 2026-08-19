@@ -8,133 +8,345 @@
   </head>
   <body>
     <main class="lab-layout">
-      <section class="phone-frame" aria-label="Rounding MVP Lab mobile harness">
-        <header class="phone-header">
-          <p class="eyebrow">Nurse Hand server / Issue #21</p>
-          <div class="title-row">
-            <div>
-              <h1>Rounding MVP Lab</h1>
-              <p class="subtitle" id="scenario-caption">
-                mock fallback과 실제 API 호출 상태를 한 화면에서 점검합니다.
-              </p>
-            </div>
-            <span class="mini-status accent" id="mode-badge">mock</span>
-          </div>
-        </header>
+      <section class="phone-frame" aria-label="Nurse Hand mobile workflow">
+        <div class="status-bar" aria-hidden="true">
+          <span>9:41</span>
+          <span class="status-icons">▮▮▮ ᯤ ▰</span>
+        </div>
 
         <div class="phone-scroll">
-          <section class="tool-section">
-            <div class="section-heading">
-              <h2>Connection</h2>
-              <button
-                type="button"
-                class="ghost-button"
-                data-action="reset-lab"
-              >
-                초기화
+          <section
+            class="home-screen app-screen"
+            data-screen="home"
+            data-figma-node="141:996"
+          >
+            <div class="home-actions">
+              <button type="button" class="circle-icon" aria-label="알림">
+                <img src="./assets/figma/home-bell.svg" alt="" />
+              </button>
+              <button type="button" class="circle-icon" aria-label="설정">
+                <img src="./assets/figma/home-settings.svg" alt="" />
               </button>
             </div>
 
-            <div
-              class="segmented-control"
-              role="radiogroup"
-              aria-label="API mode"
-            >
-              <label class="segment">
-                <input type="radio" name="mode" value="mock" checked />
-                <span>Mock</span>
-              </label>
-              <label class="segment">
-                <input type="radio" name="mode" value="real" />
-                <span>Real API</span>
-              </label>
-              <label class="segment">
-                <input type="radio" name="mode" value="real-fallback" />
-                <span>Real + Fallback</span>
-              </label>
-            </div>
-
-            <label class="field">
-              <span>BASE_URL</span>
-              <input
-                id="base-url"
-                type="text"
-                spellcheck="false"
-                value="http://localhost:3000"
-                placeholder="http://localhost:3000"
+            <div class="home-greeting">
+              <div>
+                <span class="date-chip">26년 8월 16일</span>
+                <h1>김멋사님,<br />좋은 아침이에요!</h1>
+              </div>
+              <img
+                class="home-mascot"
+                src="./assets/figma/home-mascot.png"
+                alt=""
               />
-            </label>
-            <p class="field-note">
-              root URL만 입력합니다. `file://`로 열면 embedded mockdata만으로
-              동작합니다.
-            </p>
-
-            <div
-              class="segmented-control"
-              role="radiogroup"
-              aria-label="Active persona"
-            >
-              <label class="segment">
-                <input type="radio" name="persona" value="SENDER" checked />
-                <span>Sender</span>
-              </label>
-              <label class="segment">
-                <input type="radio" name="persona" value="RECEIVER" />
-                <span>Receiver</span>
-              </label>
             </div>
 
-            <div class="field-grid">
-              <label class="field">
-                <span>Sender session</span>
-                <input
-                  id="sender-session-id"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="X-Demo-Session-Id"
-                />
-              </label>
-              <label class="field">
-                <span>Receiver session</span>
-                <input
-                  id="receiver-session-id"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="X-Demo-Session-Id"
-                />
-              </label>
-            </div>
-
-            <div class="inline-actions">
-              <button type="button" class="action-button" data-action="health">
-                Health
-              </button>
+            <section class="app-card start-card">
+              <h2>라운딩 기록</h2>
+              <div class="duty-meta">
+                <span>오늘 근무</span>
+                <strong>Day Shift</strong>
+                <span aria-hidden="true">·</span>
+                <span>환자</span>
+                <strong>8명</strong>
+                <span aria-hidden="true">·</span>
+                <strong>내과 병동</strong>
+              </div>
               <button
                 type="button"
-                class="action-button"
-                data-action="create-demo-session"
-              >
-                Demo Session
-              </button>
-              <button
-                type="button"
-                class="action-button primary"
+                class="action-button primary full"
                 data-action="start-rounding"
               >
-                라운딩 시작
+                라운딩 시작하기
+              </button>
+            </section>
+
+            <section class="app-card quick-card" data-figma-node="141:1076">
+              <div class="card-title-row">
+                <div>
+                  <h2>빠른 기록</h2>
+                  <p>유형을 눌러 간단하게 메모 할 수 있어요</p>
+                </div>
+                <button
+                  type="button"
+                  class="text-link"
+                  data-nav-target="quick-note"
+                >
+                  기록 추가 ›
+                </button>
+              </div>
+              <div class="quick-tags">
+                <button type="button" class="quick-chip" data-nav-target="quick-note">낙상</button>
+                <button type="button" class="quick-chip" data-nav-target="quick-note">응급 상황</button>
+                <button type="button" class="quick-chip" data-nav-target="quick-note">의사 호출</button>
+                <button type="button" class="quick-chip" data-nav-target="quick-note">보호자 요청</button>
+                <button type="button" class="quick-chip" data-nav-target="quick-note">처치 요청</button>
+                <button type="button" class="quick-chip" data-nav-target="quick-note">기타</button>
+              </div>
+            </section>
+
+            <section class="app-card today-card">
+              <div class="card-title-row">
+                <h2>오늘 기록 보기</h2>
+                <button type="button" class="text-link">전체 기록보기 ›</button>
+              </div>
+              <div class="today-block">
+                <strong>기록 원문</strong>
+                <p>가공되지 않은 원본 파일과 기록 내용을 확인할 수 있어요</p>
+              </div>
+              <div class="divider"></div>
+              <div class="today-block ai">
+                <span class="spark">✦</span>
+                <div class="ai-title-row">
+                  <strong>요약 정리본</strong>
+                  <span class="review-badge">검토 필요</span>
+                </div>
+                <p>기록을 토대로 AI가 정리한 내용을 볼 수 있어요</p>
+              </div>
+            </section>
+
+            <div class="home-shortcuts">
+              <button type="button" class="shortcut-card">
+                <img src="./assets/figma/home-calendar.png" alt="" />
+                근무표 수정하기
+              </button>
+              <button
+                type="button"
+                class="shortcut-card"
+                data-nav-target="patient-list"
+              >
+                <img src="./assets/figma/home-patient.png" alt="" />
+                환자 현황 변경
               </button>
             </div>
           </section>
 
-          <section class="tool-section">
-            <div class="section-heading">
-              <h2>Visit Flow</h2>
-              <span class="mini-status" id="session-state">IDLE</span>
+          <section
+            class="quick-note-screen app-screen"
+            data-screen="quick-note"
+          >
+            <header class="mobile-page-header compact">
+              <button
+                type="button"
+                class="back-button"
+                aria-label="홈으로"
+                data-nav-target="home"
+              >
+                ‹
+              </button>
+              <div>
+                <p class="topbar-kicker">빠른 기록</p>
+                <h2>환자 지정 음성 메모</h2>
+              </div>
+              <button type="button" class="quick-note-add">기록 추가</button>
+            </header>
+
+            <section class="app-card quick-note-card">
+              <div class="quick-note-field-grid">
+                <label class="field compact-field">
+                  <span>환자 선택</span>
+                  <select id="mobile-quicknote-patient"></select>
+                </label>
+                <label class="field compact-field">
+                  <span>기록 유형</span>
+                  <select id="mobile-quicknote-topic">
+                    <option value="OBSERVATION">관찰사항</option>
+                    <option value="TREATMENT">처치</option>
+                    <option value="PAIN">통증</option>
+                    <option value="RESPIRATION">호흡</option>
+                    <option value="DIET">식이</option>
+                  </select>
+                </label>
+              </div>
+
+              <p class="quick-note-guide">
+                빠른 기록은 환자 식별이 먼저 필요하므로 모드 진입 전에 환자를
+                지정합니다.
+              </p>
+
+              <button
+                type="button"
+                class="quick-note-mic-button"
+                data-action="toggle-quick-note-recording"
+              >
+                <span class="quick-note-mic-icon">●</span>
+                <span id="quick-note-mic-status">마이크 켜고 바로 녹음 시작</span>
+              </button>
+
+              <div class="quick-note-placeholder">
+                <span id="quick-note-hint">
+                  환자와 유형을 선택한 뒤, 마이크를 눌러 빠른 상황 기록을 바로
+                  남길 수 있습니다.
+                </span>
+              </div>
+
+              <div class="quick-note-preview-list" id="quick-note-preview-list"></div>
+            </section>
+          </section>
+
+          <section
+            class="patient-screen app-screen"
+            data-screen="patient-list"
+            data-figma-node="142:1179"
+          >
+            <div class="mobile-page-title-row">
+              <h2>환자</h2>
+              <button type="button" class="text-link accent">담당표 갱신 +</button>
             </div>
-            <div class="summary-grid" id="session-summary"></div>
-            <ol class="route-list" id="visit-route"></ol>
-            <div class="current-visit" id="current-visit"></div>
-            <div class="inline-actions wrap">
+            <label class="patient-search">
+              <img src="./assets/figma/patient-search.svg" alt="" />
+              <input
+                id="patient-search-input"
+                type="text"
+                placeholder="환자명, 등록 번호로 검색"
+              />
+            </label>
+            <div class="patient-filter-row">
+              <button type="button" class="patient-filter-chip active">
+                전체 <span id="patient-count-all">0</span>
+              </button>
+              <button type="button" class="patient-filter-chip">
+                주의 <span id="patient-count-alert">0</span>
+              </button>
+              <button type="button" class="patient-filter-chip">
+                신규 <span>3</span>
+              </button>
+              <button type="button" class="patient-filter-chip">
+                퇴원 예정 <span>1</span>
+              </button>
+            </div>
+            <div class="patient-card-list" id="patient-list"></div>
+            <button type="button" class="patient-add-button">
+              직접 추가
+              <img src="./assets/figma/patient-add.svg" alt="" />
+            </button>
+          </section>
+
+          <section
+            class="patient-detail-screen app-screen"
+            data-screen="patient-detail"
+            data-figma-node="148:1568"
+          >
+            <header class="mobile-page-header compact">
+              <button
+                type="button"
+                class="back-button"
+                aria-label="환자 목록으로"
+                data-nav-target="patient-list"
+              >
+                ‹
+              </button>
+              <div>
+                <p class="topbar-kicker">환자 카드</p>
+                <h2>환자 상세</h2>
+              </div>
+              <span class="mini-status" id="patient-detail-badge">주의</span>
+            </header>
+            <section class="app-card patient-detail-card" id="patient-detail-card"></section>
+            <section class="app-card patient-timeline-card">
+              <div class="card-title-row">
+                <div>
+                  <h2>타임라인</h2>
+                  <p>날짜별 환자의 인수인계 현황을 확인할 수 있어요</p>
+                </div>
+                <button type="button" class="icon-surface">
+                  <img src="./assets/figma/timeline-settings.svg" alt="" />
+                </button>
+              </div>
+              <div class="timeline-week">
+                <button type="button" class="week-arrow">‹</button>
+                <strong>8월 첫째 주</strong>
+                <button type="button" class="week-arrow">›</button>
+              </div>
+              <div class="timeline-days">
+                <span>일<br />7</span>
+                <span>월<br />8</span>
+                <span class="active">화<br />9</span>
+                <span>수<br />10</span>
+                <span>목<br />11</span>
+                <span>금<br />12</span>
+                <span>토<br />13</span>
+              </div>
+              <div class="divider"></div>
+              <div class="timeline-summary" id="patient-timeline-summary"></div>
+              <div class="patient-timeline-feed" id="patient-timeline-feed"></div>
+              <button type="button" class="timeline-link">
+                원문 기록 보러가기
+                <img src="./assets/figma/patient-arrow.svg" alt="" />
+              </button>
+            </section>
+          </section>
+
+          <section
+            class="rounding-screen app-screen"
+            data-screen="rounding"
+            data-figma-node="170:4"
+          >
+            <header class="mobile-page-header">
+              <button type="button" class="back-button" aria-label="뒤로가기">
+                ‹
+              </button>
+              <div>
+                <p class="topbar-kicker" id="scenario-caption">7A 내과 병동</p>
+                <h2>라운딩 기록</h2>
+              </div>
+              <span class="mini-status accent" id="mode-badge">mock</span>
+            </header>
+
+            <div class="voice-control">
+              <img src="./assets/figma/voice-wave.svg" alt="" />
+              <span class="mic-bubble">
+                <img src="./assets/figma/mic-active.svg" alt="" />
+              </span>
+              <img src="./assets/figma/settings-sliders.svg" alt="" />
+            </div>
+
+            <section class="record-panel">
+              <div class="panel-topline">
+                <span class="x-mark">×</span>
+                <span class="expand-mark">↗</span>
+              </div>
+              <div class="live-divider"></div>
+              <div class="time-pill">09:15</div>
+              <div class="nurse-bubble">
+                <div class="voice-message-title">
+                  <img src="./assets/figma/ai-spark.svg" alt="" />
+                  NurseHand
+                </div>
+                <p>
+                  녹음을 시작하고, 환자별 방문을 끝내면 서버 분석으로
+                  STT·화자분리·환자 후보를 한 번에 확인합니다.
+                </p>
+              </div>
+              <div class="capture-input">
+                <button
+                  type="button"
+                  class="camera-button"
+                  aria-label="사진 추가"
+                >
+                  <img src="./assets/figma/camera.svg" alt="" />
+                </button>
+                <div class="memo-placeholder">텍스트를 입력하세요..</div>
+              </div>
+            </section>
+
+            <section class="app-card session-card">
+              <div class="card-title-row">
+                <div>
+                  <h2>현재 라운딩</h2>
+                  <p id="session-state">IDLE</p>
+                </div>
+                <span class="mini-status accent" id="next-action-pill"
+                  >다음 액션 대기</span
+                >
+              </div>
+              <div class="summary-grid" id="session-summary"></div>
+              <ol class="route-list" id="visit-route"></ol>
+            </section>
+
+            <section class="current-visit" id="current-visit"></section>
+
+            <div class="inline-actions wrap visit-actions">
               <button
                 type="button"
                 class="action-button"
@@ -158,7 +370,7 @@
               </button>
               <button
                 type="button"
-                class="action-button"
+                class="action-button primary"
                 data-action="analyze-server"
               >
                 서버 분석
@@ -166,78 +378,330 @@
             </div>
           </section>
 
-          <section class="tool-section">
-            <div class="section-heading">
-              <h2>Review Flow</h2>
-              <span class="mini-status accent" id="next-action-pill"
-                >다음 액션 대기</span
-              >
-            </div>
-            <div class="inline-actions wrap">
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-full-script"
-              >
-                전체 스크립트
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-patient-script"
-              >
-                환자별 스크립트
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-top3"
-              >
-                Top3 후보
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-evidence"
-              >
-                Evidence
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="extract-tasks"
-              >
-                업무 후보
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-handoff-precheck"
-              >
-                인수인계 질문
-              </button>
-              <button
-                type="button"
-                class="action-button"
-                data-action="show-handoff-draft"
-              >
-                인수인계 초안
-              </button>
-            </div>
-            <div class="detail-snapshot" id="detail-snapshot"></div>
-          </section>
-
-          <section class="tool-section">
-            <div class="section-heading">
-              <h2>Audio Manifest</h2>
+          <section class="records-screen" data-figma-node="62:3646">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">분석 후 검토</p>
+                <h2>오늘 라운딩 기록</h2>
+              </div>
               <span class="mini-status" id="manifest-note">metadata only</span>
             </div>
-            <div class="manifest-list" id="manifest-list"></div>
+            <div class="filter-row">
+              <button type="button" class="filter-chip active">전체</button>
+              <button type="button" class="filter-chip">AI 확인 필요</button>
+              <button type="button" class="filter-chip">수정 완료</button>
+              <button type="button" class="filter-chip">활력징후</button>
+              <button type="button" class="filter-chip">처치</button>
+            </div>
+            <section class="review-card">
+              <div class="review-tabs" role="group" aria-label="Review actions">
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="show-full-script"
+                >
+                  전체 스크립트
+                </button>
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="show-patient-script"
+                >
+                  환자별 보기
+                </button>
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="show-top3"
+                >
+                  Top3 후보
+                </button>
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="show-evidence"
+                >
+                  근거
+                </button>
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="extract-tasks"
+                >
+                  업무
+                </button>
+              </div>
+              <div class="detail-snapshot" id="detail-snapshot"></div>
+            </section>
           </section>
+
+          <section
+            class="handoff-screen app-screen"
+            data-screen="handoff"
+            data-figma-node="151:2022"
+          >
+            <div class="mobile-page-title">인수인계</div>
+            <section class="handoff-alert">
+              <span class="dot"></span>
+              <strong>이전 근무자가 보낸 인계 사항이 있어요.</strong>
+              <span>⌕</span>
+            </section>
+            <section class="handoff-hero">
+              <h2>오늘의 인수인계</h2>
+              <p>라운딩 기록을 바탕으로 AI가 인수인계 초안을 작성해요</p>
+              <button
+                type="button"
+                class="action-button soft full"
+                data-action="show-handoff-draft"
+              >
+                생성하기
+              </button>
+            </section>
+            <section class="app-card handoff-list">
+              <div class="card-title-row">
+                <h2>작성한 인수인계</h2>
+                <button type="button" class="text-link">전체 보기 ›</button>
+              </div>
+              <div class="handoff-row today">
+                <span class="date-chip small">Today</span>
+                <strong>26.08.10 수요일</strong>
+                <p>수신자&nbsp;&nbsp;선택 안 됨</p>
+                <span class="send-state">송신 전</span>
+              </div>
+              <div class="divider"></div>
+              <div class="handoff-row">
+                <strong>26.08.09 화요일</strong>
+                <p>수신자&nbsp;&nbsp;이멋쟁 간호사</p>
+              </div>
+              <div class="divider"></div>
+              <div class="handoff-row">
+                <strong>26.08.07 월요일</strong>
+                <p>수신자&nbsp;&nbsp;박사자 간호사</p>
+              </div>
+              <div class="review-tabs handoff-actions">
+                <button
+                  type="button"
+                  class="tab-button"
+                  data-action="show-handoff-precheck"
+                >
+                  역검증
+                </button>
+                <button
+                  type="button"
+                  class="tab-button primary"
+                  data-action="show-handoff-draft"
+                >
+                  인수인계 초안
+                </button>
+              </div>
+            </section>
+          </section>
+
+          <section class="dev-settings">
+            <details>
+              <summary>개발 연결 설정</summary>
+              <div class="settings-body">
+                <div
+                  class="segmented-control"
+                  role="radiogroup"
+                  aria-label="API mode"
+                >
+                  <label class="segment">
+                    <input type="radio" name="mode" value="mock" checked />
+                    <span>Mock</span>
+                  </label>
+                  <label class="segment">
+                    <input type="radio" name="mode" value="real" />
+                    <span>Real API</span>
+                  </label>
+                  <label class="segment">
+                    <input type="radio" name="mode" value="real-fallback" />
+                    <span>Fallback</span>
+                  </label>
+                </div>
+
+                <label class="field">
+                  <span>BASE_URL</span>
+                  <input
+                    id="base-url"
+                    type="text"
+                    spellcheck="false"
+                    value="http://localhost:3000"
+                    placeholder="http://localhost:3000"
+                  />
+                </label>
+
+                <div
+                  class="segmented-control persona-control"
+                  role="radiogroup"
+                  aria-label="Active persona"
+                >
+                  <label class="segment">
+                    <input
+                      type="radio"
+                      name="persona"
+                      value="SENDER"
+                      checked
+                    />
+                    <span>Sender</span>
+                  </label>
+                  <label class="segment">
+                    <input type="radio" name="persona" value="RECEIVER" />
+                    <span>Receiver</span>
+                  </label>
+                </div>
+
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Sender session</span>
+                    <input
+                      id="sender-session-id"
+                      type="text"
+                      spellcheck="false"
+                      placeholder="X-Demo-Session-Id"
+                    />
+                  </label>
+                  <label class="field">
+                    <span>Receiver session</span>
+                    <input
+                      id="receiver-session-id"
+                      type="text"
+                      spellcheck="false"
+                      placeholder="X-Demo-Session-Id"
+                    />
+                  </label>
+                </div>
+
+                <div class="inline-actions wrap">
+                  <button
+                    type="button"
+                    class="action-button"
+                    data-action="health"
+                  >
+                    Health
+                  </button>
+                  <button
+                    type="button"
+                    class="action-button"
+                    data-action="create-demo-session"
+                  >
+                    Demo Session
+                  </button>
+                  <button
+                    type="button"
+                    class="ghost-button"
+                    data-action="reset-lab"
+                  >
+                    초기화
+                  </button>
+                </div>
+              </div>
+            </details>
+          </section>
+
         </div>
+
+        <nav class="bottom-nav" aria-label="앱 하단 메뉴">
+          <a href="#" class="nav-item active" data-nav-target="home">
+            <img src="./assets/figma/nav-home-pink.svg" alt="" />
+            <span>홈</span>
+          </a>
+          <a href="#" class="nav-item" data-nav-target="patient-list">
+            <img src="./assets/figma/nav-patient-gray.svg" alt="" />
+            <span>환자</span>
+          </a>
+          <a href="#" class="nav-item" data-nav-target="rounding">
+            <img src="./assets/figma/record.svg" alt="" />
+            <span>라운딩</span>
+          </a>
+          <a href="#" class="nav-item" data-nav-target="handoff">
+            <img src="./assets/figma/nav-handoff-gray.svg" alt="" />
+            <span>인수인계</span>
+          </a>
+          <a href="#" class="nav-item">
+            <img src="./assets/figma/nav-patient-gray.svg" alt="" />
+            <span>마이</span>
+          </a>
+        </nav>
       </section>
 
-      <section class="console-frame">
+      <section class="console-frame" aria-label="API debug console">
+        <section class="console-section upload-section">
+          <div class="section-heading">
+            <div>
+              <h2>파일 업로드 테스트</h2>
+              <p class="console-copy">
+                실제 라운딩 녹음과 빠른 기록 음성을 연결해서 현재 화면 흐름을
+                그대로 검증합니다.
+              </p>
+            </div>
+            <span class="mini-status accent" id="upload-status">0/6 연결</span>
+          </div>
+
+          <div class="upload-grid">
+            <section class="upload-card">
+              <div class="upload-card-head">
+                <div>
+                  <p class="eyebrow">라운딩</p>
+                  <h3>환자 방문 파일</h3>
+                </div>
+                <label class="upload-button">
+                  파일 업로드
+                  <input
+                    id="rounding-upload"
+                    type="file"
+                    accept="audio/*,.m4a,.wav,.mp3"
+                    multiple
+                  />
+                </label>
+              </div>
+              <p class="upload-help">
+                선택한 파일은 방문 순서대로 자동 배치되고, 아래에서 환자별로 다시
+                연결할 수 있습니다.
+              </p>
+              <div class="upload-assignment-list" id="rounding-upload-list"></div>
+            </section>
+
+            <section class="upload-card">
+              <div class="upload-card-head">
+                <div>
+                  <p class="eyebrow">빠른 기록</p>
+                  <h3>환자 지정 음성 메모</h3>
+                </div>
+                <label class="upload-button soft">
+                  기록 추가
+                  <input
+                    id="quicknote-upload"
+                    type="file"
+                    accept="audio/*,.m4a,.wav,.mp3"
+                    multiple
+                  />
+                </label>
+              </div>
+              <div class="upload-inline-fields">
+                <label class="field compact-field">
+                  <span>환자 선택</span>
+                  <select id="quicknote-patient"></select>
+                </label>
+                <label class="field compact-field">
+                  <span>기록 유형</span>
+                  <select id="quicknote-topic">
+                    <option value="OBSERVATION">관찰사항</option>
+                    <option value="TREATMENT">처치</option>
+                    <option value="PAIN">통증</option>
+                    <option value="RESPIRATION">호흡</option>
+                    <option value="DIET">식이</option>
+                  </select>
+                </label>
+              </div>
+              <p class="upload-help">
+                빠른 기록은 환자 식별이 먼저 필요하므로 업로드 전에 환자를 지정합니다.
+              </p>
+              <div class="upload-assignment-list" id="quicknote-upload-list"></div>
+            </section>
+          </div>
+        </section>
+
         <section class="console-section">
           <div class="section-heading">
             <h2>요청</h2>
