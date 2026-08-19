@@ -82,6 +82,7 @@ describe('TaskHandoffJobDispatcher', () => {
     const sensitiveMarker = 'SENSITIVE_PATIENT_SUMMARY_1234';
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const error = new Error(`${sensitiveMarker}: worker crash`);
+    error.name = sensitiveMarker;
     error.stack = `${error.name}: ${error.message}\n at ${sensitiveMarker}`;
     taskExtraction.processNext.mockRejectedValueOnce(error);
 
@@ -92,7 +93,7 @@ describe('TaskHandoffJobDispatcher', () => {
     expect(logger).toHaveBeenCalledWith({
       event: 'processor_failed',
       operation: 'tasks.extract',
-      errorType: 'Error',
+      errorType: 'UnknownError',
     });
     expect(JSON.stringify(logger.mock.calls)).not.toContain(sensitiveMarker);
     expect(JSON.stringify(logger.mock.calls)).not.toContain('worker crash');
@@ -145,5 +146,28 @@ describe('TaskHandoffJobDispatcher', () => {
     await dispatch;
     await shutdown;
     expect(shutdownCompleted).toBe(true);
+    await expect(dispatcher.runOnce()).resolves.toBe(false);
+  });
+
+  it('임의 code와 실패 message를 노출하지 않고 shutdown drain을 resolve한다', async () => {
+    const sensitiveMarker = 'SENSITIVE_PATIENT_SUMMARY_5678';
+    const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    findMany.mockRejectedValueOnce({
+      code: sensitiveMarker,
+      name: sensitiveMarker,
+      message: sensitiveMarker,
+    });
+
+    const dispatch = dispatcher.runOnce();
+    const shutdown = dispatcher.onApplicationShutdown();
+
+    await expect(dispatch).rejects.toBeDefined();
+    await expect(shutdown).resolves.toBeUndefined();
+    expect(logger).toHaveBeenCalledWith({
+      event: 'dispatch_drain_failed',
+      errorType: 'UnknownError',
+    });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(sensitiveMarker);
+    await expect(dispatcher.runOnce()).resolves.toBe(false);
   });
 });

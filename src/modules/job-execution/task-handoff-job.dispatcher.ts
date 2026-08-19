@@ -28,6 +28,7 @@ export class TaskHandoffJobDispatcher
   private readonly logger = new Logger(TaskHandoffJobDispatcher.name);
   private timer: NodeJS.Timeout | undefined;
   private activeDispatch: Promise<boolean> | undefined;
+  private isShuttingDown = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,15 +47,23 @@ export class TaskHandoffJobDispatcher
   }
 
   async onApplicationShutdown(): Promise<void> {
+    this.isShuttingDown = true;
     if (this.timer !== undefined) {
       clearInterval(this.timer);
       this.timer = undefined;
     }
-    await this.activeDispatch;
+    try {
+      await this.activeDispatch;
+    } catch {
+      this.logger.error({
+        event: 'dispatch_drain_failed',
+        errorType: 'UnknownError',
+      });
+    }
   }
 
   async runOnce(): Promise<boolean> {
-    if (this.activeDispatch !== undefined) {
+    if (this.isShuttingDown || this.activeDispatch !== undefined) {
       return false;
     }
 
@@ -129,27 +138,12 @@ export class TaskHandoffJobDispatcher
 
 function safeJobError(
   event: 'dispatch_cycle_failed' | 'processor_failed',
-  error: unknown,
+  _error: unknown,
   operation?: (typeof OPERATIONS)[number],
 ): Record<string, string> {
   const result: Record<string, string> = { event };
   if (operation !== undefined) result.operation = operation;
 
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    /^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)
-  ) {
-    result.errorCode = error.code;
-  } else if (
-    error instanceof Error &&
-    /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(error.name)
-  ) {
-    result.errorType = error.name;
-  } else {
-    result.errorType = 'UnknownError';
-  }
+  result.errorType = 'UnknownError';
   return result;
 }
