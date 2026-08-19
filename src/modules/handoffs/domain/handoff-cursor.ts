@@ -50,7 +50,12 @@ export function decodeHandoffCursor(value: string): HandoffCursor {
       throw new TypeError();
     }
 
-    return { updatedAt, id: parsed.id };
+    const cursor = { updatedAt, id: parsed.id };
+    if (encodeHandoffCursor(cursor) !== value) {
+      throw new TypeError();
+    }
+
+    return cursor;
   } catch {
     throw new HandoffCursorInvalidError();
   }
