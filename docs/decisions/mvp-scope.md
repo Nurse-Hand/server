@@ -142,9 +142,9 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 - `confirmedPriority`: 간호사가 수락 또는 수정한 값
 - `effectivePriority`: 조회 시 적용되는 최종 값
 
-숫자형 AI score는 저장·노출·정렬에 사용하지 않는다. AI 제안 수락은 별도 사용자 행동으로 감사 이력에 남긴다. 정확한 Node.js 규칙과 AI·간호사 간 결정 경계는 `docs/decisions/task-handoff-policy.md`를 따른다.
+숫자형 AI score는 명시적으로 생성한 같은 batch의 참고 제안 표시 순서에만 저장·노출하며, 실제 Task 정렬·자동 확정·임상 위험도에는 사용하지 않는다. AI 제안 수락은 별도 사용자 행동으로 감사 이력에 남긴다. 정확한 Node.js 규칙과 AI·간호사 간 결정 경계는 `docs/decisions/task-handoff-policy.md`를 따른다.
 
-화면의 선택형 긴급도는 `priorityOverride`, 시간 조건은 `dueAt`으로 기존 계약에 매핑한다. 합의되지 않은 가중치나 별도 `priorityScore` 필드를 추가하지 않는다.
+화면의 선택형 긴급도는 `priorityOverride`, 시간 조건은 `dueAt`으로 기존 계약에 매핑한다. AI `score`는 같은 batch의 참고 제안 순서 외에는 비교하지 않고 별도 `priorityScore` 입력이나 Task 정렬 필드를 추가하지 않는다.
 
 ## 5. 인수인계 공통 정책
 

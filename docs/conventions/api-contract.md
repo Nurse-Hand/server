@@ -68,7 +68,7 @@ Node Adapter 요청·응답 runtime validation
 | `POST` | `/internal/v1/handoffs/precheck` | 누락 검증 질문과 근거 변환 |
 | `POST` | `/internal/v1/handoffs/generate` | 6개 임상 section 초안과 citation 변환 |
 
-업무 우선순위 응답은 `suggestedPriority`, 근거와 `confidence`를 제안하며 숫자형 score를 계약에 추가하지 않는다. 인수인계 생성 응답은 `NURSING_HANDOFF_V1`의 `PATIENT_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION` section을 사용한다.
+업무 우선순위 batch 응답은 `suggestionId`, `aiSuggestedPriority`, 근거와 `aiScore`를 제공한다. `aiScore`는 같은 `tasks-prioritize-v1` batch의 표시 순서에만 사용하고 실제 Task 정렬·자동 확정·임상 위험도로 해석하지 않는다. 인수인계 생성 응답은 `NURSING_HANDOFF_V1`의 `PATIENT_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION` section을 사용한다.
 
 인수인계 공개 citation은 source 식별자와 함께 nullable `occurredAt`, `excerptKind`, `excerpt`를 제공한다. Timeline citation은 event 발생 시각을 사용하고 `TASK_TITLE`은 `occurredAt=null`이며 업무 마감은 linked task의 `dueAt`으로 제공한다. `excerptKind`는 `UTTERANCE`, `SUMMARY`, `TASK_TITLE` 중 하나이며 실제 발화가 아닌 summary를 원문으로 표현하지 않는다. 오디오 URL은 이 계약에 포함하지 않는다.
 

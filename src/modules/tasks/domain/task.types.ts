@@ -25,6 +25,24 @@ export const TASK_PRIORITY_AUDIT_ACTIONS = [
 export type TaskPriorityAuditAction =
   (typeof TASK_PRIORITY_AUDIT_ACTIONS)[number];
 
+export const TASK_PRIORITY_SUGGESTION_BATCH_STATUSES = [
+  'PROCESSING',
+  'SUCCEEDED',
+  'FAILED',
+] as const;
+export type TaskPrioritySuggestionBatchStatus =
+  (typeof TASK_PRIORITY_SUGGESTION_BATCH_STATUSES)[number];
+
+export const TASK_PRIORITY_AI_PRIORITIES = ['CRITICAL', 'LOW'] as const;
+export type TaskPriorityAiPriority =
+  (typeof TASK_PRIORITY_AI_PRIORITIES)[number];
+
+export const TASK_PRIORITY_SUGGESTION_OPERATION = 'tasks.priority-suggestions';
+export const TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION = 'tasks-prioritize-v1';
+export const TASK_PRIORITY_SUGGESTION_BATCH_LIMIT = 50;
+export const TASK_PRIORITY_SUGGESTION_REASON_LIMIT = 5;
+export const TASK_PRIORITY_SUGGESTION_REASON_MAX_LENGTH = 200;
+
 export const TASK_EXTRACTION_OPERATION = 'tasks.extract';
 export const TASK_CREATE_OPERATION = 'tasks.create';
 export const TASK_APPLY_OPERATION = 'tasks.extract.apply';
