@@ -42,7 +42,7 @@ export class EnvironmentVariables {
   DEMO_SESSION_TTL_SECONDS!: number;
 
   @IsString()
-  @Matches(/^\//)
+  @Matches(/^(?:\/|[A-Za-z]:[\\/])/)
   FILE_STORAGE_ROOT!: string;
 }
 

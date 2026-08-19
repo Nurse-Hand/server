@@ -60,4 +60,13 @@ describe('validateEnvironment', () => {
       }),
     ).toThrow('환경변수 검증 실패: FILE_STORAGE_ROOT');
   });
+
+  it('Windows drive 절대 경로를 허용한다', () => {
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'test',
+        FILE_STORAGE_ROOT: 'C:\\synthetic\\uploads',
+      }).FILE_STORAGE_ROOT,
+    ).toBe('C:\\synthetic\\uploads');
+  });
 });
