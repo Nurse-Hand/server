@@ -119,8 +119,9 @@ export class ScheduleOcrService {
         width: image.width,
         height: image.height,
       });
+    const proposedJobId = randomUUID();
     const storageUri = isAllowedFixture
-      ? await this.storage.store(input.file.buffer, image.extension)
+      ? this.storage.resolveStorageUri(proposedJobId, image.extension)
       : null;
     const reservation = await this.reserve({
       ...input,
@@ -130,17 +131,25 @@ export class ScheduleOcrService {
       imageWidth: image.width,
       imageHeight: image.height,
       isAllowedFixture,
-    }).catch(async (error: unknown) => {
-      if (storageUri !== null) await this.storage.delete(storageUri);
-      throw error;
+      proposedJobId,
     });
 
     if (reservation.isReplay) {
-      if (storageUri !== null) await this.storage.delete(storageUri);
       return { jobId: reservation.jobId, status: 'QUEUED', isReplay: true };
     }
 
     if (isAllowedFixture && storageUri !== null) {
+      try {
+        await this.storage.store(storageUri, input.file.buffer);
+      } catch {
+        await this.finalizeAfterCleanup(reservation.jobId, storageUri, {
+          status: 'FAILED',
+          failureCode: 'SCHEDULE_OCR_STORAGE_FAILED',
+          retryable: true,
+          resultExpiresAt: null,
+        });
+        return { jobId: reservation.jobId, status: 'QUEUED', isReplay: false };
+      }
       await this.process({
         ...input,
         file: input.file,
@@ -216,9 +225,157 @@ export class ScheduleOcrService {
   }
 
   cleanupOrphans(): Promise<number> {
-    return this.storage.sweepOrphans(
-      new Date(this.clock.now().getTime() - SCHEDULE_OCR_ORPHAN_TTL_MS),
-    );
+    return this.retryPendingCleanup();
+  }
+
+  async retryPendingCleanup(limit = 20): Promise<number> {
+    const pending = await this.prisma.scheduleOcrJob.findMany({
+      where: {
+        storageUri: { not: null },
+        updatedAt: {
+          lte: new Date(
+            this.clock.now().getTime() - SCHEDULE_OCR_ORPHAN_TTL_MS,
+          ),
+        },
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: limit,
+      select: {
+        aiJobId: true,
+        storageUri: true,
+        cleanupPendingStatus: true,
+        cleanupPendingFailureCode: true,
+        cleanupPendingRetryable: true,
+        cleanupPendingResultExpiresAt: true,
+        aiJob: { select: { failureCode: true, retryable: true } },
+        _count: { select: { cells: true } },
+      },
+    });
+    let completed = 0;
+    for (const item of pending) {
+      if (item.storageUri === null) continue;
+      const fallbackSucceeded = item._count.cells > 0;
+      try {
+        await this.finalizeAfterCleanup(item.aiJobId, item.storageUri, {
+          status: (item.cleanupPendingStatus ??
+            (fallbackSucceeded ? 'SUCCEEDED' : 'FAILED')) as
+            'SUCCEEDED' | 'FAILED',
+          failureCode:
+            item.cleanupPendingStatus !== null
+              ? item.cleanupPendingFailureCode
+              : fallbackSucceeded
+                ? null
+                : (item.aiJob.failureCode ?? 'SCHEDULE_OCR_INTERRUPTED'),
+          retryable:
+            item.cleanupPendingStatus !== null
+              ? item.cleanupPendingRetryable
+              : fallbackSucceeded
+                ? null
+                : (item.aiJob.retryable ?? true),
+          resultExpiresAt:
+            item.cleanupPendingResultExpiresAt ??
+            (fallbackSucceeded
+              ? new Date(
+                  this.clock.now().getTime() + SCHEDULE_OCR_RESULT_TTL_MS,
+                )
+              : null),
+        });
+        completed += 1;
+      } catch {
+        // 다음 실행에서 다시 시도한다. URI나 내부 오류는 공개하지 않는다.
+      }
+    }
+    return completed;
+  }
+
+  private async finalizeAfterCleanup(
+    jobId: string,
+    storageUri: string,
+    outcome: {
+      status: 'SUCCEEDED' | 'FAILED';
+      failureCode: string | null;
+      retryable: boolean | null;
+      resultExpiresAt: Date | null;
+    },
+  ): Promise<void> {
+    try {
+      await this.storage.delete(storageUri);
+    } catch (error: unknown) {
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.aiJob.update({
+          where: { id: jobId },
+          data: {
+            status: 'FAILED',
+            failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
+            retryable: true,
+            resultReference: null,
+            version: { increment: 1 },
+            updatedAt: this.clock.now(),
+          },
+        });
+        await transaction.scheduleOcrJob.update({
+          where: { aiJobId: jobId },
+          data: {
+            cleanupPendingStatus: outcome.status,
+            cleanupPendingFailureCode: outcome.failureCode,
+            cleanupPendingRetryable: outcome.retryable,
+            cleanupPendingResultExpiresAt: outcome.resultExpiresAt,
+          },
+        });
+      });
+      throw error;
+    }
+
+    const now = this.clock.now();
+    await this.prisma.$transaction(async (transaction) => {
+      const job = await transaction.aiJob.update({
+        where: { id: jobId },
+        data: {
+          status: outcome.status,
+          failureCode: outcome.failureCode,
+          retryable: outcome.retryable,
+          resultReference: outcome.status === 'SUCCEEDED' ? jobId : null,
+          version: { increment: 1 },
+          updatedAt: now,
+        },
+        select: { idempotencyRecordId: true },
+      });
+      await transaction.idempotencyRecord.update({
+        where: { id: job.idempotencyRecordId },
+        data: { status: 'COMPLETED', resultReference: jobId, updatedAt: now },
+      });
+      await transaction.scheduleOcrJob.update({
+        where: { aiJobId: jobId },
+        data: {
+          storageUri: null,
+          resultExpiresAt: outcome.resultExpiresAt,
+          cleanupPendingStatus: null,
+          cleanupPendingFailureCode: null,
+          cleanupPendingRetryable: null,
+          cleanupPendingResultExpiresAt: null,
+        },
+      });
+    });
+  }
+
+  private async recordPendingOutcome(
+    jobId: string,
+    outcome: {
+      status: 'SUCCEEDED' | 'FAILED';
+      failureCode: string | null;
+      retryable: boolean | null;
+      resultExpiresAt: Date | null;
+    },
+  ): Promise<void> {
+    await this.prisma.scheduleOcrJob.update({
+      where: { aiJobId: jobId },
+      data: {
+        cleanupPendingStatus: outcome.status,
+        cleanupPendingFailureCode: outcome.failureCode,
+        cleanupPendingRetryable: outcome.retryable,
+        cleanupPendingResultExpiresAt: outcome.resultExpiresAt,
+      },
+    });
   }
 
   private async reserve(input: {
@@ -234,6 +391,7 @@ export class ScheduleOcrService {
     imageWidth: number;
     imageHeight: number;
     isAllowedFixture: boolean;
+    proposedJobId: string;
   }): Promise<{ jobId: string; isReplay: boolean }> {
     try {
       return await this.prisma.$transaction(async (transaction) => {
@@ -241,7 +399,7 @@ export class ScheduleOcrService {
         if (existing) return existing;
 
         const idempotencyRecordId = randomUUID();
-        const jobId = randomUUID();
+        const jobId = input.proposedJobId;
         await transaction.idempotencyRecord.create({
           data: {
             id: idempotencyRecordId,
@@ -336,6 +494,12 @@ export class ScheduleOcrService {
     jobId: string;
     storageUri: string;
   }): Promise<void> {
+    let outcome: {
+      status: 'SUCCEEDED' | 'FAILED';
+      failureCode: string | null;
+      retryable: boolean | null;
+      resultExpiresAt: Date | null;
+    };
     try {
       await this.prisma.aiJob.update({
         where: { id: input.jobId },
@@ -354,80 +518,38 @@ export class ScheduleOcrService {
         requestId: input.requestId,
       });
       assertCandidates(input.yearMonth, candidates);
-      const now = this.clock.now();
-      await this.prisma.$transaction(async (transaction) => {
-        await transaction.scheduleOcrCell.createMany({
-          data: candidates.map((candidate) => ({
-            aiJobId: input.jobId,
-            dutyDate: new Date(
-              `${input.yearMonth}-${String(candidate.day).padStart(2, '0')}T00:00:00.000Z`,
-            ),
-            token: candidate.token,
-            confidence: candidate.confidence,
-            needsReview: needsOcrReview(candidate.token, candidate.confidence),
-          })),
-        });
-        const job = await transaction.aiJob.update({
-          where: { id: input.jobId },
-          data: {
-            status: 'SUCCEEDED',
-            resultReference: input.jobId,
-            version: { increment: 1 },
-            updatedAt: now,
-          },
-          select: { idempotencyRecordId: true },
-        });
-        await transaction.idempotencyRecord.update({
-          where: { id: job.idempotencyRecordId },
-          data: {
-            status: 'COMPLETED',
-            resultReference: input.jobId,
-            updatedAt: now,
-          },
-        });
-        await transaction.scheduleOcrJob.update({
-          where: { aiJobId: input.jobId },
-          data: {
-            storageUri: null,
-            resultExpiresAt: new Date(
-              now.getTime() + SCHEDULE_OCR_RESULT_TTL_MS,
-            ),
-          },
-        });
+      await this.prisma.scheduleOcrCell.createMany({
+        data: candidates.map((candidate) => ({
+          aiJobId: input.jobId,
+          dutyDate: new Date(
+            `${input.yearMonth}-${String(candidate.day).padStart(2, '0')}T00:00:00.000Z`,
+          ),
+          token: candidate.token,
+          confidence: candidate.confidence,
+          needsReview: needsOcrReview(candidate.token, candidate.confidence),
+        })),
       });
+      outcome = {
+        status: 'SUCCEEDED',
+        failureCode: null,
+        retryable: null,
+        resultExpiresAt: new Date(
+          this.clock.now().getTime() + SCHEDULE_OCR_RESULT_TTL_MS,
+        ),
+      };
     } catch (error: unknown) {
-      const now = this.clock.now();
-      await this.prisma.$transaction(async (transaction) => {
-        const job = await transaction.aiJob.update({
-          where: { id: input.jobId },
-          data: {
-            status: 'FAILED',
-            failureCode:
-              error instanceof ScheduleOcrEngineUnavailableError
-                ? 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
-                : 'SCHEDULE_OCR_FAILED',
-            retryable: false,
-            version: { increment: 1 },
-            updatedAt: now,
-          },
-          select: { idempotencyRecordId: true },
-        });
-        await transaction.idempotencyRecord.update({
-          where: { id: job.idempotencyRecordId },
-          data: {
-            status: 'COMPLETED',
-            resultReference: input.jobId,
-            updatedAt: now,
-          },
-        });
-        await transaction.scheduleOcrJob.update({
-          where: { aiJobId: input.jobId },
-          data: { storageUri: null },
-        });
-      });
-    } finally {
-      await this.storage.delete(input.storageUri);
+      outcome = {
+        status: 'FAILED',
+        failureCode:
+          error instanceof ScheduleOcrEngineUnavailableError
+            ? 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
+            : 'SCHEDULE_OCR_FAILED',
+        retryable: false,
+        resultExpiresAt: null,
+      };
     }
+    await this.recordPendingOutcome(input.jobId, outcome);
+    await this.finalizeAfterCleanup(input.jobId, input.storageUri, outcome);
   }
 }
 

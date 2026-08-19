@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ScheduleOcrStorage } from '../application/ports/schedule-ocr-storage.port';
+import { ScheduleOcrCleanupFailedError } from '../domain/schedule.errors';
 
 @Injectable()
 export class LocalScheduleOcrStorageAdapter implements ScheduleOcrStorage {
@@ -16,28 +16,21 @@ export class LocalScheduleOcrStorageAdapter implements ScheduleOcrStorage {
     );
   }
 
-  async store(buffer: Buffer, extension: string): Promise<string> {
+  resolveStorageUri(jobId: string, extension: string): string {
+    return `schedule-ocr://${jobId}${extension}`;
+  }
+
+  async store(storageUri: string, buffer: Buffer): Promise<void> {
     await mkdir(this.directory, { recursive: true });
-    const name = `${randomUUID()}${extension}`;
-    await writeFile(join(this.directory, name), buffer);
-    return `schedule-ocr://${name}`;
+    await writeFile(this.path(storageUri), buffer, { flag: 'wx' });
   }
 
   async delete(storageUri: string): Promise<void> {
-    await rm(this.path(storageUri), { force: true }).catch(() => undefined);
-  }
-
-  async sweepOrphans(olderThan: Date): Promise<number> {
-    await mkdir(this.directory, { recursive: true });
-    let deleted = 0;
-    for (const name of await readdir(this.directory)) {
-      const path = join(this.directory, name);
-      if ((await stat(path)).mtime < olderThan) {
-        await rm(path, { force: true });
-        deleted += 1;
-      }
+    try {
+      await rm(this.path(storageUri));
+    } catch (error: unknown) {
+      if (!isEnoent(error)) throw new ScheduleOcrCleanupFailedError();
     }
-    return deleted;
   }
 
   private path(uri: string): string {
@@ -51,4 +44,13 @@ export class LocalScheduleOcrStorageAdapter implements ScheduleOcrStorage {
     }
     return join(this.directory, url.hostname);
   }
+}
+
+function isEnoent(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'ENOENT'
+  );
 }

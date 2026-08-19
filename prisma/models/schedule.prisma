@@ -1,23 +1,27 @@
 model ScheduleOcrJob {
-  aiJobId         String            @id @db.Uuid
-  datasetId       String            @db.Uuid
-  actorId         String            @db.Uuid
-  wardId          String            @db.Uuid
-  yearMonth       String            @db.Char(7)
-  templateId      String            @db.VarChar(64)
-  rowIndex        Int
-  fileHash        String            @db.Char(64)
-  storageUri      String?           @db.VarChar(500)
-  imageWidth      Int
-  imageHeight     Int
-  resultExpiresAt DateTime?         @db.Timestamptz(3)
-  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
-  aiJob           AiJob             @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
-  dataset         DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  membership      WardMembership    @relation("ScheduleOcrMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
-  cells           ScheduleOcrCell[]
-  schedules       MonthlySchedule[] @relation("ScheduleSourceJob")
+  aiJobId                       String            @id @db.Uuid
+  datasetId                     String            @db.Uuid
+  actorId                       String            @db.Uuid
+  wardId                        String            @db.Uuid
+  yearMonth                     String            @db.Char(7)
+  templateId                    String            @db.VarChar(64)
+  rowIndex                      Int
+  fileHash                      String            @db.Char(64)
+  storageUri                    String?           @db.VarChar(500)
+  imageWidth                    Int
+  imageHeight                   Int
+  resultExpiresAt               DateTime?         @db.Timestamptz(3)
+  cleanupPendingStatus          AiJobStatus?
+  cleanupPendingFailureCode     String?           @db.VarChar(64)
+  cleanupPendingRetryable       Boolean?
+  cleanupPendingResultExpiresAt DateTime?         @db.Timestamptz(3)
+  createdAt                     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt                     DateTime          @updatedAt @db.Timestamptz(3)
+  aiJob                         AiJob             @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+  dataset                       DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership                    WardMembership    @relation("ScheduleOcrMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  cells                         ScheduleOcrCell[]
+  schedules                     MonthlySchedule[] @relation("ScheduleSourceJob")
 
   @@unique(name: "schedule_ocr_scope_id", [datasetId, aiJobId, actorId, wardId])
   @@index([datasetId, actorId, wardId, yearMonth, createdAt(sort: Desc)])

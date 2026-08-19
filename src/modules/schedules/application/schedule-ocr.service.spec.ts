@@ -57,9 +57,9 @@ function createHarness(
     recognize: jest.fn().mockResolvedValue([]),
   } as unknown as jest.Mocked<ScheduleOcrGateway>;
   const storage = {
-    store: jest.fn().mockResolvedValue('schedule-ocr://fixture.png'),
+    resolveStorageUri: jest.fn().mockReturnValue('schedule-ocr://fixture.png'),
+    store: jest.fn().mockResolvedValue(undefined),
     delete: jest.fn().mockResolvedValue(undefined),
-    sweepOrphans: jest.fn().mockResolvedValue(0),
   } as jest.Mocked<ScheduleOcrStorage>;
   const service = new ScheduleOcrService(
     prisma,
@@ -118,15 +118,13 @@ describe('ScheduleOcrService reservation', () => {
     );
   });
 
-  it('허용 fixture 저장 뒤 reservation DB가 실패하면 파일을 보상 삭제한다', async () => {
+  it('reservation DB가 실패하면 추적되지 않은 파일을 쓰지 않는다', async () => {
     const harness = createHarness({ transactionError: new Error('db-failed') });
     await expect(
       harness.service.create(command(createSyntheticScheduleFixture())),
     ).rejects.toThrow('db-failed');
-    expect(harness.storage.store).toHaveBeenCalledTimes(1);
-    expect(harness.storage.delete).toHaveBeenCalledWith(
-      'schedule-ocr://fixture.png',
-    );
+    expect(harness.storage.store).not.toHaveBeenCalled();
+    expect(harness.storage.delete).not.toHaveBeenCalled();
   });
 
   it('non-DEMO에서는 exact fixture도 파일 저장 없이 FAILED Job으로 접수한다', async () => {
@@ -140,7 +138,7 @@ describe('ScheduleOcrService reservation', () => {
     );
   });
 
-  it('terminal replay도 POST 계약상 QUEUED를 재응답하고 새 임시 파일은 삭제한다', async () => {
+  it('terminal replay도 POST 계약상 QUEUED를 재응답하고 파일을 새로 쓰지 않는다', async () => {
     const image = createSyntheticScheduleFixture();
     const requestHash = createCanonicalRequestHash({
       path: {},
@@ -161,11 +159,146 @@ describe('ScheduleOcrService reservation', () => {
       status: 'QUEUED',
       isReplay: true,
     });
-    expect(harness.storage.store).toHaveBeenCalledTimes(1);
-    expect(harness.storage.delete).toHaveBeenCalledWith(
-      'schedule-ocr://fixture.png',
-    );
+    expect(harness.storage.store).not.toHaveBeenCalled();
+    expect(harness.storage.delete).not.toHaveBeenCalled();
     expect(harness.gateway.recognize).not.toHaveBeenCalled();
     expect(harness.aiJobCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScheduleOcrService cleanup retry', () => {
+  function createRetryHarness(
+    deleteError?: Error,
+    rowOverrides: Record<string, unknown> = {},
+  ) {
+    const aiJobUpdate = jest.fn().mockResolvedValue({
+      idempotencyRecordId: '00000000-0000-4000-8000-000000000106',
+    });
+    const scheduleUpdate = jest.fn().mockResolvedValue({});
+    const transactionClient = {
+      aiJob: { update: aiJobUpdate },
+      idempotencyRecord: { update: jest.fn().mockResolvedValue({}) },
+      scheduleOcrJob: { update: scheduleUpdate },
+    };
+    const prisma = {
+      scheduleOcrJob: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            aiJobId: '00000000-0000-4000-8000-000000000105',
+            storageUri: 'schedule-ocr://fixture.png',
+            cleanupPendingStatus: 'SUCCEEDED',
+            cleanupPendingFailureCode: null,
+            cleanupPendingRetryable: null,
+            cleanupPendingResultExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+            aiJob: {
+              failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
+              retryable: true,
+            },
+            _count: { cells: 31 },
+            ...rowOverrides,
+          },
+        ]),
+      },
+      $transaction: jest
+        .fn()
+        .mockImplementation(
+          (callback: (client: typeof transactionClient) => unknown) =>
+            callback(transactionClient),
+        ),
+    } as unknown as PrismaService;
+    const storage = {
+      resolveStorageUri: jest.fn(),
+      store: jest.fn(),
+      delete: deleteError
+        ? jest.fn().mockRejectedValue(deleteError)
+        : jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<ScheduleOcrStorage>;
+    const service = new ScheduleOcrService(
+      prisma,
+      { now: () => new Date('2026-08-19T00:00:00.000Z') } as Clock,
+      new ConfigService({ DEMO_MODE: true }),
+      { recognize: jest.fn() } as unknown as ScheduleOcrGateway,
+      storage,
+    );
+    return { service, storage, aiJobUpdate, scheduleUpdate };
+  }
+
+  it('삭제 재시도 성공 시 원래 SUCCEEDED와 TTL을 복원하고 URI를 비운다', async () => {
+    const harness = createRetryHarness();
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(1);
+    expect(harness.aiJobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'SUCCEEDED',
+          failureCode: null,
+          resultReference: '00000000-0000-4000-8000-000000000105',
+        }),
+      }),
+    );
+    expect(harness.scheduleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          storageUri: null,
+          resultExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+          cleanupPendingStatus: null,
+        }),
+      }),
+    );
+  });
+
+  it('삭제 재시도가 실패하면 URI를 지우지 않고 retryable cleanup 상태를 유지한다', async () => {
+    const harness = createRetryHarness(new Error('EACCES'));
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(0);
+    expect(harness.aiJobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'FAILED',
+          failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
+          retryable: true,
+        }),
+      }),
+    );
+    expect(harness.scheduleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ storageUri: null }),
+      }),
+    );
+  });
+
+  it('결과 저장 후 crash는 cells를 근거로 SUCCEEDED를 복구한다', async () => {
+    const harness = createRetryHarness(undefined, {
+      cleanupPendingStatus: null,
+      cleanupPendingFailureCode: null,
+      cleanupPendingRetryable: null,
+      cleanupPendingResultExpiresAt: null,
+      _count: { cells: 31 },
+    });
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(1);
+    expect(harness.aiJobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SUCCEEDED' }),
+      }),
+    );
+  });
+
+  it('파일 write 전 crash는 ENOENT cleanup 뒤 안전한 FAILED로 회수한다', async () => {
+    const harness = createRetryHarness(undefined, {
+      cleanupPendingStatus: null,
+      cleanupPendingFailureCode: null,
+      cleanupPendingRetryable: null,
+      cleanupPendingResultExpiresAt: null,
+      aiJob: { failureCode: null, retryable: null },
+      _count: { cells: 0 },
+    });
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(1);
+    expect(harness.aiJobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'FAILED',
+          failureCode: 'SCHEDULE_OCR_INTERRUPTED',
+          retryable: true,
+        }),
+      }),
+    );
   });
 });

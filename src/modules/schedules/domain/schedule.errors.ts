@@ -70,3 +70,14 @@ export class ScheduleOcrEngineUnavailableError extends ApplicationError {
     });
   }
 }
+
+export class ScheduleOcrCleanupFailedError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'SCHEDULE_OCR_CLEANUP_FAILED',
+      kind: 'DEPENDENCY_UNAVAILABLE',
+      publicMessage:
+        '업로드 파일을 안전하게 정리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
+  }
+}

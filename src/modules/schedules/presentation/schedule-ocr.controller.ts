@@ -24,6 +24,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiPayloadTooLargeResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
@@ -62,6 +63,7 @@ export class ScheduleOcrController {
   @ApiConflictResponse({ type: ApiErrorResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiPayloadTooLargeResponse({ type: ApiErrorResponseDto })
+  @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
   @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
   async create(
     @DemoSessionContextParam() context: DemoSessionContext,
