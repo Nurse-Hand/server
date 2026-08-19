@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { VersionConflictError } from '../../../common/errors/version-conflict.error';
 import { createCanonicalRequestHash } from '../../../common/idempotency/canonical-request-hash';
-import { IdempotencyKeyReusedError } from '../../../common/idempotency/idempotency.errors';
+import {
+  IdempotencyInvariantViolationError,
+  IdempotencyKeyReusedError,
+  IdempotencyRequestInProgressError,
+} from '../../../common/idempotency/idempotency.errors';
 import { Clock } from '../../../common/time/clock';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
+import { Prisma } from '../../../generated/prisma/client';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
   MonthlyScheduleInvalidError,
@@ -25,6 +30,8 @@ export type MonthlyScheduleReadModel = {
   entries: ScheduleEntryInput[];
   totals: Record<ScheduleDuty, number>;
 };
+
+const MONTHLY_SCHEDULE_SAVE_OPERATION = 'MONTHLY_SCHEDULE_SAVE';
 
 @Injectable()
 export class MonthlyScheduleService {
@@ -68,97 +75,133 @@ export class MonthlyScheduleService {
     const replay = await this.findReplay(input, requestHash);
     if (replay) return replay;
 
-    return this.prisma.$transaction(async (transaction) => {
-      if (input.sourceJobId !== null) {
-        const source = await transaction.scheduleOcrJob.findFirst({
-          where: {
-            aiJobId: input.sourceJobId,
-            datasetId: input.context.datasetId,
-            actorId: input.context.actorId,
-            wardId: input.context.wardId,
-            yearMonth: input.yearMonth,
-            aiJob: { status: 'SUCCEEDED' },
-          },
-          select: { resultExpiresAt: true },
-        });
-        if (!source) throw new ScheduleOcrJobNotFoundError();
-        if (
-          source.resultExpiresAt !== null &&
-          source.resultExpiresAt <= this.clock.now()
-        ) {
-          throw new ScheduleOcrResultExpiredError();
-        }
-      }
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const transactionReplay = await this.findReplayWithClient(
+          transaction,
+          input,
+          requestHash,
+        );
+        if (transactionReplay) return transactionReplay;
 
-      const current = await transaction.monthlySchedule.findUnique({
-        where: {
-          monthly_schedule_scope_month: {
-            datasetId: input.context.datasetId,
-            actorId: input.context.actorId,
-            wardId: input.context.wardId,
-            yearMonth: input.yearMonth,
-          },
-        },
-        select: { id: true, version: true },
-      });
-      let scheduleId: string;
-      if (!current) {
-        if (input.expectedVersion !== 0) {
-          throw new VersionConflictError(input.expectedVersion, 0);
-        }
-        const created = await transaction.monthlySchedule.create({
+        const reservation = await transaction.idempotencyRecord.create({
           data: {
-            datasetId: input.context.datasetId,
-            actorId: input.context.actorId,
-            wardId: input.context.wardId,
-            yearMonth: input.yearMonth,
-            sourceJobId: input.sourceJobId,
+            ...input.context,
+            operation: MONTHLY_SCHEDULE_SAVE_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash,
           },
           select: { id: true },
         });
-        scheduleId = created.id;
-      } else {
-        if (current.version !== input.expectedVersion) {
-          throw new VersionConflictError(
-            input.expectedVersion,
-            current.version,
-          );
+
+        if (input.sourceJobId !== null) {
+          const source = await transaction.scheduleOcrJob.findFirst({
+            where: {
+              aiJobId: input.sourceJobId,
+              datasetId: input.context.datasetId,
+              actorId: input.context.actorId,
+              wardId: input.context.wardId,
+              yearMonth: input.yearMonth,
+              aiJob: { status: 'SUCCEEDED' },
+            },
+            select: { resultExpiresAt: true },
+          });
+          if (!source) throw new ScheduleOcrJobNotFoundError();
+          if (
+            source.resultExpiresAt !== null &&
+            source.resultExpiresAt <= this.clock.now()
+          ) {
+            throw new ScheduleOcrResultExpiredError();
+          }
         }
-        const updated = await transaction.monthlySchedule.updateMany({
-          where: { id: current.id, version: input.expectedVersion },
+
+        const current = await transaction.monthlySchedule.findUnique({
+          where: {
+            monthly_schedule_scope_month: {
+              datasetId: input.context.datasetId,
+              actorId: input.context.actorId,
+              wardId: input.context.wardId,
+              yearMonth: input.yearMonth,
+            },
+          },
+          select: { id: true, version: true },
+        });
+        let scheduleId: string;
+        if (!current) {
+          if (input.expectedVersion !== 0) {
+            throw new VersionConflictError(input.expectedVersion, 0);
+          }
+          const created = await transaction.monthlySchedule.create({
+            data: {
+              datasetId: input.context.datasetId,
+              actorId: input.context.actorId,
+              wardId: input.context.wardId,
+              yearMonth: input.yearMonth,
+              sourceJobId: input.sourceJobId,
+            },
+            select: { id: true },
+          });
+          scheduleId = created.id;
+        } else {
+          if (current.version !== input.expectedVersion) {
+            throw new VersionConflictError(
+              input.expectedVersion,
+              current.version,
+            );
+          }
+          const updated = await transaction.monthlySchedule.updateMany({
+            where: { id: current.id, version: input.expectedVersion },
+            data: {
+              sourceJobId: input.sourceJobId,
+              version: { increment: 1 },
+            },
+          });
+          if (updated.count !== 1) {
+            throw new VersionConflictError(input.expectedVersion);
+          }
+          scheduleId = current.id;
+          await transaction.monthlyScheduleEntry.deleteMany({
+            where: { scheduleId },
+          });
+        }
+        await transaction.monthlyScheduleEntry.createMany({
+          data: entries.map((entry) => ({
+            scheduleId,
+            dutyDate: new Date(`${entry.date}T00:00:00.000Z`),
+            duty: entry.duty,
+          })),
+        });
+        await transaction.scheduleSaveRequest.create({
           data: {
-            sourceJobId: input.sourceJobId,
-            version: { increment: 1 },
+            datasetId: input.context.datasetId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            yearMonth: input.yearMonth,
+            idempotencyKey: input.idempotencyKey,
+            requestHash,
+            scheduleId,
           },
         });
-        if (updated.count !== 1) {
-          throw new VersionConflictError(input.expectedVersion);
-        }
-        scheduleId = current.id;
-        await transaction.monthlyScheduleEntry.deleteMany({
-          where: { scheduleId },
+        await transaction.idempotencyRecord.update({
+          where: { id: reservation.id },
+          data: {
+            status: 'COMPLETED',
+            resultReference: scheduleId,
+          },
         });
-      }
-      await transaction.monthlyScheduleEntry.createMany({
-        data: entries.map((entry) => ({
+        return this.readWithClient(
+          transaction,
+          input.context,
+          input.yearMonth,
           scheduleId,
-          dutyDate: new Date(`${entry.date}T00:00:00.000Z`),
-          duty: entry.duty,
-        })),
+        );
       });
-      await transaction.scheduleSaveRequest.create({
-        data: {
-          datasetId: input.context.datasetId,
-          actorId: input.context.actorId,
-          wardId: input.context.wardId,
-          yearMonth: input.yearMonth,
-          idempotencyKey: input.idempotencyKey,
-          requestHash,
-          scheduleId,
-        },
-      });
-      return this.readWithClient(transaction, input.context, input.yearMonth);
-    });
+    } catch (error: unknown) {
+      if (!hasPrismaErrorCode(error, 'P2002')) throw error;
+      const concurrentReplay = await this.findReplay(input, requestHash);
+      if (!concurrentReplay) throw error;
+      return concurrentReplay;
+    }
   }
 
   read(
@@ -176,16 +219,33 @@ export class MonthlyScheduleService {
     },
     requestHash: string,
   ): Promise<MonthlyScheduleReadModel | null> {
-    const replay = await this.prisma.scheduleSaveRequest.findUnique({
+    return this.findReplayWithClient(this.prisma, input, requestHash);
+  }
+
+  private async findReplayWithClient(
+    client: Pick<PrismaService, 'idempotencyRecord' | 'monthlySchedule'>,
+    input: {
+      context: DemoSessionContext;
+      yearMonth: string;
+      idempotencyKey: string;
+    },
+    requestHash: string,
+  ): Promise<MonthlyScheduleReadModel | null> {
+    const replay = await client.idempotencyRecord.findUnique({
       where: {
-        schedule_save_scope_key: {
+        idempotency_scope_key: {
           datasetId: input.context.datasetId,
           actorId: input.context.actorId,
-          yearMonth: input.yearMonth,
+          operation: MONTHLY_SCHEDULE_SAVE_OPERATION,
           idempotencyKey: input.idempotencyKey,
         },
       },
-      select: { requestHash: true, scheduleId: true, wardId: true },
+      select: {
+        requestHash: true,
+        resultReference: true,
+        status: true,
+        wardId: true,
+      },
     });
     if (!replay) return null;
     if (
@@ -194,11 +254,17 @@ export class MonthlyScheduleService {
     ) {
       throw new IdempotencyKeyReusedError();
     }
+    if (replay.status === 'PROCESSING') {
+      throw new IdempotencyRequestInProgressError();
+    }
+    if (replay.resultReference === null) {
+      throw new IdempotencyInvariantViolationError();
+    }
     return this.readWithClient(
-      this.prisma,
+      client,
       input.context,
       input.yearMonth,
-      replay.scheduleId,
+      replay.resultReference,
     );
   }
 
@@ -250,4 +316,10 @@ export class MonthlyScheduleService {
       totals,
     };
   }
+}
+
+function hasPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === code
+  );
 }

@@ -1,6 +1,7 @@
 import type { Clock } from '../../../common/time/clock';
 import type { PrismaService } from '../../../infrastructure/database/prisma.service';
 import { VersionConflictError } from '../../../common/errors/version-conflict.error';
+import { Prisma } from '../../../generated/prisma/client';
 import {
   ScheduleOcrJobNotFoundError,
   ScheduleOcrResultExpiredError,
@@ -20,11 +21,14 @@ function createHarness(
   options: {
     currentVersion?: number;
     source?: { resultExpiresAt: Date | null } | null;
+    uniqueRace?: boolean;
   } = {},
 ) {
-  let saveRecord: {
+  let idempotencyRecord: {
+    id: string;
     requestHash: string;
-    scheduleId: string;
+    resultReference: string | null;
+    status: 'PROCESSING' | 'COMPLETED';
     wardId: string;
   } | null = null;
   let version = options.currentVersion;
@@ -47,35 +51,62 @@ function createHarness(
         version = (version ?? 0) + 1;
         return Promise.resolve({ count: 1 });
       }),
-      findFirst: jest
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve({
-            id: scheduleId,
-            yearMonth: '2026-08',
-            sourceJobId: null,
-            version: version ?? 1,
-            entries: [
-              { dutyDate: new Date('2026-08-01T00:00:00.000Z'), duty: 'DAY' },
-            ],
-          }),
-        ),
+      findFirst: jest.fn().mockImplementation(() =>
+        Promise.resolve({
+          id: scheduleId,
+          yearMonth: '2026-08',
+          sourceJobId: null,
+          version: version ?? 1,
+          entries: [
+            { dutyDate: new Date('2026-08-01T00:00:00.000Z'), duty: 'DAY' },
+          ],
+        }),
+      ),
     },
     monthlyScheduleEntry: {
       createMany: jest.fn().mockResolvedValue({ count: 1 }),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     scheduleSaveRequest: {
-      create: jest
+      create: jest.fn().mockResolvedValue({}),
+    },
+    idempotencyRecord: {
+      findUnique: jest
         .fn()
-        .mockImplementation(({ data }: { data: { requestHash: string } }) => {
-          saveRecord = {
+        .mockImplementation(() => Promise.resolve(idempotencyRecord)),
+      create: jest.fn().mockImplementation(({ data }) => {
+        if (options.uniqueRace) {
+          idempotencyRecord = {
+            id: '00000000-0000-4000-8000-000000000106',
             requestHash: data.requestHash,
-            scheduleId,
+            resultReference: scheduleId,
+            status: 'COMPLETED',
             wardId: context.wardId,
           };
-          return Promise.resolve({});
-        }),
+          throw new Prisma.PrismaClientKnownRequestError('unique race', {
+            code: 'P2002',
+            clientVersion: 'test',
+          });
+        }
+        idempotencyRecord = {
+          id: '00000000-0000-4000-8000-000000000106',
+          requestHash: data.requestHash,
+          resultReference: null,
+          status: 'PROCESSING',
+          wardId: context.wardId,
+        };
+        return Promise.resolve({ id: idempotencyRecord.id });
+      }),
+      update: jest.fn().mockImplementation(({ data }) => {
+        if (idempotencyRecord) {
+          idempotencyRecord = {
+            ...idempotencyRecord,
+            resultReference: data.resultReference,
+            status: data.status,
+          };
+        }
+        return Promise.resolve({});
+      }),
     },
   };
   const transaction = jest
@@ -85,12 +116,6 @@ function createHarness(
     );
   const prisma = {
     ...tx,
-    scheduleSaveRequest: {
-      ...tx.scheduleSaveRequest,
-      findUnique: jest
-        .fn()
-        .mockImplementation(() => Promise.resolve(saveRecord)),
-    },
     $transaction: transaction,
   } as unknown as PrismaService;
   const clock = { now: () => now } as Clock;
@@ -150,5 +175,15 @@ describe('MonthlyScheduleService', () => {
     await harness.service.put(command);
     await harness.service.put(command);
     expect(harness.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('동시 예약 unique 충돌은 승자 결과를 재생하고 일정을 중복 변경하지 않는다', async () => {
+    const harness = createHarness({ uniqueRace: true });
+    await expect(harness.service.put(command)).resolves.toMatchObject({
+      id: scheduleId,
+      version: 1,
+    });
+    expect(harness.tx.monthlySchedule.create).not.toHaveBeenCalled();
+    expect(harness.tx.monthlyScheduleEntry.createMany).not.toHaveBeenCalled();
   });
 });
