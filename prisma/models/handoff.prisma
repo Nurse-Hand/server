@@ -496,8 +496,8 @@ model HandoffFinalSnapshot {
   version             Int                       @default(1)
   finalizedAt         DateTime                  @db.Timestamptz(3)
   createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
-  handoff             Handoff                   @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
-  idempotencyRecord   IdempotencyRecord         @relation("HandoffFinalIdempotency", fields: [datasetId, idempotencyRecordId, finalizedByActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
+  handoff             Handoff                   @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  idempotencyRecord   IdempotencyRecord         @relation("HandoffFinalIdempotency", fields: [datasetId, idempotencyRecordId, finalizedByActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Cascade)
 
   @@unique(name: "handoff_final_snapshot_dataset_id", [datasetId, id])
   @@unique(name: "handoff_final_snapshot_idempotency_scope", [datasetId, idempotencyRecordId, finalizedByActorId, wardId, operation])

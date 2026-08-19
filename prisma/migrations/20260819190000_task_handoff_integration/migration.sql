@@ -1148,10 +1148,10 @@ ALTER TABLE "HandoffDraftTaskSourceReference" ADD CONSTRAINT "HandoffDraftTaskSo
 ALTER TABLE "HandoffDraftWarning" ADD CONSTRAINT "HandoffDraftWarning_datasetId_handoffId_fkey" FOREIGN KEY ("datasetId", "handoffId") REFERENCES "Handoff"("datasetId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "HandoffFinalSnapshot" ADD CONSTRAINT "HandoffFinalSnapshot_datasetId_handoffId_fkey" FOREIGN KEY ("datasetId", "handoffId") REFERENCES "Handoff"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "HandoffFinalSnapshot" ADD CONSTRAINT "HandoffFinalSnapshot_datasetId_handoffId_fkey" FOREIGN KEY ("datasetId", "handoffId") REFERENCES "Handoff"("datasetId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "HandoffFinalSnapshot" ADD CONSTRAINT "HandoffFinalSnapshot_datasetId_idempotencyRecordId_finaliz_fkey" FOREIGN KEY ("datasetId", "idempotencyRecordId", "finalizedByActorId", "wardId", "operation") REFERENCES "IdempotencyRecord"("datasetId", "id", "actorId", "wardId", "operation") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "HandoffFinalSnapshot" ADD CONSTRAINT "HandoffFinalSnapshot_datasetId_idempotencyRecordId_finaliz_fkey" FOREIGN KEY ("datasetId", "idempotencyRecordId", "finalizedByActorId", "wardId", "operation") REFERENCES "IdempotencyRecord"("datasetId", "id", "actorId", "wardId", "operation") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "HandoffAcknowledgement" ADD CONSTRAINT "HandoffAcknowledgement_datasetId_handoffId_fkey" FOREIGN KEY ("datasetId", "handoffId") REFERENCES "Handoff"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1252,12 +1252,19 @@ ALTER TABLE "TaskApplyReceipt" ADD CONSTRAINT "TaskApplyReceipt_datasetId_jobId_
 -- AddForeignKey
 ALTER TABLE "TaskApplyReceipt" ADD CONSTRAINT "TaskApplyReceipt_datasetId_idempotencyRecordId_actorId_war_fkey" FOREIGN KEY ("datasetId", "idempotencyRecordId", "actorId", "wardId", "operation") REFERENCES "IdempotencyRecord"("datasetId", "id", "actorId", "wardId", "operation") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Finalized handoff snapshots are append-once records. Reject all direct mutation paths.
+-- Finalized snapshots are immutable while their dataset exists, but dataset purge may cascade them.
 CREATE FUNCTION "reject_handoff_final_snapshot_mutation"()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM 1 FROM "DemoDataset" WHERE "id" = OLD."datasetId";
+    IF NOT FOUND THEN
+      RETURN OLD;
+    END IF;
+  END IF;
+
   RAISE EXCEPTION 'finalized Handoff snapshot rows are immutable'
     USING ERRCODE = '55000';
 END;

@@ -1049,6 +1049,28 @@ describe('Task and Handoff PostgreSQL integration', () => {
       ),
     ).toBe(true);
   });
+
+  it('finalized snapshot은 dataset 수명 종료 cascade에서만 삭제된다', async () => {
+    const lifecycle = await createFinalizedDatasetLifecycleFixture(prisma);
+    expect(
+      await prisma.handoffFinalSnapshot.count({
+        where: { datasetId: lifecycle.datasetId },
+      }),
+    ).toBe(1);
+
+    await expect(
+      prisma.demoDataset.delete({ where: { id: lifecycle.datasetId } }),
+    ).resolves.toMatchObject({ id: lifecycle.datasetId });
+
+    expect(
+      await prisma.handoffFinalSnapshot.count({
+        where: { datasetId: lifecycle.datasetId },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.demoDataset.count({ where: { id: lifecycle.datasetId } }),
+    ).toBe(0);
+  });
 });
 
 async function createContexts(
@@ -1156,4 +1178,167 @@ async function publishSyntheticExtraction(
     orderBy: { id: 'asc' },
   });
   return { jobId: fixture.jobId, candidateId: candidate.id };
+}
+
+async function createFinalizedDatasetLifecycleFixture(
+  prisma: PrismaService,
+): Promise<{ datasetId: string }> {
+  const now = new Date();
+  const dataset = await prisma.demoDataset.create({
+    data: { scenarioKey: `SNAPSHOT_LIFECYCLE_${randomUUID()}` },
+  });
+  const ward = await prisma.ward.create({
+    data: {
+      datasetId: dataset.id,
+      logicalKey: 'lifecycle-ward',
+      code: 'LIFECYCLE',
+      displayName: 'Synthetic lifecycle ward',
+    },
+  });
+  const [sender, receiver] = await Promise.all([
+    prisma.nurse.create({
+      data: {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-sender',
+        displayName: 'Synthetic lifecycle sender',
+      },
+    }),
+    prisma.nurse.create({
+      data: {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-receiver',
+        displayName: 'Synthetic lifecycle receiver',
+      },
+    }),
+  ]);
+  await prisma.wardMembership.createMany({
+    data: [
+      {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-sender-membership',
+        nurseId: sender.id,
+        wardId: ward.id,
+        role: 'SENDER',
+      },
+      {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-receiver-membership',
+        nurseId: receiver.id,
+        wardId: ward.id,
+        role: 'RECEIVER',
+      },
+    ],
+  });
+  const [senderShift, receiverShift] = await Promise.all([
+    prisma.nurseShift.create({
+      data: {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-sender-shift',
+        nurseId: sender.id,
+        wardId: ward.id,
+        duty: 'DAY',
+        startsAt: new Date(now.getTime() - 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 7 * 60 * 60 * 1000),
+      },
+    }),
+    prisma.nurseShift.create({
+      data: {
+        datasetId: dataset.id,
+        logicalKey: 'lifecycle-receiver-shift',
+        nurseId: receiver.id,
+        wardId: ward.id,
+        duty: 'EVENING',
+        startsAt: new Date(now.getTime() + 7 * 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 15 * 60 * 60 * 1000),
+      },
+    }),
+  ]);
+  const precheckRecord = await prisma.idempotencyRecord.create({
+    data: {
+      datasetId: dataset.id,
+      actorId: sender.id,
+      wardId: ward.id,
+      operation: 'handoffs.precheck',
+      idempotencyKey: `lifecycle-precheck-${randomUUID()}`,
+      requestHash: '1'.repeat(64),
+    },
+  });
+  const precheckJob = await prisma.aiJob.create({
+    data: {
+      datasetId: dataset.id,
+      actorId: sender.id,
+      wardId: ward.id,
+      operation: 'handoffs.precheck',
+      idempotencyRecordId: precheckRecord.id,
+      requestId: randomUUID(),
+      maxAttempts: 3,
+    },
+  });
+  const precheck = await prisma.handoffPrecheck.create({
+    data: {
+      datasetId: dataset.id,
+      wardId: ward.id,
+      senderActorId: sender.id,
+      receiverActorId: receiver.id,
+      senderShiftId: senderShift.id,
+      receiverShiftId: receiverShift.id,
+      handoffDate: new Date('2026-08-19T00:00:00.000Z'),
+      targetDuty: 'EVENING',
+      aiJobId: precheckJob.id,
+      idempotencyRecordId: precheckRecord.id,
+      requestHash: '1'.repeat(64),
+      requestId: randomUUID(),
+    },
+  });
+  const handoff = await prisma.handoff.create({
+    data: {
+      datasetId: dataset.id,
+      wardId: ward.id,
+      senderActorId: sender.id,
+      receiverActorId: receiver.id,
+      senderShiftId: senderShift.id,
+      receiverShiftId: receiverShift.id,
+      handoffDate: new Date('2026-08-19T00:00:00.000Z'),
+      targetDuty: 'EVENING',
+      status: 'FINALIZED',
+      precheckId: precheck.id,
+      precheckVersion: 1,
+      templateKey: 'NURSING_HANDOFF_V1',
+      includeUnverified: false,
+      frozenInputPayload: { synthetic: true },
+      frozenInputHash: '2'.repeat(64),
+      finalizedAt: now,
+    },
+  });
+  const finalRecord = await prisma.idempotencyRecord.create({
+    data: {
+      datasetId: dataset.id,
+      actorId: sender.id,
+      wardId: ward.id,
+      operation: 'handoffs.finalize',
+      idempotencyKey: `lifecycle-finalize-${randomUUID()}`,
+      requestHash: '3'.repeat(64),
+    },
+  });
+  await prisma.handoffFinalSnapshot.create({
+    data: {
+      datasetId: dataset.id,
+      wardId: ward.id,
+      handoffId: handoff.id,
+      senderActorId: sender.id,
+      receiverActorId: receiver.id,
+      finalizedByActorId: sender.id,
+      resolution: 'RESOLVED',
+      sourceDraftVersion: 1,
+      precheckVersion: 1,
+      templateKey: 'NURSING_HANDOFF_V1',
+      includeUnverified: false,
+      idempotencyRecordId: finalRecord.id,
+      requestHash: '3'.repeat(64),
+      snapshotPayload: { synthetic: true },
+      snapshotHash: '4'.repeat(64),
+      finalizedAt: now,
+    },
+  });
+  return { datasetId: dataset.id };
 }
