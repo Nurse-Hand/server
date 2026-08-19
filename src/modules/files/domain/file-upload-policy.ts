@@ -30,12 +30,6 @@ export type ValidatedStoredFile = {
 
 const MEBIBYTE = 1024 * 1024;
 
-const MIME_TYPE_ALIASES: Readonly<Record<string, string>> = {
-  'audio/m4a': 'audio/mp4',
-  'audio/x-m4a': 'audio/mp4',
-  'video/mp4': 'audio/mp4',
-};
-
 const STORED_FILE_UPLOAD_POLICIES: Readonly<
   Record<StoredFileKind, StoredFileUploadPolicy>
 > = {
@@ -44,12 +38,15 @@ const STORED_FILE_UPLOAD_POLICIES: Readonly<
     extensionsByMimeType: {
       'audio/aac': ['.aac'],
       'audio/flac': ['.flac'],
+      'audio/m4a': ['.m4a'],
       'audio/mp4': ['.m4a'],
       'audio/mpeg': ['.mp3'],
       'audio/ogg': ['.ogg'],
       'audio/wav': ['.wav'],
       'audio/webm': ['.webm'],
+      'audio/x-m4a': ['.m4a'],
       'audio/x-wav': ['.wav'],
+      'video/mp4': ['.m4a'],
     },
   },
   PHOTO: {
@@ -118,10 +115,7 @@ export function validateStoredFileUpload(
 }
 
 function normalizeMimeType(mimeType: string): string {
-  const normalizedMimeType =
-    mimeType.split(';', 1)[0]?.trim().toLowerCase() ?? '';
-
-  return MIME_TYPE_ALIASES[normalizedMimeType] ?? normalizedMimeType;
+  return mimeType.split(';', 1)[0]?.trim().toLowerCase() ?? '';
 }
 
 function listAllowedMimeTypes(policy: StoredFileUploadPolicy): string[] {
