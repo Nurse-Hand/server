@@ -57,23 +57,26 @@ export class HandoffPrecheckJobProcessor {
       return null;
     }
 
+    const work = await this.repository.getWork(claim);
+    let result: PublishedHandoffPrecheckResult;
     try {
-      const work = await this.repository.getWork(claim);
-      const result = await this.gateway.analyze(
+      const aiResult = await this.gateway.analyze(
         toAiInput(work, claim.requestId),
       );
-      await this.repository.publishResult({
-        claim,
-        result: toPublishedResult(work, result),
-        now: this.clock.now(),
-      });
-      return { jobId: claim.jobId, status: 'SUCCEEDED' };
+      result = toPublishedResult(work, aiResult);
     } catch (error: unknown) {
-      if (isClaimLost(error)) {
+      if (!isClassifiableAiFailure(error)) {
         throw error;
       }
       return this.failClaim(claim, error);
     }
+
+    await this.repository.publishResult({
+      claim,
+      result,
+      now: this.clock.now(),
+    });
+    return { jobId: claim.jobId, status: 'SUCCEEDED' };
   }
 
   private async failClaim(
@@ -186,12 +189,12 @@ function resolveEvidence(
   throw new HandoffAiGatewayError('HANDOFF_AI_INVALID_RESPONSE');
 }
 
-function isClaimLost(error: unknown): boolean {
+function isClassifiableAiFailure(error: unknown): boolean {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error.code === 'HANDOFF_JOB_CLAIM_LOST' ||
-      error.code === 'AI_JOB_CLAIM_LOST')
+    error instanceof HandoffAiGatewayError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'HANDOFF_AI_RESULT_INVALID')
   );
 }
