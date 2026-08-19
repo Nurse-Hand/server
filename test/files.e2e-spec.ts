@@ -153,7 +153,7 @@ describe('Files (e2e)', () => {
 
       expect(response.body.data).toMatchObject({
         kind: 'AUDIO',
-        mimeType: 'audio/mp4',
+        mimeType: contentType,
         originalName: 'quick-note.m4a',
         sizeBytes: fileBuffer.length,
       });
