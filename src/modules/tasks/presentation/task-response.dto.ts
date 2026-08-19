@@ -2,14 +2,26 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
 import {
   TASK_AI_CONFIDENCES,
+  TASK_EVIDENCE_SOURCE_TYPES,
   TASK_PRIORITIES,
   TASK_SOURCES,
   TASK_STATUSES,
   type TaskAiConfidence,
+  type TaskEvidenceSourceType,
   type TaskPriority,
   type TaskSource,
   type TaskStatus,
 } from '../domain/task.types';
+
+const TASK_EXTRACTION_JOB_STATUSES = [
+  'QUEUED',
+  'PROCESSING',
+  'SUCCEEDED',
+  'FAILED',
+] as const;
+
+export type TaskExtractionJobStatus =
+  (typeof TASK_EXTRACTION_JOB_STATUSES)[number];
 
 export class TaskAiSuggestionDto {
   @ApiProperty({ enum: TASK_PRIORITIES })
@@ -77,6 +89,79 @@ export class TaskListDataDto {
   nextCursor!: string | null;
 }
 
+export class TaskExtractionReservationDataDto {
+  @ApiProperty({ format: 'uuid' })
+  jobId!: string;
+
+  @ApiProperty({ enum: TASK_EXTRACTION_JOB_STATUSES })
+  status!: TaskExtractionJobStatus;
+}
+
+export class TaskExtractionEvidenceDto {
+  @ApiProperty({ enum: TASK_EVIDENCE_SOURCE_TYPES })
+  sourceType!: TaskEvidenceSourceType;
+
+  @ApiProperty({ format: 'uuid' })
+  sourceId!: string;
+}
+
+export class TaskExtractionCandidateDto {
+  @ApiProperty({ format: 'uuid' })
+  candidateId!: string;
+
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  patientId!: string | null;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  description!: string | null;
+
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  dueAt!: string | null;
+
+  @ApiProperty({ format: 'date' })
+  workDate!: string;
+
+  @ApiProperty({ type: TaskAiSuggestionDto })
+  aiSuggestion!: TaskAiSuggestionDto;
+
+  @ApiProperty({ type: TaskExtractionEvidenceDto, isArray: true })
+  evidence!: TaskExtractionEvidenceDto[];
+
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  duplicateTaskId!: string | null;
+}
+
+export class TaskExtractionFailureDto {
+  @ApiProperty({ example: 'TASK_AI_TIMEOUT' })
+  code!: string;
+
+  @ApiProperty()
+  retryable!: boolean;
+}
+
+export class TaskExtractionJobDataDto {
+  @ApiProperty({ format: 'uuid' })
+  jobId!: string;
+
+  @ApiProperty({ enum: TASK_EXTRACTION_JOB_STATUSES })
+  status!: TaskExtractionJobStatus;
+
+  @ApiProperty({ nullable: true, type: TaskExtractionFailureDto })
+  failure!: TaskExtractionFailureDto | null;
+
+  @ApiProperty({ type: TaskExtractionCandidateDto, isArray: true })
+  candidates!: TaskExtractionCandidateDto[];
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+}
+
 export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
@@ -88,6 +173,22 @@ export class TaskResponseDto {
 export class TaskListResponseDto {
   @ApiProperty({ type: TaskListDataDto })
   data!: TaskListDataDto;
+
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
+}
+
+export class TaskExtractionReservationResponseDto {
+  @ApiProperty({ type: TaskExtractionReservationDataDto })
+  data!: TaskExtractionReservationDataDto;
+
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
+}
+
+export class TaskExtractionJobResponseDto {
+  @ApiProperty({ type: TaskExtractionJobDataDto })
+  data!: TaskExtractionJobDataDto;
 
   @ApiProperty({ type: ApiMetaDto })
   meta!: ApiMetaDto;

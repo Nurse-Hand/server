@@ -1,12 +1,21 @@
 import type {
   ListTasksResult,
+  ReserveTaskExtractionResult,
+  TaskExtractionCandidateView,
+  TaskExtractionJobView,
   TaskView,
 } from '../application/ports/task.repository';
 import type {
   TaskAiSuggestionDto,
   TaskDataDto,
+  TaskExtractionCandidateDto,
+  TaskExtractionJobDataDto,
+  TaskExtractionReservationDataDto,
   TaskListDataDto,
 } from './task-response.dto';
+
+const PUBLIC_FAILURE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
+const FALLBACK_EXTRACTION_FAILURE_CODE = 'TASK_EXTRACTION_FAILED';
 
 export function toTaskDataDto(task: TaskView): TaskDataDto {
   return {
@@ -35,6 +44,48 @@ export function toTaskListDataDto(result: ListTasksResult): TaskListDataDto {
   };
 }
 
+export function toTaskExtractionReservationDataDto(
+  result: ReserveTaskExtractionResult,
+): TaskExtractionReservationDataDto {
+  return {
+    jobId: result.jobId,
+    status: result.status,
+  };
+}
+
+export function toTaskExtractionJobDataDto(
+  job: TaskExtractionJobView,
+): TaskExtractionJobDataDto {
+  return {
+    jobId: job.jobId,
+    status: job.status,
+    failure: toTaskExtractionFailureDto(job),
+    candidates:
+      job.status === 'SUCCEEDED'
+        ? job.candidates.map(toTaskExtractionCandidateDto)
+        : [],
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
+  };
+}
+
+function toTaskExtractionFailureDto(
+  job: TaskExtractionJobView,
+): TaskExtractionJobDataDto['failure'] {
+  if (job.status !== 'FAILED') {
+    return null;
+  }
+
+  return {
+    code:
+      job.failureCode !== null &&
+      PUBLIC_FAILURE_CODE_PATTERN.test(job.failureCode)
+        ? job.failureCode
+        : FALLBACK_EXTRACTION_FAILURE_CODE,
+    retryable: job.retryable === true,
+  };
+}
+
 function toTaskAiSuggestionDto(task: TaskView): TaskAiSuggestionDto | null {
   if (task.aiSuggestedPriority === null || task.aiConfidence === null) {
     return null;
@@ -44,6 +95,29 @@ function toTaskAiSuggestionDto(task: TaskView): TaskAiSuggestionDto | null {
     suggestedPriority: task.aiSuggestedPriority,
     reasons: [...task.aiReasons],
     confidence: task.aiConfidence,
+  };
+}
+
+function toTaskExtractionCandidateDto(
+  candidate: TaskExtractionCandidateView,
+): TaskExtractionCandidateDto {
+  return {
+    candidateId: candidate.id,
+    patientId: candidate.patientId,
+    title: candidate.title,
+    description: candidate.description,
+    dueAt: toNullableDateTime(candidate.dueAt),
+    workDate: toDateOnly(candidate.workDate),
+    aiSuggestion: {
+      suggestedPriority: candidate.suggestedPriority,
+      reasons: [...candidate.reasons],
+      confidence: candidate.confidence,
+    },
+    evidence: candidate.evidence.map(({ sourceType, sourceId }) => ({
+      sourceType,
+      sourceId,
+    })),
+    duplicateTaskId: candidate.duplicateTaskId,
   };
 }
 
