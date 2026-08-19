@@ -10,7 +10,6 @@ import {
   Post,
   Query,
   Req,
-  Res,
 } from '@nestjs/common';
 import {
   ApiAcceptedResponse,
@@ -26,8 +25,11 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
 import { ApiErrorResponseDto } from '../../../common/http/api-response.dto';
+import {
+  paginatedResponse,
+  type PaginatedResponse,
+} from '../../../common/http/api-response.interceptor';
 import {
   ensureRequestId,
   type RequestWithContext,
@@ -71,16 +73,16 @@ export class HandoffDraftsController {
   async list(
     @DemoSessionContextParam() context: DemoSessionContext,
     @Query() query: ListHandoffDraftsQueryDto,
-    @Req() request: RequestWithContext,
-    @Res() response: Response,
-  ): Promise<void> {
+  ): Promise<
+    PaginatedResponse<{
+      items: ReturnType<typeof toHandoffDraftListItems>;
+    }>
+  > {
     const result = await this.service.list(context, query);
-    const requestId = ensureRequestId(request);
-    response.setHeader('X-Request-Id', requestId);
-    response.status(HttpStatus.OK).json({
-      data: { items: toHandoffDraftListItems(result) },
-      meta: { requestId, page: { nextCursor: result.nextCursor } },
-    });
+    return paginatedResponse(
+      { items: toHandoffDraftListItems(result) },
+      result.nextCursor,
+    );
   }
 
   @Get(':handoffId')

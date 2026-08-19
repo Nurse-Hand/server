@@ -37,7 +37,7 @@ describe('Handoff draft list OpenAPI schema', () => {
       required: ['data', 'meta'],
       properties: {
         data: { $ref: '#/components/schemas/HandoffDraftListDataDto' },
-        meta: { $ref: '#/components/schemas/HandoffDraftListMetaDto' },
+        meta: { $ref: '#/components/schemas/ApiPaginatedMetaDto' },
       },
     });
     expect(schemas?.HandoffDraftListDataDto).toMatchObject({
@@ -49,14 +49,14 @@ describe('Handoff draft list OpenAPI schema', () => {
         },
       },
     });
-    expect(schemas?.HandoffDraftListMetaDto).toMatchObject({
+    expect(schemas?.ApiPaginatedMetaDto).toMatchObject({
       required: ['requestId', 'page'],
       properties: {
         requestId: { type: 'string', format: 'uuid' },
-        page: { $ref: '#/components/schemas/HandoffDraftListPageMetaDto' },
+        page: { $ref: '#/components/schemas/ApiPageMetaDto' },
       },
     });
-    expect(schemas?.HandoffDraftListPageMetaDto).toMatchObject({
+    expect(schemas?.ApiPageMetaDto).toMatchObject({
       required: ['nextCursor'],
       properties: {
         nextCursor: { type: 'string', nullable: true },

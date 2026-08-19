@@ -28,6 +28,10 @@ import {
 } from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../../common/http/api-response.dto';
 import {
+  paginatedResponse,
+  type PaginatedResponse,
+} from '../../../common/http/api-response.interceptor';
+import {
   ensureRequestId,
   type RequestWithContext,
 } from '../../../common/http/request-context';
@@ -92,8 +96,9 @@ export class TasksController {
   async list(
     @DemoSessionContextParam() context: DemoSessionContext,
     @Query() query: ListTasksQueryDto,
-  ): Promise<TaskListDataDto> {
-    return toTaskListDataDto(await this.taskService.list(context, query));
+  ): Promise<PaginatedResponse<TaskListDataDto>> {
+    const result = await this.taskService.list(context, query);
+    return paginatedResponse(toTaskListDataDto(result), result.nextCursor);
   }
 
   @Post('tasks')

@@ -3,12 +3,10 @@ import {
   Controller,
   Get,
   Headers,
-  HttpStatus,
   Param,
   Post,
   Query,
   Req,
-  Res,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -24,8 +22,11 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
 import { ApiErrorResponseDto } from '../../../common/http/api-response.dto';
+import {
+  paginatedResponse,
+  type PaginatedResponse,
+} from '../../../common/http/api-response.interceptor';
 import {
   ensureRequestId,
   type RequestWithContext,
@@ -102,15 +103,15 @@ export class HandoffAcknowledgementsController {
     @DemoSessionContextParam() context: DemoSessionContext,
     @Param() params: HandoffActivityIdParamsDto,
     @Query() query: HandoffHistoryQueryDto,
-    @Req() request: RequestWithContext,
-    @Res() response: Response,
-  ): Promise<void> {
+  ): Promise<
+    PaginatedResponse<{
+      items: ReturnType<typeof toHandoffHistoryEvents>;
+    }>
+  > {
     const result = await this.service.history(context, params.handoffId, query);
-    const requestId = ensureRequestId(request);
-    response.setHeader('X-Request-Id', requestId);
-    response.status(HttpStatus.OK).json({
-      data: { items: toHandoffHistoryEvents(result.items) },
-      meta: { requestId, page: { nextCursor: result.nextCursor } },
-    });
+    return paginatedResponse(
+      { items: toHandoffHistoryEvents(result.items) },
+      result.nextCursor,
+    );
   }
 }

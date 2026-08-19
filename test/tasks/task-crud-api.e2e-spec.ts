@@ -148,8 +148,8 @@ describe('Task CRUD public API (isolated e2e)', () => {
       limit: 20,
     });
     expect(response.body).toEqual({
-      data: { items: [PUBLIC_TASK], nextCursor: null },
-      meta: { requestId: REQUEST_ID },
+      data: { items: [PUBLIC_TASK] },
+      meta: { requestId: REQUEST_ID, page: { nextCursor: null } },
     });
   });
 

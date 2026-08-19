@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ApiMetaDto } from '../../../common/http/api-response.dto';
+import {
+  ApiMetaDto,
+  ApiPaginatedMetaDto,
+} from '../../../common/http/api-response.dto';
 import {
   TASK_AI_CONFIDENCES,
   TASK_EVIDENCE_SOURCE_TYPES,
@@ -84,9 +87,6 @@ export class TaskDataDto {
 export class TaskListDataDto {
   @ApiProperty({ type: TaskDataDto, isArray: true })
   items!: TaskDataDto[];
-
-  @ApiProperty({ nullable: true, type: String })
-  nextCursor!: string | null;
 }
 
 export class TaskExtractionReservationDataDto {
@@ -177,8 +177,8 @@ export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
 
-  @ApiProperty({ type: ApiMetaDto })
-  meta!: ApiMetaDto;
+  @ApiProperty({ type: ApiPaginatedMetaDto })
+  meta!: ApiPaginatedMetaDto;
 }
 
 export class TaskListResponseDto {

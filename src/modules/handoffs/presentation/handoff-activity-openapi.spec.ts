@@ -64,15 +64,13 @@ describe('Handoff activity OpenAPI schema', () => {
         },
       },
     });
-    expect(document.components?.schemas?.HandoffHistoryMetaDto).toMatchObject({
+    expect(document.components?.schemas?.ApiPaginatedMetaDto).toMatchObject({
       properties: {
         requestId: { format: 'uuid' },
-        page: { $ref: '#/components/schemas/HandoffHistoryPageMetaDto' },
+        page: { $ref: '#/components/schemas/ApiPageMetaDto' },
       },
     });
-    expect(
-      document.components?.schemas?.HandoffHistoryPageMetaDto,
-    ).toMatchObject({
+    expect(document.components?.schemas?.ApiPageMetaDto).toMatchObject({
       properties: { nextCursor: { type: 'string', nullable: true } },
     });
   });

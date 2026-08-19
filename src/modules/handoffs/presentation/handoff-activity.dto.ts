@@ -12,7 +12,10 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ApiMetaDto } from '../../../common/http/api-response.dto';
+import {
+  ApiMetaDto,
+  ApiPaginatedMetaDto,
+} from '../../../common/http/api-response.dto';
 import {
   HANDOFF_HISTORY_EVENT_TYPES,
   type HandoffHistoryEventType,
@@ -97,15 +100,7 @@ export class HandoffHistoryDataDto {
   @ApiProperty({ type: HandoffHistoryEventDto, isArray: true })
   items!: HandoffHistoryEventDto[];
 }
-export class HandoffHistoryPageMetaDto {
-  @ApiProperty({ type: String, nullable: true }) nextCursor!: string | null;
-}
-export class HandoffHistoryMetaDto {
-  @ApiProperty({ format: 'uuid' }) requestId!: string;
-  @ApiProperty({ type: HandoffHistoryPageMetaDto })
-  page!: HandoffHistoryPageMetaDto;
-}
 export class HandoffHistoryResponseDto {
   @ApiProperty({ type: HandoffHistoryDataDto }) data!: HandoffHistoryDataDto;
-  @ApiProperty({ type: HandoffHistoryMetaDto }) meta!: HandoffHistoryMetaDto;
+  @ApiProperty({ type: ApiPaginatedMetaDto }) meta!: ApiPaginatedMetaDto;
 }

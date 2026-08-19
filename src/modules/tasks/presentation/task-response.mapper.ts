@@ -42,7 +42,6 @@ export function toTaskDataDto(task: TaskView): TaskDataDto {
 export function toTaskListDataDto(result: ListTasksResult): TaskListDataDto {
   return {
     items: result.items.map(toTaskDataDto),
-    nextCursor: result.nextCursor,
   };
 }
 

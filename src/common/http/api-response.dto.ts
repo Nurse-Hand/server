@@ -5,6 +5,16 @@ export class ApiMetaDto {
   requestId!: string;
 }
 
+export class ApiPageMetaDto {
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor!: string | null;
+}
+
+export class ApiPaginatedMetaDto extends ApiMetaDto {
+  @ApiProperty({ type: ApiPageMetaDto })
+  page!: ApiPageMetaDto;
+}
+
 export class ApiErrorDto {
   @ApiProperty({ example: 'VALIDATION_FAILED' })
   code!: string;

@@ -19,7 +19,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ApiMetaDto } from '../../../common/http/api-response.dto';
+import {
+  ApiMetaDto,
+  ApiPaginatedMetaDto,
+} from '../../../common/http/api-response.dto';
 import { seoulDateRange } from '../domain/seoul-work-date';
 import {
   AI_JOB_STATUSES,
@@ -220,25 +223,12 @@ export class HandoffDraftListDataDto {
   items!: HandoffDraftListItemDto[];
 }
 
-export class HandoffDraftListPageMetaDto {
-  @ApiProperty({ type: String, nullable: true })
-  nextCursor!: string | null;
-}
-
-export class HandoffDraftListMetaDto {
-  @ApiProperty({ format: 'uuid' })
-  requestId!: string;
-
-  @ApiProperty({ type: HandoffDraftListPageMetaDto })
-  page!: HandoffDraftListPageMetaDto;
-}
-
 export class HandoffDraftListResponseDto {
   @ApiProperty({ type: HandoffDraftListDataDto })
   data!: HandoffDraftListDataDto;
 
-  @ApiProperty({ type: HandoffDraftListMetaDto })
-  meta!: HandoffDraftListMetaDto;
+  @ApiProperty({ type: ApiPaginatedMetaDto })
+  meta!: ApiPaginatedMetaDto;
 }
 
 export class HandoffGenerationJobDto {
