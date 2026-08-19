@@ -20,11 +20,13 @@ import {
   ApiCreatedResponse,
   ApiHeader,
   ApiInternalServerErrorResponse,
+  ApiGatewayTimeoutResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnprocessableEntityResponse,
+  ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../../common/http/api-response.dto';
 import {
@@ -34,10 +36,12 @@ import {
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import { DemoSessionContextParam } from '../../demo/presentation/demo-session-context.decorator';
 import { TaskService } from '../application/task.service';
+import { TaskPrioritySuggestionService } from '../application/task-priority-suggestion.service';
 import { TaskIdempotencyKeyPipe } from './task-idempotency-key.pipe';
 import {
   ApplyTaskCandidatesRequestDto,
   CreateTaskRequestDto,
+  CreateTaskPrioritySuggestionRequestDto,
   ListTasksQueryDto,
   ReserveTaskExtractionRequestDto,
   UpdateTaskRequestDto,
@@ -48,11 +52,13 @@ import {
   TaskExtractionReservationResponseDto,
   TaskListResponseDto,
   TaskResponseDto,
+  TaskPrioritySuggestionBatchResponseDto,
   type ApplyTaskCandidatesDataDto,
   type TaskDataDto,
   type TaskExtractionJobDataDto,
   type TaskExtractionReservationDataDto,
   type TaskListDataDto,
+  type TaskPrioritySuggestionBatchDataDto,
 } from './task-response.dto';
 import {
   toApplyTaskCandidatesDataDto,
@@ -60,6 +66,7 @@ import {
   toTaskExtractionJobDataDto,
   toTaskExtractionReservationDataDto,
   toTaskListDataDto,
+  toTaskPrioritySuggestionBatchDataDto,
 } from './task-response.mapper';
 
 const IDEMPOTENCY_HEADER = {
@@ -80,7 +87,10 @@ const IDEMPOTENCY_KEY_PIPE = new TaskIdempotencyKeyPipe();
 @ApiTags('Tasks')
 @Controller()
 export class TasksController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly taskPrioritySuggestionService: TaskPrioritySuggestionService,
+  ) {}
 
   @Get('tasks')
   @ApiOperation({ summary: '업무 목록 조회' })
@@ -120,6 +130,34 @@ export class TasksController {
     );
 
     return toTaskDataDto(result.task);
+  }
+
+  @Post('task-priority-suggestions')
+  @ApiOperation({ summary: '수동 업무 AI 우선순위 참고 제안 batch 생성' })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiCreatedResponse({ type: TaskPrioritySuggestionBatchResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiConflictResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  @ApiBadGatewayResponse({ type: ApiErrorResponseDto })
+  @ApiServiceUnavailableResponse({ type: ApiErrorResponseDto })
+  @ApiGatewayTimeoutResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async createPrioritySuggestionBatch(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Headers('x-idempotency-key') idempotencyKeyHeader: unknown,
+    @Req() request: RequestWithContext,
+    @Body() body: CreateTaskPrioritySuggestionRequestDto,
+  ): Promise<TaskPrioritySuggestionBatchDataDto> {
+    const idempotencyKey = IDEMPOTENCY_KEY_PIPE.transform(idempotencyKeyHeader);
+    return toTaskPrioritySuggestionBatchDataDto(
+      await this.taskPrioritySuggestionService.createBatch(
+        context,
+        idempotencyKey,
+        ensureRequestId(request),
+        body,
+      ),
+    );
   }
 
   @Post('task-extraction-jobs')

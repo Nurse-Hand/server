@@ -173,6 +173,40 @@ export class ApplyTaskCandidatesDataDto {
   skippedCandidateIds!: string[];
 }
 
+export class TaskPrioritySuggestionItemDto {
+  @ApiProperty({ format: 'uuid' })
+  suggestionId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  taskId!: string;
+
+  @ApiProperty({ description: '같은 batch 안의 참고 표시 순서 전용 점수' })
+  aiScore!: number;
+
+  @ApiProperty({ enum: TASK_PRIORITIES })
+  aiSuggestedPriority!: TaskPriority;
+
+  @ApiProperty({ isArray: true, maxItems: 5, type: String })
+  reasons!: string[];
+}
+
+export class TaskPrioritySuggestionBatchDataDto {
+  @ApiProperty({ format: 'uuid' })
+  batchId!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  evaluatedAt!: string;
+
+  @ApiProperty({ example: 'tasks-prioritize-v1' })
+  contractVersion!: string;
+
+  @ApiProperty({ type: TaskPrioritySuggestionItemDto, isArray: true })
+  suggestions!: TaskPrioritySuggestionItemDto[];
+
+  @ApiProperty({ format: 'uuid', isArray: true })
+  skippedTaskIds!: string[];
+}
+
 export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
@@ -208,6 +242,14 @@ export class TaskExtractionJobResponseDto {
 export class ApplyTaskCandidatesResponseDto {
   @ApiProperty({ type: ApplyTaskCandidatesDataDto })
   data!: ApplyTaskCandidatesDataDto;
+
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
+}
+
+export class TaskPrioritySuggestionBatchResponseDto {
+  @ApiProperty({ type: TaskPrioritySuggestionBatchDataDto })
+  data!: TaskPrioritySuggestionBatchDataDto;
 
   @ApiProperty({ type: ApiMetaDto })
   meta!: ApiMetaDto;

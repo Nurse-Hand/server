@@ -6,6 +6,7 @@ import type {
   TaskExtractionJobView,
   TaskView,
 } from '../application/ports/task.repository';
+import type { TaskPrioritySuggestionBatchResult } from '../application/ports/task-priority-suggestion.repository';
 import type {
   ApplyTaskCandidatesDataDto,
   TaskAiSuggestionDto,
@@ -14,6 +15,7 @@ import type {
   TaskExtractionJobDataDto,
   TaskExtractionReservationDataDto,
   TaskListDataDto,
+  TaskPrioritySuggestionBatchDataDto,
 } from './task-response.dto';
 
 const PUBLIC_FAILURE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
@@ -94,6 +96,24 @@ export function toApplyTaskCandidatesDataDto(
   return {
     createdTaskIds: [...result.createdTaskIds],
     skippedCandidateIds: [...result.skippedCandidateIds],
+  };
+}
+
+export function toTaskPrioritySuggestionBatchDataDto(
+  result: TaskPrioritySuggestionBatchResult,
+): TaskPrioritySuggestionBatchDataDto {
+  return {
+    batchId: result.batchId,
+    evaluatedAt: result.evaluatedAt.toISOString(),
+    contractVersion: result.contractVersion,
+    suggestions: result.suggestions.map((suggestion) => ({
+      suggestionId: suggestion.suggestionId,
+      taskId: suggestion.taskId,
+      aiScore: suggestion.aiScore,
+      aiSuggestedPriority: suggestion.aiSuggestedPriority,
+      reasons: [...suggestion.reasons],
+    })),
+    skippedTaskIds: [...result.skippedTaskIds],
   };
 }
 

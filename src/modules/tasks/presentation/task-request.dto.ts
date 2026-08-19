@@ -161,6 +161,17 @@ export class CreateTaskRequestDto {
   priorityOverride?: TaskPriority | null;
 }
 
+export class CreateTaskPrioritySuggestionRequestDto {
+  @ApiProperty({
+    description: 'Asia/Seoul 기준 업무일',
+    example: '2026-08-19',
+    format: 'date',
+  })
+  @IsISO8601({ strict: true })
+  @Matches(DATE_PATTERN)
+  date!: string;
+}
+
 export class ReserveTaskExtractionRequestDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('4')
@@ -221,6 +232,15 @@ export class UpdateTaskRequestDto {
   @IsOptional()
   @IsIn(TASK_PRIORITIES)
   priorityOverride?: TaskPriority | null;
+
+  @ApiPropertyOptional({
+    description: 'AI 제안을 그대로 수락할 때 함께 전달하는 제안 식별자',
+    format: 'uuid',
+    type: String,
+  })
+  @IsOptional()
+  @IsUUID('4')
+  prioritySuggestionId?: string;
 
   @ApiProperty({ minimum: 1, type: Number })
   @IsInt()
