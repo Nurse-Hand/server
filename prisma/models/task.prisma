@@ -162,6 +162,7 @@ model TaskPrioritySuggestion {
   datasetId           String                       @db.Uuid
   batchId             String                       @db.Uuid
   taskId              String                       @db.Uuid
+  taskVersion         Int
   actorId             String                       @db.Uuid
   wardId              String                       @db.Uuid
   aiScore             Float

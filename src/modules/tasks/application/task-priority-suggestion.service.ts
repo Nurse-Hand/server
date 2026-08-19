@@ -19,6 +19,7 @@ import {
 import {
   TASK_PRIORITY_SUGGESTION_REPOSITORY,
   type TaskPrioritySuggestionBatchResult,
+  type TaskPrioritySuggestionData,
   type TaskPrioritySuggestionFailure,
   type TaskPrioritySuggestionRepository,
 } from './ports/task-priority-suggestion.repository';
@@ -41,15 +42,15 @@ export class TaskPrioritySuggestionService {
   ): Promise<TaskPrioritySuggestionBatchResult> {
     assertIdempotencyKey(idempotencyKey);
     const workDate = parseTaskWorkDate(command.date);
+    const now = this.clock.now();
     const snapshot = [
-      ...(await this.repository.findSnapshot({ context, workDate })),
+      ...(await this.repository.findSnapshot({ context, workDate, now })),
     ].sort((left, right) => left.taskId.localeCompare(right.taskId));
 
     if (snapshot.length > TASK_PRIORITY_SUGGESTION_BATCH_LIMIT) {
       throw new TaskPrioritySuggestionLimitExceededError();
     }
 
-    const now = this.clock.now();
     const requestHash = createCanonicalRequestHash({
       path: {},
       query: {},
@@ -95,9 +96,9 @@ export class TaskPrioritySuggestionService {
       });
     }
 
-    let aiResult;
+    let suggestions: Omit<TaskPrioritySuggestionData, 'suggestionId'>[];
     try {
-      aiResult = await this.gateway.prioritize({
+      const aiResult = await this.gateway.prioritize({
         requestId,
         tasks: evaluableTasks.map((task) => ({
           taskId: task.taskId,
@@ -107,6 +108,14 @@ export class TaskPrioritySuggestionService {
           carriedOver: false,
         })),
         now: now.toISOString(),
+      });
+      const versionByTaskId = new Map(
+        evaluableTasks.map(({ taskId, version }) => [taskId, version]),
+      );
+      suggestions = aiResult.suggestions.map((suggestion) => {
+        const taskVersion = versionByTaskId.get(suggestion.taskId);
+        if (taskVersion === undefined) throw new TaskAiResponseInvalidError();
+        return { ...suggestion, taskVersion };
       });
     } catch (error: unknown) {
       const failure = toFailure(error);
@@ -122,9 +131,7 @@ export class TaskPrioritySuggestionService {
     return this.repository.completeSuccess({
       context,
       batchId: reservation.batchId,
-      suggestions: [...aiResult.suggestions].sort(
-        compareTaskPrioritySuggestions,
-      ),
+      suggestions: suggestions.sort(compareTaskPrioritySuggestions),
       skippedTaskIds,
       evaluatedAt: this.clock.now(),
     });

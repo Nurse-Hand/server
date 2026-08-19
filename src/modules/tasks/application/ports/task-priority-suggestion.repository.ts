@@ -16,6 +16,7 @@ export type TaskPrioritySuggestionSnapshotTask = {
 export type TaskPrioritySuggestionData = {
   suggestionId: string;
   taskId: string;
+  taskVersion: number;
   aiScore: number;
   aiSuggestedPriority: TaskPriority;
   reasons: readonly string[];
@@ -44,6 +45,7 @@ export interface TaskPrioritySuggestionRepository {
   findSnapshot(input: {
     context: DemoSessionContext;
     workDate: Date;
+    now: Date;
   }): Promise<readonly TaskPrioritySuggestionSnapshotTask[]>;
   reserve(input: {
     context: DemoSessionContext;

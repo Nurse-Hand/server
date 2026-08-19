@@ -77,6 +77,7 @@ describe('Task priority suggestion public API (isolated e2e)', () => {
         {
           suggestionId: SUGGESTION_ID,
           taskId: TASK_ID,
+          taskVersion: 1,
           aiScore: 8.5,
           aiSuggestedPriority: 'CRITICAL',
           reasons: ['즉시 확인 필요'],

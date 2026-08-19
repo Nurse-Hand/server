@@ -65,6 +65,11 @@ describe('TaskPrioritySuggestionService', () => {
       date: '2026-08-19',
     });
 
+    expect(repository.findSnapshot).toHaveBeenCalledWith({
+      context: CONTEXT,
+      workDate: new Date('2026-08-19T00:00:00.000Z'),
+      now: NOW,
+    });
     expect(repository.reserve).toHaveBeenCalledWith(
       expect.objectContaining({
         context: CONTEXT,
@@ -96,6 +101,7 @@ describe('TaskPrioritySuggestionService', () => {
       suggestions: [
         {
           taskId: TASK_ID,
+          taskVersion: 1,
           aiScore: 9,
           aiSuggestedPriority: 'CRITICAL',
           reasons: ['즉시 확인 필요'],

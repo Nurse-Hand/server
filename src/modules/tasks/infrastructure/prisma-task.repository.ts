@@ -179,6 +179,7 @@ export class PrismaTaskRepository
   async findSnapshot(input: {
     context: DemoSessionContext;
     workDate: Date;
+    now: Date;
   }): Promise<readonly TaskPrioritySuggestionSnapshotTask[]> {
     const rows = await this.prisma.task.findMany({
       where: {
@@ -190,7 +191,6 @@ export class PrismaTaskRepository
         status: { in: ['TODO', 'IN_PROGRESS'] },
       },
       orderBy: { id: 'asc' },
-      take: 51,
       select: {
         id: true,
         patientId: true,
@@ -200,7 +200,27 @@ export class PrismaTaskRepository
       },
     });
 
-    return rows.map(({ id, ...row }) => ({ taskId: id, ...row }));
+    const patientIds = rows.flatMap(({ patientId }) =>
+      patientId === null ? [] : [patientId],
+    );
+    const accessiblePatientIds = new Set(
+      patientIds.length === 0
+        ? []
+        : await this.findAccessiblePatientIds(
+            this.prisma,
+            input.context,
+            input.now,
+            patientIds,
+          ),
+    );
+
+    return rows
+      .filter(
+        ({ patientId }) =>
+          patientId === null || accessiblePatientIds.has(patientId),
+      )
+      .slice(0, 51)
+      .map(({ id, ...row }) => ({ taskId: id, ...row }));
   }
 
   async reserve(input: {
@@ -275,6 +295,7 @@ export class PrismaTaskRepository
     batchId: string;
     suggestions: readonly {
       taskId: string;
+      taskVersion: number;
       aiScore: number;
       aiSuggestedPriority: TaskPriority;
       reasons: readonly string[];
@@ -295,6 +316,7 @@ export class PrismaTaskRepository
             datasetId: input.context.datasetId,
             batchId: batch.id,
             taskId: suggestion.taskId,
+            taskVersion: suggestion.taskVersion,
             actorId: input.context.actorId,
             wardId: input.context.wardId,
             aiScore: suggestion.aiScore,
@@ -305,6 +327,7 @@ export class PrismaTaskRepository
           select: {
             id: true,
             taskId: true,
+            taskVersion: true,
             aiScore: true,
             aiSuggestedPriority: true,
             reasons: true,
@@ -313,6 +336,7 @@ export class PrismaTaskRepository
         suggestions.push({
           suggestionId: created.id,
           taskId: created.taskId,
+          taskVersion: created.taskVersion,
           aiScore: created.aiScore,
           aiSuggestedPriority: created.aiSuggestedPriority,
           reasons: created.reasons,
@@ -575,14 +599,19 @@ export class PrismaTaskRepository
                   status: 'SUCCEEDED',
                 },
               },
-              select: { id: true, aiSuggestedPriority: true },
+              select: {
+                id: true,
+                taskVersion: true,
+                aiSuggestedPriority: true,
+              },
             });
       if (input.prioritySuggestionId !== undefined && !acceptedSuggestion) {
         throw new TaskNotFoundError();
       }
       if (
         acceptedSuggestion &&
-        acceptedSuggestion.aiSuggestedPriority !== input.confirmedPriority
+        (acceptedSuggestion.taskVersion !== current.version ||
+          acceptedSuggestion.aiSuggestedPriority !== input.confirmedPriority)
       ) {
         throw new TaskPrioritySuggestionAcceptanceInvalidError();
       }
@@ -629,7 +658,7 @@ export class PrismaTaskRepository
         throw new VersionConflictError(input.expectedVersion);
       }
 
-      if (priorityChanged) {
+      if (priorityChanged || acceptedSuggestion) {
         await transaction.taskPriorityAudit.create({
           data: {
             datasetId: input.context.datasetId,
@@ -1856,6 +1885,7 @@ function serializePrioritySuggestionResult(
     suggestions: result.suggestions.map((suggestion) => ({
       suggestionId: suggestion.suggestionId,
       taskId: suggestion.taskId,
+      taskVersion: suggestion.taskVersion,
       aiScore: suggestion.aiScore,
       aiSuggestedPriority: suggestion.aiSuggestedPriority,
       reasons: [...suggestion.reasons],
@@ -1875,6 +1905,9 @@ function deserializePrioritySuggestionResult(
     if (
       typeof suggestion.suggestionId !== 'string' ||
       typeof suggestion.taskId !== 'string' ||
+      typeof suggestion.taskVersion !== 'number' ||
+      !Number.isInteger(suggestion.taskVersion) ||
+      suggestion.taskVersion < 1 ||
       typeof suggestion.aiScore !== 'number' ||
       !Number.isFinite(suggestion.aiScore) ||
       suggestion.aiScore < 0 ||
@@ -1886,6 +1919,7 @@ function deserializePrioritySuggestionResult(
     return {
       suggestionId: suggestion.suggestionId,
       taskId: suggestion.taskId,
+      taskVersion: suggestion.taskVersion,
       aiScore: suggestion.aiScore,
       aiSuggestedPriority: suggestion.aiSuggestedPriority as TaskPriority,
       reasons,
