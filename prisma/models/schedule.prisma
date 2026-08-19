@@ -1,0 +1,49 @@
+model MonthlySchedule {
+  id         String                   @id @default(uuid()) @db.Uuid
+  datasetId  String                   @db.Uuid
+  actorId    String                   @db.Uuid
+  wardId     String                   @db.Uuid
+  yearMonth  String                   @db.Char(7)
+  version    Int                      @default(1)
+  createdAt  DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime                 @updatedAt @db.Timestamptz(3)
+  dataset    DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership WardMembership           @relation("MonthlyScheduleMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  entries    MonthlyScheduleEntry[]
+  receipts   MonthlyScheduleReceipt[]
+
+  @@unique(name: "monthly_schedule_scope_month", [datasetId, actorId, wardId, yearMonth])
+  @@unique(name: "monthly_schedule_scope_id", [datasetId, id, actorId, wardId])
+  @@unique(name: "monthly_schedule_dataset_id", [datasetId, id])
+}
+
+model MonthlyScheduleEntry {
+  id         String          @id @default(uuid()) @db.Uuid
+  datasetId  String          @db.Uuid
+  scheduleId String          @db.Uuid
+  dutyDate   DateTime        @db.Date
+  duty       ScheduleDuty
+  schedule   MonthlySchedule @relation(fields: [datasetId, scheduleId], references: [datasetId, id], onDelete: Cascade)
+
+  @@unique([scheduleId, dutyDate])
+  @@index([datasetId, scheduleId, dutyDate])
+}
+
+model MonthlyScheduleReceipt {
+  id                  String            @id @default(uuid()) @db.Uuid
+  datasetId           String            @db.Uuid
+  actorId             String            @db.Uuid
+  wardId              String            @db.Uuid
+  operation           String            @default("monthly-schedules.put") @db.VarChar(100)
+  idempotencyRecordId String            @unique @db.Uuid
+  scheduleId          String            @db.Uuid
+  responseSnapshot    Json
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  dataset             DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership          WardMembership    @relation("MonthlyScheduleReceiptMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  idempotencyRecord   IdempotencyRecord @relation("IdempotencyMonthlyScheduleReceipt", fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Cascade, map: "MonthlyScheduleReceipt_idempotency_scope_fkey")
+  schedule            MonthlySchedule   @relation(fields: [datasetId, scheduleId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Cascade, map: "MonthlyScheduleReceipt_schedule_scope_fkey")
+
+  @@unique(name: "monthly_schedule_receipt_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation])
+  @@index([datasetId, actorId, wardId, createdAt])
+}

@@ -15,6 +15,8 @@ model DemoDataset {
   storedFiles        StoredFile[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
+  monthlySchedules   MonthlySchedule[]
+  scheduleReceipts   MonthlyScheduleReceipt[]
 }
 
 model DemoSession {

@@ -43,6 +43,7 @@ model IdempotencyRecord {
   dataset         DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   membership      WardMembership    @relation("IdempotencyMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
   aiJob           AiJob?            @relation("IdempotencyJob")
+  scheduleReceipt MonthlyScheduleReceipt? @relation("IdempotencyMonthlyScheduleReceipt")
 
   @@unique(name: "idempotency_dataset_id", [datasetId, id])
   @@unique(name: "idempotency_record_scope", [datasetId, id, actorId, wardId, operation], map: "IdempotencyRecord_scope_key")
