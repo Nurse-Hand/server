@@ -14,6 +14,7 @@ import { DemoModule } from './modules/demo/demo.module';
 import { FilesModule } from './modules/files/files.module';
 import { HandoffsModule } from './modules/handoffs/handoffs.module';
 import { HealthModule } from './modules/health/health.module';
+import { PatientsModule } from './modules/patients/patients.module';
 import { RoundingModule } from './modules/rounding/rounding.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
@@ -31,6 +32,7 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     AiJobsModule,
     FilesModule,
     HealthModule,
+    PatientsModule,
     RoundingModule,
     TimelineModule,
     TasksModule,
