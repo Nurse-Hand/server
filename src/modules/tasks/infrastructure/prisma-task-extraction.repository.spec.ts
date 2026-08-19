@@ -334,7 +334,62 @@ describe('PrismaTaskRepository extraction boundaries', () => {
         },
       }),
     );
+    expect(prisma.aiJob.findFirst.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.taskExtractionJob.findFirst.mock.invocationCallOrder[0],
+    );
   });
+
+  it.each([
+    {
+      status: 'PROCESSING' as const,
+      failureCode: null,
+      retryable: null,
+    },
+    {
+      status: 'FAILED' as const,
+      failureCode: 'TASK_AI_TIMEOUT',
+      retryable: true,
+    },
+  ])(
+    '$status job은 AiJob 확인 후 feature 존재만 조회하고 후보를 노출하지 않는다',
+    async ({ status, failureCode, retryable }) => {
+      const { prisma } = createHarness();
+      prisma.aiJob.findFirst.mockResolvedValue({
+        status,
+        failureCode,
+        retryable,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      prisma.taskExtractionJob.findFirst.mockResolvedValue({ id: JOB_ID });
+      const repository = createRepository(prisma);
+
+      await expect(
+        repository.findExtractionJob(CONTEXT, JOB_ID),
+      ).resolves.toEqual({
+        jobId: JOB_ID,
+        status,
+        failureCode,
+        retryable,
+        candidates: [],
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      expect(prisma.taskExtractionJob.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: JOB_ID,
+          datasetId: DATASET_ID,
+          actorId: ACTOR_ID,
+          wardId: WARD_ID,
+          operation: 'tasks.extract',
+        },
+        select: { id: true },
+      });
+      expect(prisma.aiJob.findFirst.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.taskExtractionJob.findFirst.mock.invocationCallOrder[0],
+      );
+    },
+  );
 
   it('다른 dataset 또는 ward의 job은 동일한 404로 숨긴다', async () => {
     const { prisma } = createHarness();

@@ -700,53 +700,72 @@ export class PrismaTaskRepository implements TaskRepository {
     context: DemoSessionContext,
     jobId: string,
   ): Promise<TaskExtractionJobView> {
-    const [featureJob, aiJob] = await Promise.all([
-      this.prisma.taskExtractionJob.findFirst({
-        where: {
-          id: jobId,
-          datasetId: context.datasetId,
-          actorId: context.actorId,
-          wardId: context.wardId,
-          operation: TASK_EXTRACTION_OPERATION,
-        },
-        include: {
-          candidates: {
-            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-            include: {
-              evidence: {
-                include: {
-                  evidence: {
-                    select: {
-                      sourceType: true,
-                      timelineEventId: true,
-                      sourceTaskId: true,
-                    },
+    const scope = {
+      id: jobId,
+      datasetId: context.datasetId,
+      actorId: context.actorId,
+      wardId: context.wardId,
+      operation: TASK_EXTRACTION_OPERATION,
+    };
+    const aiJob = await this.prisma.aiJob.findFirst({
+      where: scope,
+      select: {
+        status: true,
+        failureCode: true,
+        retryable: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!aiJob) {
+      throw new TaskNotFoundError();
+    }
+
+    if (aiJob.status !== 'SUCCEEDED') {
+      const featureJob = await this.prisma.taskExtractionJob.findFirst({
+        where: scope,
+        select: { id: true },
+      });
+
+      if (!featureJob) {
+        throw new TaskNotFoundError();
+      }
+
+      return {
+        jobId,
+        status: aiJob.status,
+        failureCode: aiJob.failureCode,
+        retryable: aiJob.retryable,
+        candidates: [],
+        createdAt: aiJob.createdAt,
+        updatedAt: aiJob.updatedAt,
+      };
+    }
+
+    const featureJob = await this.prisma.taskExtractionJob.findFirst({
+      where: scope,
+      include: {
+        candidates: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          include: {
+            evidence: {
+              include: {
+                evidence: {
+                  select: {
+                    sourceType: true,
+                    timelineEventId: true,
+                    sourceTaskId: true,
                   },
                 },
               },
             },
           },
         },
-      }),
-      this.prisma.aiJob.findFirst({
-        where: {
-          id: jobId,
-          datasetId: context.datasetId,
-          actorId: context.actorId,
-          wardId: context.wardId,
-          operation: TASK_EXTRACTION_OPERATION,
-        },
-        select: {
-          status: true,
-          failureCode: true,
-          retryable: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
-    ]);
+      },
+    });
 
-    if (!featureJob || !aiJob) {
+    if (!featureJob) {
       throw new TaskNotFoundError();
     }
 
@@ -755,24 +774,21 @@ export class PrismaTaskRepository implements TaskRepository {
       status: aiJob.status,
       failureCode: aiJob.failureCode,
       retryable: aiJob.retryable,
-      candidates:
-        aiJob.status === 'SUCCEEDED'
-          ? featureJob.candidates.map((candidate) => ({
-              id: candidate.id,
-              patientId: candidate.patientId,
-              title: candidate.title,
-              description: candidate.description,
-              dueAt: candidate.dueAt,
-              workDate: candidate.workDate,
-              suggestedPriority: candidate.aiSuggestedPriority,
-              reasons: candidate.aiReasons,
-              confidence: candidate.aiConfidence,
-              evidence: candidate.evidence.map(({ evidence }) =>
-                readStoredEvidenceReference(evidence),
-              ),
-              duplicateTaskId: candidate.duplicateTaskId,
-            }))
-          : [],
+      candidates: featureJob.candidates.map((candidate) => ({
+        id: candidate.id,
+        patientId: candidate.patientId,
+        title: candidate.title,
+        description: candidate.description,
+        dueAt: candidate.dueAt,
+        workDate: candidate.workDate,
+        suggestedPriority: candidate.aiSuggestedPriority,
+        reasons: candidate.aiReasons,
+        confidence: candidate.aiConfidence,
+        evidence: candidate.evidence.map(({ evidence }) =>
+          readStoredEvidenceReference(evidence),
+        ),
+        duplicateTaskId: candidate.duplicateTaskId,
+      })),
       createdAt: aiJob.createdAt,
       updatedAt: aiJob.updatedAt,
     };
