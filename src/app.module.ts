@@ -12,6 +12,7 @@ import { PrismaModule } from './infrastructure/database/prisma.module';
 import { AiJobsModule } from './modules/ai-jobs/ai-jobs.module';
 import { DemoModule } from './modules/demo/demo.module';
 import { HealthModule } from './modules/health/health.module';
+import { RoundingModule } from './modules/rounding/rounding.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
 
 @Module({
@@ -26,6 +27,7 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     DemoModule,
     AiJobsModule,
     HealthModule,
+    RoundingModule,
     TimelineModule,
   ],
 })
