@@ -33,9 +33,9 @@ export function normalizeScheduleEntries(
     throw new TypeError('월별 근무표 날짜가 올바르지 않습니다.');
   }
 
-  const normalized = [...entries].sort((left, right) =>
-    left.date.localeCompare(right.date),
-  );
+  const normalized = entries
+    .map((entry) => ({ date: entry.date, duty: entry.duty }))
+    .sort((left, right) => left.date.localeCompare(right.date));
   const dates = new Set<string>();
 
   for (const entry of normalized) {

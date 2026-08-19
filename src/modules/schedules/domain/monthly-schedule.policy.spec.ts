@@ -31,6 +31,20 @@ describe('monthly schedule policy', () => {
     ]);
   });
 
+  it('DTO처럼 prototype이 있는 입력도 canonical plain object로 변환한다', () => {
+    class ScheduleEntryDtoLike {
+      date = '2026-08-01';
+      duty = 'DAY' as const;
+    }
+
+    const [normalized] = normalizeScheduleEntries('2026-08', [
+      new ScheduleEntryDtoLike(),
+    ]);
+
+    expect(normalized).toEqual({ date: '2026-08-01', duty: 'DAY' });
+    expect(Object.getPrototypeOf(normalized)).toBe(Object.prototype);
+  });
+
   it.each([
     [[{ date: '2026-09-01', duty: 'DAY' }]],
     [[{ date: '2026-02-29', duty: 'DAY' }]],
