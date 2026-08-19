@@ -1115,6 +1115,284 @@
         ]
       }
     },
+    "/api/v1/me/schedules/{yearMonth}": {
+      "put": {
+        "operationId": "MonthlySchedulesController_put",
+        "parameters": [
+          {
+            "name": "yearMonth",
+            "required": true,
+            "in": "path",
+            "description": "2000-01부터 2100-12까지의 조회·저장 대상 월",
+            "schema": {
+              "example": "2026-08",
+              "pattern": "^(20\\d{2}|2100)-(0[1-9]|1[0-2])$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "description": "같은 actor와 endpoint에서 월별 전체 교체 replay를 식별하는 opaque key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[\\x21-\\x7E]+$"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutMonthlyScheduleRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyScheduleResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "확정한 월별 근무표 전체 교체 저장",
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "get": {
+        "operationId": "MonthlySchedulesController_find",
+        "parameters": [
+          {
+            "name": "yearMonth",
+            "required": true,
+            "in": "path",
+            "description": "2000-01부터 2100-12까지의 조회·저장 대상 월",
+            "schema": {
+              "example": "2026-08",
+              "pattern": "^(20\\d{2}|2100)-(0[1-9]|1[0-2])$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyScheduleResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "내 월별 근무표와 근무 유형별 합계 조회",
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
     "/api/v1/tasks": {
       "get": {
         "operationId": "TasksController_list",
@@ -4465,6 +4743,146 @@
             "description": "생략하면 서버 현재 시각을 사용한다."
           }
         }
+      },
+      "MonthlyScheduleEntryRequestDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+            "example": "2026-08-13",
+            "format": "date"
+          },
+          "duty": {
+            "enum": [
+              "DAY",
+              "EVENING",
+              "NIGHT",
+              "OFF"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "duty"
+        ]
+      },
+      "PutMonthlyScheduleRequestDto": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "number",
+            "minimum": 0,
+            "description": "신규 저장은 0"
+          },
+          "entries": {
+            "uniqueItems": true,
+            "maxItems": 31,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthlyScheduleEntryRequestDto"
+            }
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "entries"
+        ]
+      },
+      "MonthlyScheduleEntryDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "example": "2026-08-13",
+            "format": "date"
+          },
+          "duty": {
+            "enum": [
+              "DAY",
+              "EVENING",
+              "NIGHT",
+              "OFF"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "duty"
+        ]
+      },
+      "MonthlyScheduleTotalsDto": {
+        "type": "object",
+        "properties": {
+          "DAY": {
+            "type": "number",
+            "minimum": 0
+          },
+          "EVENING": {
+            "type": "number",
+            "minimum": 0
+          },
+          "NIGHT": {
+            "type": "number",
+            "minimum": 0
+          },
+          "OFF": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "DAY",
+          "EVENING",
+          "NIGHT",
+          "OFF"
+        ]
+      },
+      "MonthlyScheduleDataDto": {
+        "type": "object",
+        "properties": {
+          "yearMonth": {
+            "type": "string",
+            "example": "2026-08",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthlyScheduleEntryDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/MonthlyScheduleTotalsDto"
+          }
+        },
+        "required": [
+          "yearMonth",
+          "version",
+          "entries",
+          "totals"
+        ]
+      },
+      "MonthlyScheduleResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MonthlyScheduleDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       },
       "TaskAiSuggestionDto": {
         "type": "object",

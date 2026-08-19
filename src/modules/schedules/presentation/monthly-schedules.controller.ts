@@ -37,6 +37,16 @@ const IDEMPOTENCY_HEADER = {
   },
 } as const;
 
+const YEAR_MONTH_PARAM = {
+  description: '2000-01부터 2100-12까지의 조회·저장 대상 월',
+  name: 'yearMonth',
+  schema: {
+    example: '2026-08',
+    pattern: '^(20\\d{2}|2100)-(0[1-9]|1[0-2])$',
+    type: 'string',
+  },
+} as const;
+
 const IDEMPOTENCY_KEY_PIPE = new MonthlyScheduleIdempotencyKeyPipe();
 const YEAR_MONTH_PIPE = new YearMonthPipe();
 
@@ -47,7 +57,7 @@ export class MonthlySchedulesController {
 
   @Put(':yearMonth')
   @ApiOperation({ summary: '확정한 월별 근무표 전체 교체 저장' })
-  @ApiParam({ name: 'yearMonth', example: '2026-08' })
+  @ApiParam(YEAR_MONTH_PARAM)
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiOkResponse({ type: MonthlyScheduleResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
@@ -73,7 +83,7 @@ export class MonthlySchedulesController {
 
   @Get(':yearMonth')
   @ApiOperation({ summary: '내 월별 근무표와 근무 유형별 합계 조회' })
-  @ApiParam({ name: 'yearMonth', example: '2026-08' })
+  @ApiParam(YEAR_MONTH_PARAM)
   @ApiOkResponse({ type: MonthlyScheduleResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
