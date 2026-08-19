@@ -455,7 +455,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             datasetId: input.context.datasetId,
             jobId: aiJob.id,
             roundingRecordId: evidence.recordId,
-            ...toStoredEvidenceColumns(evidence),
+            ...toStoredExtractionEvidenceColumns(evidence),
             patientId: evidence.patientId,
             workDate: evidence.workDate,
             summary: evidence.summary,
@@ -577,10 +577,11 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         }) => ({
           ...evidence,
           recordId: roundingRecordId,
-          ...readStoredEvidenceReference({
+          ...readStoredExtractionEvidenceReference({
             sourceType,
             timelineEventId,
             sourceTaskId,
+            roundingRecordId,
           }),
         }),
       ),
@@ -624,7 +625,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
 
       const evidenceBySourceId = new Map(
         featureJob.evidence.map((evidence) => [
-          readStoredEvidenceReference(evidence).sourceId,
+          readStoredExtractionEvidenceReference(evidence).sourceId,
           evidence,
         ]),
       );
@@ -764,6 +765,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
               include: {
                 evidence: {
                   select: {
+                    roundingRecordId: true,
                     sourceType: true,
                     timelineEventId: true,
                     sourceTaskId: true,
@@ -796,7 +798,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         reasons: candidate.aiReasons,
         confidence: candidate.aiConfidence,
         evidence: candidate.evidence.map(({ evidence }) =>
-          readStoredEvidenceReference(evidence),
+          readStoredExtractionEvidenceReference(evidence),
         ),
         duplicateTaskId: candidate.duplicateTaskId,
         appliedTaskId: candidate.appliedTaskId,
@@ -855,6 +857,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
               include: {
                 evidence: {
                   select: {
+                    roundingRecordId: true,
                     sourceType: true,
                     timelineEventId: true,
                     sourceTaskId: true,
@@ -972,7 +975,9 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             data: candidate.evidence.map(({ evidence }) => ({
               datasetId: input.context.datasetId,
               taskId: task.id,
-              ...toStoredEvidenceColumns(readStoredEvidenceReference(evidence)),
+              ...toStoredEvidenceColumns(
+                readStoredExtractionEvidenceReference(evidence),
+              ),
             })),
           });
           if (confirmedPriority !== null) {
@@ -1075,6 +1080,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             sourceType: true,
             timelineEventId: true,
             sourceTaskId: true,
+            roundingSegmentId: true,
           },
         },
       },
@@ -1432,23 +1438,47 @@ type StoredEvidenceColumns = {
   sourceType: TaskEvidenceSourceType;
   timelineEventId: string | null;
   sourceTaskId: string | null;
+  roundingSegmentId: string | null;
 };
 
 function toStoredEvidenceColumns(input: {
   sourceType: TaskEvidenceSourceType;
   sourceId: string;
 }): StoredEvidenceColumns {
-  return input.sourceType === 'TIMELINE_EVENT'
-    ? {
-        sourceType: input.sourceType,
-        timelineEventId: input.sourceId,
-        sourceTaskId: null,
-      }
-    : {
-        sourceType: input.sourceType,
-        timelineEventId: null,
-        sourceTaskId: input.sourceId,
-      };
+  if (input.sourceType === 'TIMELINE_EVENT') {
+    return {
+      sourceType: input.sourceType,
+      timelineEventId: input.sourceId,
+      sourceTaskId: null,
+      roundingSegmentId: null,
+    };
+  }
+  if (input.sourceType === 'TASK') {
+    return {
+      sourceType: input.sourceType,
+      timelineEventId: null,
+      sourceTaskId: input.sourceId,
+      roundingSegmentId: null,
+    };
+  }
+  return {
+    sourceType: input.sourceType,
+    timelineEventId: null,
+    sourceTaskId: null,
+    roundingSegmentId: input.sourceId,
+  };
+}
+
+function toStoredExtractionEvidenceColumns(input: {
+  sourceType: TaskEvidenceSourceType;
+  sourceId: string;
+}): Omit<StoredEvidenceColumns, 'roundingSegmentId'> {
+  const columns = toStoredEvidenceColumns(input);
+  return {
+    sourceType: columns.sourceType,
+    timelineEventId: columns.timelineEventId,
+    sourceTaskId: columns.sourceTaskId,
+  };
 }
 
 function readStoredEvidenceReference(input: StoredEvidenceColumns): {
@@ -1458,7 +1488,8 @@ function readStoredEvidenceReference(input: StoredEvidenceColumns): {
   if (
     input.sourceType === 'TIMELINE_EVENT' &&
     input.timelineEventId !== null &&
-    input.sourceTaskId === null
+    input.sourceTaskId === null &&
+    input.roundingSegmentId === null
   ) {
     return { sourceType: input.sourceType, sourceId: input.timelineEventId };
   }
@@ -1466,12 +1497,44 @@ function readStoredEvidenceReference(input: StoredEvidenceColumns): {
   if (
     input.sourceType === 'TASK' &&
     input.sourceTaskId !== null &&
-    input.timelineEventId === null
+    input.timelineEventId === null &&
+    input.roundingSegmentId === null
   ) {
     return { sourceType: input.sourceType, sourceId: input.sourceTaskId };
   }
 
+  if (
+    input.sourceType === 'ROUNDING_SEGMENT' &&
+    input.roundingSegmentId !== null &&
+    input.timelineEventId === null &&
+    input.sourceTaskId === null
+  ) {
+    return { sourceType: input.sourceType, sourceId: input.roundingSegmentId };
+  }
+
   throw new TaskPersistenceInvariantError();
+}
+
+function readStoredExtractionEvidenceReference(input: {
+  sourceType: TaskEvidenceSourceType;
+  timelineEventId: string | null;
+  sourceTaskId: string | null;
+  roundingRecordId: string;
+}): { sourceType: TaskEvidenceSourceType; sourceId: string } {
+  if (
+    input.sourceType === 'ROUNDING_SEGMENT' &&
+    input.timelineEventId === null &&
+    input.sourceTaskId === null
+  ) {
+    return { sourceType: input.sourceType, sourceId: input.roundingRecordId };
+  }
+
+  return readStoredEvidenceReference({
+    sourceType: input.sourceType,
+    timelineEventId: input.timelineEventId,
+    sourceTaskId: input.sourceTaskId,
+    roundingSegmentId: null,
+  });
 }
 
 function serializeTaskView(task: TaskView): Prisma.InputJsonObject {

@@ -39,7 +39,8 @@ describe('Task and Handoff PostgreSQL integration', () => {
   });
 
   it('Task extraction과 Handoff precheck/draft를 실제 claim 후 terminal publish한다', async () => {
-    const evidenceId = randomUUID();
+    const segmentId = randomUUID();
+    const timelineEventId = randomUUID();
     const patient = await prisma.patient.findFirstOrThrow({
       where: { datasetId: context.datasetId, wardId: context.wardId },
       orderBy: { id: 'asc' },
@@ -56,7 +57,7 @@ describe('Task and Handoff PostgreSQL integration', () => {
     });
     await prisma.roundingPatientSegment.create({
       data: {
-        id: evidenceId,
+        id: segmentId,
         datasetId: context.datasetId,
         roundingSessionId: roundingSession.id,
         patientId: patient.id,
@@ -68,15 +69,15 @@ describe('Task and Handoff PostgreSQL integration', () => {
     });
     await prisma.timelineEvent.create({
       data: {
-        id: evidenceId,
+        id: timelineEventId,
         datasetId: context.datasetId,
-        logicalKey: `task-extraction-${evidenceId}`,
+        logicalKey: `task-extraction-${timelineEventId}`,
         patientId: patient.id,
         wardId: context.wardId,
         occurredAt: new Date(),
         type: 'TASK',
         source: 'MANUAL',
-        sourceReference: `integration:${evidenceId}`,
+        sourceReference: `integration:${timelineEventId}`,
         summary: 'Synthetic integration evidence',
       },
     });
@@ -87,7 +88,7 @@ describe('Task and Handoff PostgreSQL integration', () => {
         context,
         `task-extract-${randomUUID()}`,
         randomUUID(),
-        { roundingSessionId: roundingSession.id, recordIds: [evidenceId] },
+        { roundingSessionId: roundingSession.id, recordIds: [segmentId] },
       );
     await expect(dispatcher.runOnce()).resolves.toBe(true);
     await expect(
@@ -101,6 +102,20 @@ describe('Task and Handoff PostgreSQL integration', () => {
         where: { datasetId: context.datasetId, jobId: taskReservation.jobId },
       }),
     ).resolves.toBeGreaterThan(0);
+    await expect(
+      prisma.taskExtractionEvidence.findFirstOrThrow({
+        where: { datasetId: context.datasetId, jobId: taskReservation.jobId },
+        select: {
+          roundingRecordId: true,
+          sourceType: true,
+          timelineEventId: true,
+        },
+      }),
+    ).resolves.toEqual({
+      roundingRecordId: segmentId,
+      sourceType: 'ROUNDING_SEGMENT',
+      timelineEventId: null,
+    });
 
     const senderShift = await prisma.nurseShift.findFirstOrThrow({
       where: {

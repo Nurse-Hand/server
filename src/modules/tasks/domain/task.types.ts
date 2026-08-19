@@ -13,7 +13,11 @@ export type TaskAiConfidence = (typeof TASK_AI_CONFIDENCES)[number];
 export const TASK_LIST_SORTS = ['priority', 'dueAt'] as const;
 export type TaskListSort = (typeof TASK_LIST_SORTS)[number];
 
-export const TASK_EVIDENCE_SOURCE_TYPES = ['TIMELINE_EVENT', 'TASK'] as const;
+export const TASK_EVIDENCE_SOURCE_TYPES = [
+  'TIMELINE_EVENT',
+  'TASK',
+  'ROUNDING_SEGMENT',
+] as const;
 export type TaskEvidenceSourceType =
   (typeof TASK_EVIDENCE_SOURCE_TYPES)[number];
 

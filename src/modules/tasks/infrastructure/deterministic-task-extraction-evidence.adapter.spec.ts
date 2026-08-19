@@ -1,4 +1,4 @@
-import { Clock } from '../../../common/time/clock';
+import type { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type { TaskExtractionEvidencePort } from '../application/ports/task-extraction-evidence.port';
 import { formatTaskWorkDate } from '../domain/task-work-date';
@@ -10,20 +10,33 @@ const CONTEXT: DemoSessionContext = {
   wardId: '00000000-0000-4000-8000-000000000301',
 };
 
-class FixedClock extends Clock {
-  constructor(private readonly current: Date) {
-    super();
-  }
-
-  now(): Date {
-    return new Date(this.current);
-  }
-}
-
 describe('DeterministicTaskExtractionEvidenceAdapter', () => {
-  const clock = new FixedClock(new Date('2026-08-18T15:00:00.000Z'));
+  const findSegments = jest.fn();
   const port: TaskExtractionEvidencePort =
-    new DeterministicTaskExtractionEvidenceAdapter(clock);
+    new DeterministicTaskExtractionEvidenceAdapter({
+      roundingPatientSegment: { findMany: findSegments },
+    } as unknown as PrismaService);
+
+  beforeEach(() => {
+    findSegments.mockReset().mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000501',
+        patientId: '00000000-0000-4000-8000-000000000701',
+        sequence: 1,
+        startedAt: new Date('2026-08-18T15:00:00.000Z'),
+        endedAt: new Date('2026-08-18T15:30:00.000Z'),
+        note: 'Synthetic rounding evidence 1',
+      },
+      {
+        id: '00000000-0000-4000-8000-000000000502',
+        patientId: '00000000-0000-4000-8000-000000000702',
+        sequence: 2,
+        startedAt: new Date('2026-08-18T15:30:00.000Z'),
+        endedAt: new Date('2026-08-18T16:00:00.000Z'),
+        note: 'Synthetic rounding evidence 2',
+      },
+    ]);
+  });
 
   it('중복 record ID를 첫 등장 순서로 제거하고 고정된 synthetic snapshot을 만든다', async () => {
     const result = await port.read({
@@ -51,17 +64,17 @@ describe('DeterministicTaskExtractionEvidenceAdapter', () => {
     ).toEqual([
       {
         recordId: '00000000-0000-4000-8000-000000000501',
-        sourceType: 'TIMELINE_EVENT',
+        sourceType: 'ROUNDING_SEGMENT',
         sourceId: '00000000-0000-4000-8000-000000000501',
-        patientId: null,
+        patientId: '00000000-0000-4000-8000-000000000701',
         workDate: '2026-08-19',
         summary: 'Synthetic rounding evidence 1',
       },
       {
         recordId: '00000000-0000-4000-8000-000000000502',
-        sourceType: 'TIMELINE_EVENT',
+        sourceType: 'ROUNDING_SEGMENT',
         sourceId: '00000000-0000-4000-8000-000000000502',
-        patientId: null,
+        patientId: '00000000-0000-4000-8000-000000000702',
         workDate: '2026-08-19',
         summary: 'Synthetic rounding evidence 2',
       },
@@ -89,5 +102,6 @@ describe('DeterministicTaskExtractionEvidenceAdapter', () => {
       roundingSessionId: '00000000-0000-4000-8000-000000000401',
       evidence: [],
     });
+    expect(findSegments).not.toHaveBeenCalled();
   });
 });

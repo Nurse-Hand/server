@@ -46,7 +46,7 @@ CREATE TYPE "TaskPriority" AS ENUM ('CRITICAL', 'HIGH', 'NORMAL');
 CREATE TYPE "TaskAiConfidence" AS ENUM ('HIGH', 'MEDIUM', 'LOW');
 
 -- CreateEnum
-CREATE TYPE "TaskEvidenceSourceType" AS ENUM ('TIMELINE_EVENT', 'TASK');
+CREATE TYPE "TaskEvidenceSourceType" AS ENUM ('TIMELINE_EVENT', 'TASK', 'ROUNDING_SEGMENT');
 
 -- CreateEnum
 CREATE TYPE "TaskPriorityAuditAction" AS ENUM ('ACCEPT_AI', 'MANUAL_SET', 'CLEARED');
@@ -486,6 +486,7 @@ CREATE TABLE "TaskEvidence" (
     "sourceType" "TaskEvidenceSourceType" NOT NULL,
     "timelineEventId" UUID,
     "sourceTaskId" UUID,
+    "roundingSegmentId" UUID,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "TaskEvidence_pkey" PRIMARY KEY ("id")
@@ -906,6 +907,9 @@ CREATE INDEX "TaskEvidence_datasetId_timelineEventId_idx" ON "TaskEvidence"("dat
 CREATE INDEX "TaskEvidence_datasetId_sourceTaskId_idx" ON "TaskEvidence"("datasetId", "sourceTaskId");
 
 -- CreateIndex
+CREATE INDEX "TaskEvidence_datasetId_roundingSegmentId_idx" ON "TaskEvidence"("datasetId", "roundingSegmentId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TaskEvidence_datasetId_id_key" ON "TaskEvidence"("datasetId", "id");
 
 -- CreateIndex
@@ -913,6 +917,9 @@ CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_timelineEventId_key" ON "Task
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_sourceTaskId_key" ON "TaskEvidence"("datasetId", "taskId", "sourceTaskId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_roundingSegmentId_key" ON "TaskEvidence"("datasetId", "taskId", "roundingSegmentId");
 
 -- CreateIndex
 CREATE INDEX "TaskPriorityAudit_datasetId_taskId_createdAt_id_idx" ON "TaskPriorityAudit"("datasetId", "taskId", "createdAt", "id");
@@ -1167,6 +1174,9 @@ ALTER TABLE "TaskEvidence" ADD CONSTRAINT "TaskEvidence_datasetId_sourceTaskId_f
 ALTER TABLE "TaskEvidence" ADD CONSTRAINT "TaskEvidence_datasetId_timelineEventId_fkey" FOREIGN KEY ("datasetId", "timelineEventId") REFERENCES "TimelineEvent"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TaskEvidence" ADD CONSTRAINT "TaskEvidence_datasetId_roundingSegmentId_fkey" FOREIGN KEY ("datasetId", "roundingSegmentId") REFERENCES "RoundingPatientSegment"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "TaskPriorityAudit" ADD CONSTRAINT "TaskPriorityAudit_datasetId_taskId_fkey" FOREIGN KEY ("datasetId", "taskId") REFERENCES "Task"("datasetId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1195,6 +1205,9 @@ ALTER TABLE "TaskExtractionEvidence" ADD CONSTRAINT "TaskExtractionEvidence_data
 
 -- AddForeignKey
 ALTER TABLE "TaskExtractionEvidence" ADD CONSTRAINT "TaskExtractionEvidence_datasetId_patientId_fkey" FOREIGN KEY ("datasetId", "patientId") REFERENCES "Patient"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TaskExtractionEvidence" ADD CONSTRAINT "TaskExtractionEvidence_datasetId_roundingRecordId_fkey" FOREIGN KEY ("datasetId", "roundingRecordId") REFERENCES "RoundingPatientSegment"("datasetId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TaskExtractionCandidate" ADD CONSTRAINT "TaskExtractionCandidate_datasetId_jobId_fkey" FOREIGN KEY ("datasetId", "jobId") REFERENCES "TaskExtractionJob"("datasetId", "id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -24,6 +24,7 @@ enum TaskAiConfidence {
 enum TaskEvidenceSourceType {
   TIMELINE_EVENT
   TASK
+  ROUNDING_SEGMENT
 }
 
 enum TaskPriorityAuditAction {
@@ -91,22 +92,26 @@ model TaskCreateReceipt {
 }
 
 model TaskEvidence {
-  id              String                 @id @default(uuid()) @db.Uuid
-  datasetId       String                 @db.Uuid
-  taskId          String                 @db.Uuid
-  sourceType      TaskEvidenceSourceType
-  timelineEventId String?                @db.Uuid
-  sourceTaskId    String?                @db.Uuid
-  createdAt       DateTime               @default(now()) @db.Timestamptz(3)
-  task            Task                   @relation("TaskEvidenceTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Cascade)
-  sourceTask      Task?                  @relation("TaskEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
-  timelineEvent   TimelineEvent?         @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
+  id                String                  @id @default(uuid()) @db.Uuid
+  datasetId         String                  @db.Uuid
+  taskId            String                  @db.Uuid
+  sourceType        TaskEvidenceSourceType
+  timelineEventId   String?                 @db.Uuid
+  sourceTaskId      String?                 @db.Uuid
+  roundingSegmentId String?                 @db.Uuid
+  createdAt         DateTime                @default(now()) @db.Timestamptz(3)
+  task              Task                    @relation("TaskEvidenceTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Cascade)
+  sourceTask        Task?                   @relation("TaskEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
+  timelineEvent     TimelineEvent?          @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
+  roundingSegment   RoundingPatientSegment? @relation(fields: [datasetId, roundingSegmentId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "task_evidence_dataset_id", [datasetId, id])
   @@unique(name: "task_evidence_timeline_source", [datasetId, taskId, timelineEventId])
   @@unique(name: "task_evidence_task_source", [datasetId, taskId, sourceTaskId])
+  @@unique(name: "task_evidence_rounding_source", [datasetId, taskId, roundingSegmentId])
   @@index([datasetId, timelineEventId])
   @@index([datasetId, sourceTaskId])
+  @@index([datasetId, roundingSegmentId])
 }
 
 model TaskPriorityAudit {
@@ -182,6 +187,7 @@ model TaskExtractionEvidence {
   sourceTask       Task?                             @relation("TaskExtractionEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
   timelineEvent    TimelineEvent?                    @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
   patient          Patient?                          @relation(fields: [datasetId, patientId], references: [datasetId, id], onDelete: Restrict)
+  roundingSegment  RoundingPatientSegment            @relation(fields: [datasetId, roundingRecordId], references: [datasetId, id], onDelete: Restrict)
   candidates       TaskExtractionCandidateEvidence[] @relation("CandidateEvidenceEvidence")
 
   @@unique(name: "task_extraction_evidence_dataset_id_job", [datasetId, id, jobId])

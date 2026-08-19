@@ -293,7 +293,12 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
         createdAt: NOW,
         updatedAt: NOW,
         evidence: [
-          { sourceType: 'TASK', timelineEventId: null, sourceTaskId: TASK_ID },
+          {
+            sourceType: 'TASK',
+            timelineEventId: null,
+            sourceTaskId: TASK_ID,
+            roundingSegmentId: null,
+          },
         ],
       },
     ]);
@@ -472,6 +477,7 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
           sourceType: 'TIMELINE_EVENT',
           timelineEventId: EVIDENCE_ID,
           sourceTaskId: null,
+          roundingSegmentId: null,
         },
       ],
     });
