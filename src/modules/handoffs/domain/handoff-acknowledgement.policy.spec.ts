@@ -15,14 +15,31 @@ describe('assertAcknowledgementTransition', () => {
   });
 
   it('같은 상태 반복은 409로 거부한다', () => {
-    expect(() =>
-      assertAcknowledgementTransition('QUESTIONED', 'QUESTIONED'),
-    ).toThrow('HANDOFF_ACKNOWLEDGEMENT_DUPLICATE');
+    expectTransitionError(
+      () => assertAcknowledgementTransition('QUESTIONED', 'QUESTIONED'),
+      'HANDOFF_ACKNOWLEDGEMENT_DUPLICATE',
+      'CONFLICT',
+    );
   });
 
   it('ACKNOWLEDGED 뒤 QUESTIONED는 422로 거부한다', () => {
-    expect(() =>
-      assertAcknowledgementTransition('ACKNOWLEDGED', 'QUESTIONED'),
-    ).toThrow('HANDOFF_ACKNOWLEDGEMENT_TRANSITION_INVALID');
+    expectTransitionError(
+      () => assertAcknowledgementTransition('ACKNOWLEDGED', 'QUESTIONED'),
+      'HANDOFF_ACKNOWLEDGEMENT_TRANSITION_INVALID',
+      'UNPROCESSABLE_ENTITY',
+    );
   });
 });
+
+function expectTransitionError(
+  action: () => void,
+  code: string,
+  kind: 'CONFLICT' | 'UNPROCESSABLE_ENTITY',
+): void {
+  try {
+    action();
+    throw new Error('acknowledgement transition error가 발생해야 합니다.');
+  } catch (error) {
+    expect(error).toMatchObject({ code, kind });
+  }
+}
