@@ -27,7 +27,7 @@ export class TaskHandoffJobDispatcher
 {
   private readonly logger = new Logger(TaskHandoffJobDispatcher.name);
   private timer: NodeJS.Timeout | undefined;
-  private isDispatching = false;
+  private activeDispatch: Promise<boolean> | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -45,38 +45,43 @@ export class TaskHandoffJobDispatcher
     this.timer.unref();
   }
 
-  onApplicationShutdown(): void {
+  async onApplicationShutdown(): Promise<void> {
     if (this.timer !== undefined) {
       clearInterval(this.timer);
       this.timer = undefined;
     }
+    await this.activeDispatch;
   }
 
   async runOnce(): Promise<boolean> {
-    if (this.isDispatching) {
+    if (this.activeDispatch !== undefined) {
       return false;
     }
 
-    this.isDispatching = true;
+    const dispatch = this.dispatch();
+    this.activeDispatch = dispatch;
     try {
-      const scopes = await this.findRunnableScopes();
-      for (const scope of scopes) {
-        await this.processScope(scope);
-      }
-      return true;
+      return await dispatch;
     } finally {
-      this.isDispatching = false;
+      if (this.activeDispatch === dispatch) {
+        this.activeDispatch = undefined;
+      }
     }
+  }
+
+  private async dispatch(): Promise<boolean> {
+    const scopes = await this.findRunnableScopes();
+    for (const scope of scopes) {
+      await this.processScope(scope);
+    }
+    return true;
   }
 
   private async tick(): Promise<void> {
     try {
       await this.runOnce();
     } catch (error: unknown) {
-      this.logger.error(
-        'Task/Handoff job dispatch cycle failed',
-        error instanceof Error ? error.stack : undefined,
-      );
+      this.logger.error(safeJobError('dispatch_cycle_failed', error));
     }
   }
 
@@ -117,10 +122,34 @@ export class TaskHandoffJobDispatcher
     try {
       await process();
     } catch (error: unknown) {
-      this.logger.error(
-        `Job processor failed: ${operation}`,
-        error instanceof Error ? error.stack : undefined,
-      );
+      this.logger.error(safeJobError('processor_failed', error, operation));
     }
   }
+}
+
+function safeJobError(
+  event: 'dispatch_cycle_failed' | 'processor_failed',
+  error: unknown,
+  operation?: (typeof OPERATIONS)[number],
+): Record<string, string> {
+  const result: Record<string, string> = { event };
+  if (operation !== undefined) result.operation = operation;
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    /^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)
+  ) {
+    result.errorCode = error.code;
+  } else if (
+    error instanceof Error &&
+    /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(error.name)
+  ) {
+    result.errorType = error.name;
+  } else {
+    result.errorType = 'UnknownError';
+  }
+  return result;
 }

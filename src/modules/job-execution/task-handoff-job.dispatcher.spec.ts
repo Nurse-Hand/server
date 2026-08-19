@@ -79,13 +79,23 @@ describe('TaskHandoffJobDispatcher', () => {
   });
 
   it('한 processor 예외가 다른 operation publish를 막지 않는다', async () => {
-    jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    taskExtraction.processNext.mockRejectedValueOnce(new Error('worker crash'));
+    const sensitiveMarker = 'SENSITIVE_PATIENT_SUMMARY_1234';
+    const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const error = new Error(`${sensitiveMarker}: worker crash`);
+    error.stack = `${error.name}: ${error.message}\n at ${sensitiveMarker}`;
+    taskExtraction.processNext.mockRejectedValueOnce(error);
 
     await dispatcher.runOnce();
 
     expect(handoffPrecheck.processNext).toHaveBeenCalledWith(SCOPE_A);
     expect(handoffDraft.processNext).toHaveBeenCalledWith(SCOPE_A);
+    expect(logger).toHaveBeenCalledWith({
+      event: 'processor_failed',
+      operation: 'tasks.extract',
+      errorType: 'Error',
+    });
+    expect(JSON.stringify(logger.mock.calls)).not.toContain(sensitiveMarker);
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('worker crash');
   });
 
   it('이전 dispatch cycle이 끝나기 전에는 겹쳐 실행하지 않는다', async () => {
@@ -104,13 +114,36 @@ describe('TaskHandoffJobDispatcher', () => {
     expect(findMany).toHaveBeenCalledTimes(1);
   });
 
-  it('application lifecycle에 polling timer를 등록하고 shutdown에서 정리한다', () => {
+  it('application lifecycle에 polling timer를 등록하고 shutdown에서 정리한다', async () => {
     jest.useFakeTimers();
 
     dispatcher.onApplicationBootstrap();
     expect(jest.getTimerCount()).toBe(1);
 
-    dispatcher.onApplicationShutdown();
+    await dispatcher.onApplicationShutdown();
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('shutdown은 진행 중인 dispatch가 끝날 때까지 기다린다', async () => {
+    let release: (() => void) | undefined;
+    findMany.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve([]);
+        }),
+    );
+
+    const dispatch = dispatcher.runOnce();
+    let shutdownCompleted = false;
+    const shutdown = dispatcher.onApplicationShutdown().then(() => {
+      shutdownCompleted = true;
+    });
+    await Promise.resolve();
+    expect(shutdownCompleted).toBe(false);
+
+    release?.();
+    await dispatch;
+    await shutdown;
+    expect(shutdownCompleted).toBe(true);
   });
 });
