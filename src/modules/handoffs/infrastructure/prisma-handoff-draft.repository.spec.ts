@@ -66,7 +66,7 @@ describe('PrismaHandoffDraftRepository', () => {
       aiJob: { findFirst: findJob },
     } as unknown as PrismaService);
 
-    const result = await repository.get(CONTEXT, HANDOFF_ID);
+    const result = await repository.get(CONTEXT, HANDOFF_ID, NOW);
 
     expect(findHandoff).toHaveBeenCalledTimes(1);
     expect(findJob).toHaveBeenCalledTimes(1);
@@ -80,6 +80,41 @@ describe('PrismaHandoffDraftRepository', () => {
         excerpt: '체온 상승 관찰',
       },
     ]);
+  });
+
+  it('수신자의 FINALIZED 상세 최초 열람을 unique append로 기록한다', async () => {
+    const row = {
+      ...draftRow(),
+      status: 'FINALIZED',
+      finalSnapshot: { id: ITEM_ID },
+    };
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const repository = new PrismaHandoffDraftRepository({
+      handoff: { findFirst: jest.fn().mockResolvedValue(row) },
+      aiJob: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: JOB_ID,
+          status: 'SUCCEEDED',
+          failureCode: null,
+          retryable: null,
+        }),
+      },
+      handoffAuditEvent: { createMany },
+    } as unknown as PrismaService);
+
+    await repository.get({ ...CONTEXT, actorId: RECEIVER_ID }, HANDOFF_ID, NOW);
+
+    expect(createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skipDuplicates: true,
+        data: [
+          expect.objectContaining({
+            eventType: 'FIRST_VIEWED',
+            deduplicationKey: `first-viewed:${RECEIVER_ID}`,
+          }),
+        ],
+      }),
+    );
   });
 
   it('reservation transaction에서 CRITICAL 미응답을 다시 읽어 422로 거부한다', async () => {
@@ -234,5 +269,6 @@ function draftRow() {
     ],
     draftTasks: [],
     draftWarnings: [],
+    finalSnapshot: null,
   };
 }

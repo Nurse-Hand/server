@@ -47,6 +47,7 @@ export interface HandoffDraftRepository {
   get(
     context: HandoffDraftContext,
     handoffId: string,
+    viewedAt: Date,
   ): Promise<HandoffDraftDetail>;
 
   update(input: UpdateHandoffDraftCommand): Promise<{
