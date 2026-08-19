@@ -180,13 +180,21 @@ export class TaskPrioritySuggestionItemDto {
   @ApiProperty({ format: 'uuid' })
   taskId!: string;
 
-  @ApiProperty({ description: '같은 batch 안의 참고 표시 순서 전용 점수' })
+  @ApiProperty({
+    description: '같은 batch 안의 참고 표시 순서 전용 점수',
+    minimum: 0,
+  })
   aiScore!: number;
 
-  @ApiProperty({ enum: TASK_PRIORITIES })
+  @ApiProperty({ enum: ['CRITICAL', 'NORMAL'] })
   aiSuggestedPriority!: TaskPriority;
 
-  @ApiProperty({ isArray: true, maxItems: 5, type: String })
+  @ApiProperty({
+    isArray: true,
+    maxItems: 5,
+    type: String,
+    items: { type: 'string', maxLength: 200 },
+  })
   reasons!: string[];
 }
 

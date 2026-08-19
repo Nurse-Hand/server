@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
 import request from 'supertest';
 import { configureApplication } from '../../src/bootstrap/configure-application';
@@ -15,6 +16,7 @@ import { TaskPrioritySuggestionService } from '../../src/modules/tasks/applicati
 import { TaskService } from '../../src/modules/tasks/application/task.service';
 import { TaskAiTimeoutError } from '../../src/modules/tasks/domain/task.errors';
 import { TasksController } from '../../src/modules/tasks/presentation/tasks.controller';
+import { createPublicOpenApiDocument } from '../../src/openapi/create-public-openapi-document';
 
 const DEMO_SESSION_ID = 'synthetic-task-priority-session';
 const REQUEST_ID = '10000000-0000-4000-8000-000000000601';
@@ -55,6 +57,10 @@ describe('Task priority suggestion public API (isolated e2e)', () => {
       providers: [
         { provide: TaskService, useValue: {} },
         { provide: TaskPrioritySuggestionService, useValue: suggestionService },
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: () => true },
+        },
       ],
     }).compile();
     app = moduleFixture.createNestApplication();
@@ -121,6 +127,20 @@ describe('Task priority suggestion public API (isolated e2e)', () => {
       skippedTaskIds: [],
     });
     expect(response.body.meta.requestId).toBe(REQUEST_ID);
+  });
+
+  it('OpenAPI에 저장 가능한 제안 값과 validation 상한만 노출한다', () => {
+    const schema =
+      createPublicOpenApiDocument(app).components?.schemas?.[
+        'TaskPrioritySuggestionItemDto'
+      ];
+    expect(schema).toMatchObject({
+      properties: {
+        aiScore: { minimum: 0 },
+        aiSuggestedPriority: { enum: ['CRITICAL', 'NORMAL'] },
+        reasons: { maxItems: 5, items: { maxLength: 200 } },
+      },
+    });
   });
 
   it('date 누락을 service 호출 전에 400으로 거부한다', async () => {
