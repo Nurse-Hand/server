@@ -167,8 +167,8 @@ export class ReserveTaskExtractionRequestDto {
   roundingSessionId!: string;
 
   @ApiProperty({
-    format: 'uuid',
-    isArray: true,
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
     maxItems: TASK_BATCH_MAX_SIZE,
     minItems: 1,
     uniqueItems: true,

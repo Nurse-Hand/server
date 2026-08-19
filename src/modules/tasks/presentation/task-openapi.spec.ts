@@ -55,5 +55,19 @@ describe('Task OpenAPI response meta', () => {
         nextCursor: { type: 'string', nullable: true },
       },
     });
+    expect(schemas?.ReserveTaskExtractionRequestDto).toMatchObject({
+      properties: {
+        recordIds: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 100,
+          uniqueItems: true,
+          items: { type: 'string', format: 'uuid' },
+        },
+      },
+    });
+    expect(schemas?.ReserveTaskExtractionRequestDto).not.toMatchObject({
+      properties: { recordIds: { items: { type: 'array' } } },
+    });
   });
 });

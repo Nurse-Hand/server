@@ -4258,17 +4258,14 @@
           },
           "recordIds": {
             "type": "array",
+            "uniqueItems": true,
+            "format": "uuid",
+            "minItems": 1,
             "items": {
-              "required": true,
-              "uniqueItems": true,
-              "minItems": 1,
-              "maxItems": 100,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "format": "uuid"
-              }
-            }
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 100
           }
         },
         "required": [
