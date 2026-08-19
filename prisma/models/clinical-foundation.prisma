@@ -45,6 +45,8 @@ model WardMembership {
   storedFiles        StoredFile[]        @relation("StoredFileMembership")
   aiJobs             AiJob[]             @relation("AiJobMembership")
   idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
+  monthlySchedules   MonthlySchedule[]   @relation("MonthlyScheduleMembership")
+  scheduleReceipts   MonthlyScheduleReceipt[] @relation("MonthlyScheduleReceiptMembership")
 
   @@unique(name: "membership_dataset_id", [datasetId, id])
   @@unique(name: "membership_dataset_logical_key", [datasetId, logicalKey])
