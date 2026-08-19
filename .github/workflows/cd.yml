@@ -10,15 +10,11 @@ permissions:
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_SERVER_REPOSITORY || 'nursehand-server' }}
-  DEPLOY_PATH: ${{ vars.GABIA_DEPLOY_PATH || '/data/nurse-hand' }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-
-    outputs:
-      image: ${{ steps.image.outputs.image }}
 
     steps:
       - name: Checkout
@@ -54,62 +50,3 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Export image tag
-        id: image
-        run: echo "image=${IMAGE_NAME}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
-  deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: build-and-push
-
-    steps:
-      - name: Checkout deployment files
-        uses: actions/checkout@v4
-
-      - name: Install SSH key
-        env:
-          GABIA_SSH_PRIVATE_KEY: ${{ secrets.GABIA_SSH_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s\n' "${GABIA_SSH_PRIVATE_KEY}" > ~/.ssh/nurse_hand_deploy
-          chmod 600 ~/.ssh/nurse_hand_deploy
-
-      - name: Trust host key
-        env:
-          GABIA_SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
-          GABIA_SSH_PORT: ${{ secrets.GABIA_SSH_PORT }}
-        run: |
-          set -euo pipefail
-          ssh-keyscan -p "${GABIA_SSH_PORT:-22}" "${GABIA_SSH_HOST}" >> ~/.ssh/known_hosts
-
-      - name: Copy deployment files
-        env:
-          GABIA_SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
-          GABIA_SSH_PORT: ${{ secrets.GABIA_SSH_PORT }}
-          GABIA_SSH_USER: ${{ secrets.GABIA_SSH_USER }}
-        run: |
-          set -euo pipefail
-          SSH_PORT="${GABIA_SSH_PORT:-22}"
-          SSH_TARGET="${GABIA_SSH_USER}@${GABIA_SSH_HOST}"
-          ssh -i ~/.ssh/nurse_hand_deploy -p "${SSH_PORT}" "${SSH_TARGET}" "mkdir -p '${DEPLOY_PATH}'"
-          scp -i ~/.ssh/nurse_hand_deploy -P "${SSH_PORT}" \
-            docker-compose.prod.yml deploy/deploy-server.sh \
-            "${SSH_TARGET}:${DEPLOY_PATH}/"
-
-      - name: Pull and restart
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          GABIA_SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
-          GABIA_SSH_PORT: ${{ secrets.GABIA_SSH_PORT }}
-          GABIA_SSH_USER: ${{ secrets.GABIA_SSH_USER }}
-          NURSE_HAND_SERVER_IMAGE: ${{ needs.build-and-push.outputs.image }}
-        run: |
-          set -euo pipefail
-          SSH_PORT="${GABIA_SSH_PORT:-22}"
-          SSH_TARGET="${GABIA_SSH_USER}@${GABIA_SSH_HOST}"
-          ssh -i ~/.ssh/nurse_hand_deploy -p "${SSH_PORT}" "${SSH_TARGET}" \
-            "cd '${DEPLOY_PATH}' && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${NURSE_HAND_SERVER_IMAGE}' bash ./deploy-server.sh"
