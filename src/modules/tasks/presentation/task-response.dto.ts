@@ -132,6 +132,9 @@ export class TaskExtractionCandidateDto {
 
   @ApiProperty({ format: 'uuid', nullable: true, type: String })
   duplicateTaskId!: string | null;
+
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  appliedTaskId!: string | null;
 }
 
 export class TaskExtractionFailureDto {
@@ -162,6 +165,14 @@ export class TaskExtractionJobDataDto {
   updatedAt!: string;
 }
 
+export class ApplyTaskCandidatesDataDto {
+  @ApiProperty({ format: 'uuid', isArray: true })
+  createdTaskIds!: string[];
+
+  @ApiProperty({ format: 'uuid', isArray: true })
+  skippedCandidateIds!: string[];
+}
+
 export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
@@ -189,6 +200,14 @@ export class TaskExtractionReservationResponseDto {
 export class TaskExtractionJobResponseDto {
   @ApiProperty({ type: TaskExtractionJobDataDto })
   data!: TaskExtractionJobDataDto;
+
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
+}
+
+export class ApplyTaskCandidatesResponseDto {
+  @ApiProperty({ type: ApplyTaskCandidatesDataDto })
+  data!: ApplyTaskCandidatesDataDto;
 
   @ApiProperty({ type: ApiMetaDto })
   meta!: ApiMetaDto;

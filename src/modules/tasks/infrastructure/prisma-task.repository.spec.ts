@@ -8,6 +8,7 @@ import type {
   TaskView,
 } from '../application/ports/task.repository';
 import {
+  TaskCandidateAlreadyAppliedError,
   TaskCompletedImmutableError,
   TaskCursorInvalidError,
   TaskNotFoundError,
@@ -20,6 +21,7 @@ const ACTOR_ID = '00000000-0000-4000-8000-000000000201';
 const WARD_ID = '00000000-0000-4000-8000-000000000301';
 const PATIENT_ID = '00000000-0000-4000-8000-000000000401';
 const TASK_ID = '00000000-0000-4000-8000-000000000501';
+const JOB_ID = '00000000-0000-4000-8000-000000000502';
 const IDEMPOTENCY_RECORD_ID = '00000000-0000-4000-8000-000000000601';
 const NOW = new Date('2026-08-19T00:00:00.000Z');
 const DUTY_ENDS_AT = new Date('2026-08-19T08:00:00.000Z');
@@ -43,15 +45,22 @@ type ModelMock = {
   findUnique: jest.Mock;
   findMany: jest.Mock;
   create: jest.Mock;
+  createMany: jest.Mock;
+  update: jest.Mock;
   updateMany: jest.Mock;
 };
 
 type FakeDatabaseClient = {
+  aiJob: ModelMock;
   idempotencyRecord: ModelMock;
   nurseShift: ModelMock;
   patientAssignment: ModelMock;
   task: ModelMock;
+  taskApplyReceipt: ModelMock;
   taskCreateReceipt: ModelMock;
+  taskEvidence: ModelMock;
+  taskExtractionCandidate: ModelMock;
+  taskExtractionJob: ModelMock;
   taskPriorityAudit: ModelMock;
 };
 
@@ -251,6 +260,156 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
     expect(transaction.nurseShift.findMany).not.toHaveBeenCalled();
     expect(transaction.task.updateMany).not.toHaveBeenCalled();
   });
+
+  it('TaskQueryPort는 활성 배정 환자의 미완료 업무를 scope하고 안정 정렬한다', async () => {
+    const { prisma } = createHarness();
+    prisma.patientAssignment.findMany.mockResolvedValue([
+      { patientId: PATIENT_ID },
+    ]);
+    prisma.nurseShift.findMany.mockResolvedValue([{ endsAt: DUTY_ENDS_AT }]);
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: 'b',
+        patientId: PATIENT_ID,
+        title: 'normal',
+        dueAt: null,
+        confirmedPriority: null,
+        version: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+        evidence: [],
+      },
+      {
+        id: 'a',
+        patientId: PATIENT_ID,
+        title: 'critical',
+        dueAt: new Date('2026-08-18T23:59:59.000Z'),
+        confirmedPriority: null,
+        version: 2,
+        createdAt: NOW,
+        updatedAt: NOW,
+        evidence: [
+          { sourceType: 'TASK', timelineEventId: null, sourceTaskId: TASK_ID },
+        ],
+      },
+    ]);
+    const result = await createRepository(prisma).findIncompleteByPatients(
+      CONTEXT,
+      [PATIENT_ID, PATIENT_ID],
+    );
+
+    expect(prisma.task.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          datasetId: DATASET_ID,
+          wardId: WARD_ID,
+          actorId: ACTOR_ID,
+          patientId: { in: [PATIENT_ID] },
+          status: { in: ['TODO', 'IN_PROGRESS'] },
+        },
+      }),
+    );
+    expect(result.map(({ id }) => id)).toEqual(['a', 'b']);
+    expect(result[0].sourceReferences).toEqual([`TASK:${TASK_ID}`]);
+  });
+
+  it('apply 같은 key와 hash는 저장된 created/skipped 결과를 replay한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.idempotencyRecord.findUnique.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+      wardId: WARD_ID,
+      requestHash: REQUEST_HASH,
+      status: 'COMPLETED',
+      resultReference: 'receipt-id',
+    });
+    transaction.taskApplyReceipt.findFirst.mockResolvedValue({
+      id: 'receipt-id',
+      createdTaskIds: [TASK_ID],
+      skippedCandidateIds: [],
+    });
+    const result = await createRepository(prisma).applyCandidates({
+      context: CONTEXT,
+      jobId: JOB_ID,
+      idempotencyKey: 'apply-key',
+      requestHash: REQUEST_HASH,
+      items: [{ candidateId: '00000000-0000-4000-8000-000000000801' }],
+      now: NOW,
+    });
+    expect(result).toEqual({
+      createdTaskIds: [TASK_ID],
+      skippedCandidateIds: [],
+      isReplay: true,
+    });
+    expect(transaction.taskExtractionJob.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('duplicate 후보는 Task 없이 조건부 mark하고 skipped receipt로 완료한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.taskExtractionJob.findFirst.mockResolvedValue({ id: JOB_ID });
+    transaction.aiJob.findFirst.mockResolvedValue({ status: 'SUCCEEDED' });
+    transaction.taskExtractionCandidate.findMany.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000801',
+        patientId: null,
+        duplicateTaskId: TASK_ID,
+        appliedAt: null,
+        evidence: [],
+      },
+    ]);
+    transaction.idempotencyRecord.create.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+    });
+    transaction.taskApplyReceipt.create.mockResolvedValue({ id: 'receipt-id' });
+    transaction.taskExtractionCandidate.updateMany.mockResolvedValue({
+      count: 1,
+    });
+    transaction.idempotencyRecord.updateMany.mockResolvedValue({ count: 1 });
+    const result = await createRepository(prisma).applyCandidates({
+      context: CONTEXT,
+      jobId: JOB_ID,
+      idempotencyKey: 'apply-key',
+      requestHash: REQUEST_HASH,
+      items: [{ candidateId: '00000000-0000-4000-8000-000000000801' }],
+      now: NOW,
+    });
+    expect(transaction.task.create).not.toHaveBeenCalled();
+    expect(result.skippedCandidateIds).toEqual([
+      '00000000-0000-4000-8000-000000000801',
+    ]);
+    expect(transaction.taskApplyReceipt.update).toHaveBeenCalled();
+  });
+
+  it('candidate conditional claim을 잃으면 transaction을 실패시킨다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.taskExtractionJob.findFirst.mockResolvedValue({ id: JOB_ID });
+    transaction.aiJob.findFirst.mockResolvedValue({ status: 'SUCCEEDED' });
+    transaction.taskExtractionCandidate.findMany.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000801',
+        patientId: null,
+        duplicateTaskId: TASK_ID,
+        appliedAt: null,
+        evidence: [],
+      },
+    ]);
+    transaction.idempotencyRecord.create.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+    });
+    transaction.taskApplyReceipt.create.mockResolvedValue({ id: 'receipt-id' });
+    transaction.taskExtractionCandidate.updateMany.mockResolvedValue({
+      count: 0,
+    });
+    await expect(
+      createRepository(prisma).applyCandidates({
+        context: CONTEXT,
+        jobId: JOB_ID,
+        idempotencyKey: 'apply-key',
+        requestHash: REQUEST_HASH,
+        items: [{ candidateId: '00000000-0000-4000-8000-000000000801' }],
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(TaskCandidateAlreadyAppliedError);
+  });
 });
 
 function createRepository(prisma: FakePrisma): PrismaTaskRepository {
@@ -280,11 +439,16 @@ function createHarness(): {
 
 function createDatabaseClient(): FakeDatabaseClient {
   return {
+    aiJob: createModelMock(),
     idempotencyRecord: createModelMock(),
     nurseShift: createModelMock(),
     patientAssignment: createModelMock(),
     task: createModelMock(),
+    taskApplyReceipt: createModelMock(),
     taskCreateReceipt: createModelMock(),
+    taskEvidence: createModelMock(),
+    taskExtractionCandidate: createModelMock(),
+    taskExtractionJob: createModelMock(),
     taskPriorityAudit: createModelMock(),
   };
 }
@@ -295,6 +459,8 @@ function createModelMock(): ModelMock {
     findUnique: jest.fn().mockResolvedValue(null),
     findMany: jest.fn().mockResolvedValue([]),
     create: jest.fn(),
+    createMany: jest.fn(),
+    update: jest.fn(),
     updateMany: jest.fn(),
   };
 }

@@ -446,6 +446,7 @@ function createRepositoryMock(): jest.Mocked<TaskRepository> {
     findExtractionWorkItem: jest.fn(),
     completeExtraction: jest.fn().mockResolvedValue(undefined),
     findExtractionJob: jest.fn(),
+    applyCandidates: jest.fn(),
   };
 }
 

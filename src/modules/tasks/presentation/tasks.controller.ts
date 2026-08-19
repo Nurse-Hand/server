@@ -36,22 +36,26 @@ import { DemoSessionContextParam } from '../../demo/presentation/demo-session-co
 import { TaskService } from '../application/task.service';
 import { TaskIdempotencyKeyPipe } from './task-idempotency-key.pipe';
 import {
+  ApplyTaskCandidatesRequestDto,
   CreateTaskRequestDto,
   ListTasksQueryDto,
   ReserveTaskExtractionRequestDto,
   UpdateTaskRequestDto,
 } from './task-request.dto';
 import {
+  ApplyTaskCandidatesResponseDto,
   TaskExtractionJobResponseDto,
   TaskExtractionReservationResponseDto,
   TaskListResponseDto,
   TaskResponseDto,
+  type ApplyTaskCandidatesDataDto,
   type TaskDataDto,
   type TaskExtractionJobDataDto,
   type TaskExtractionReservationDataDto,
   type TaskListDataDto,
 } from './task-response.dto';
 import {
+  toApplyTaskCandidatesDataDto,
   toTaskDataDto,
   toTaskExtractionJobDataDto,
   toTaskExtractionReservationDataDto,
@@ -175,5 +179,31 @@ export class TasksController {
     @Body() body: UpdateTaskRequestDto,
   ): Promise<TaskDataDto> {
     return toTaskDataDto(await this.taskService.update(context, taskId, body));
+  }
+
+  @Post('task-extraction-jobs/:jobId/apply')
+  @ApiOperation({ summary: '선택한 업무 후보를 원자적으로 반영' })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiCreatedResponse({ type: ApplyTaskCandidatesResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiConflictResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async applyCandidates(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Param('jobId', UUID_V4_PIPE) jobId: string,
+    @Headers('x-idempotency-key') idempotencyKeyHeader: unknown,
+    @Body() body: ApplyTaskCandidatesRequestDto,
+  ): Promise<ApplyTaskCandidatesDataDto> {
+    const idempotencyKey = IDEMPOTENCY_KEY_PIPE.transform(idempotencyKeyHeader);
+    return toApplyTaskCandidatesDataDto(
+      await this.taskService.applyCandidates(
+        context,
+        jobId,
+        idempotencyKey,
+        body,
+      ),
+    );
   }
 }

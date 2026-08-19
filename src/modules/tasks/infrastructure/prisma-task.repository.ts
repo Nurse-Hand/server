@@ -11,6 +11,13 @@ import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import { AiJobClaimLostError } from '../../ai-jobs/domain/ai-job.errors';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type {
+  TaskQueryContext,
+  TaskQueryPort,
+  TaskReadModel,
+} from '../application/ports/task-query.port';
+import type {
+  ApplyTaskCandidatesInput,
+  ApplyTaskCandidatesResult,
   CompleteTaskExtractionInput,
   CreateTaskInput,
   CreateTaskResult,
@@ -25,11 +32,13 @@ import type {
   UpdateTaskInput,
 } from '../application/ports/task.repository';
 import {
+  TaskCandidateAlreadyAppliedError,
   TaskCompletedImmutableError,
   TaskCurrentDutyUnresolvedError,
   TaskCursorInvalidError,
   TaskNotFoundError,
   TaskPersistenceInvariantError,
+  TaskExtractionNotSucceededError,
 } from '../domain/task.errors';
 import {
   calculateTaskRulePriority,
@@ -38,12 +47,14 @@ import {
 } from '../domain/task-priority.policy';
 import { decodeTaskCursor, encodeTaskCursor } from '../domain/task-cursor';
 import {
+  TASK_APPLY_OPERATION,
   TASK_CREATE_OPERATION,
   TASK_EXTRACTION_OPERATION,
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
 } from '../domain/task.types';
+import { deriveSeoulWorkDate } from '../domain/task-work-date';
 
 const TASK_SELECT = {
   id: true,
@@ -76,7 +87,7 @@ type IdempotencyRow = {
 };
 
 @Injectable()
-export class PrismaTaskRepository implements TaskRepository {
+export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
@@ -788,10 +799,336 @@ export class PrismaTaskRepository implements TaskRepository {
           readStoredEvidenceReference(evidence),
         ),
         duplicateTaskId: candidate.duplicateTaskId,
+        appliedTaskId: candidate.appliedTaskId,
       })),
       createdAt: aiJob.createdAt,
       updatedAt: aiJob.updatedAt,
     };
+  }
+
+  async applyCandidates(
+    input: ApplyTaskCandidatesInput,
+  ): Promise<ApplyTaskCandidatesResult> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await this.findIdempotencyRecord(
+          transaction,
+          input.context,
+          TASK_APPLY_OPERATION,
+          input.idempotencyKey,
+        );
+        if (existing)
+          return this.resolveApplyReplay(transaction, input, existing);
+
+        const featureJob = await transaction.taskExtractionJob.findFirst({
+          where: {
+            id: input.jobId,
+            datasetId: input.context.datasetId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            operation: TASK_EXTRACTION_OPERATION,
+          },
+        });
+        const aiJob = await transaction.aiJob.findFirst({
+          where: {
+            id: input.jobId,
+            datasetId: input.context.datasetId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            operation: TASK_EXTRACTION_OPERATION,
+          },
+          select: { status: true },
+        });
+        if (!featureJob || !aiJob) throw new TaskNotFoundError();
+        if (aiJob.status !== 'SUCCEEDED') {
+          throw new TaskExtractionNotSucceededError();
+        }
+
+        const candidates = await transaction.taskExtractionCandidate.findMany({
+          where: {
+            datasetId: input.context.datasetId,
+            jobId: input.jobId,
+            id: { in: input.items.map(({ candidateId }) => candidateId) },
+          },
+          include: {
+            evidence: {
+              include: {
+                evidence: {
+                  select: {
+                    sourceType: true,
+                    timelineEventId: true,
+                    sourceTaskId: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (candidates.length !== input.items.length)
+          throw new TaskNotFoundError();
+        if (candidates.some(({ appliedAt }) => appliedAt !== null)) {
+          throw new TaskCandidateAlreadyAppliedError();
+        }
+
+        await this.assertPatientsAccessible(
+          transaction,
+          input.context,
+          input.now,
+          candidates.flatMap(({ patientId }) =>
+            patientId === null ? [] : [patientId],
+          ),
+        );
+        const candidatesById = new Map(
+          candidates.map((candidate) => [candidate.id, candidate]),
+        );
+        const record = await transaction.idempotencyRecord.create({
+          data: {
+            ...input.context,
+            operation: TASK_APPLY_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+          },
+          select: { id: true },
+        });
+        const receipt = await transaction.taskApplyReceipt.create({
+          data: {
+            ...input.context,
+            operation: TASK_APPLY_OPERATION,
+            jobId: input.jobId,
+            idempotencyRecordId: record.id,
+            createdTaskIds: [],
+            skippedCandidateIds: [],
+          },
+          select: { id: true },
+        });
+        const createable = candidates.filter(
+          ({ duplicateTaskId }) => duplicateTaskId === null,
+        );
+        const currentDutyEndsAt =
+          createable.length === 0
+            ? null
+            : await this.resolveCurrentDutyEndsAt(
+                transaction,
+                input.context,
+                input.now,
+              );
+        const createdTaskIds: string[] = [];
+        const skippedCandidateIds: string[] = [];
+
+        for (const item of input.items) {
+          const candidate = candidatesById.get(item.candidateId);
+          if (!candidate) throw new TaskNotFoundError();
+
+          if (candidate.duplicateTaskId !== null) {
+            const marked = await transaction.taskExtractionCandidate.updateMany(
+              {
+                where: {
+                  id: candidate.id,
+                  datasetId: input.context.datasetId,
+                  appliedAt: null,
+                },
+                data: {
+                  applyReceiptId: receipt.id,
+                  appliedByActorId: input.context.actorId,
+                  appliedAt: input.now,
+                },
+              },
+            );
+            if (marked.count !== 1)
+              throw new TaskCandidateAlreadyAppliedError();
+            skippedCandidateIds.push(candidate.id);
+            continue;
+          }
+
+          if (!currentDutyEndsAt) throw new TaskPersistenceInvariantError();
+          const dueAt = item.dueAt === undefined ? candidate.dueAt : item.dueAt;
+          const confirmedPriority = item.priorityOverride ?? null;
+          const rulePriority = calculateTaskRulePriority({
+            dueAt,
+            now: input.now,
+            currentDutyEndsAt,
+          });
+          const task = await transaction.task.create({
+            data: {
+              ...input.context,
+              patientId: candidate.patientId,
+              title: item.title ?? candidate.title,
+              description: candidate.description,
+              dueAt,
+              workDate:
+                dueAt === null
+                  ? candidate.workDate
+                  : deriveSeoulWorkDate(dueAt),
+              source: 'AI_EXTRACTED',
+              aiSuggestedPriority: candidate.aiSuggestedPriority,
+              aiReasons: candidate.aiReasons,
+              aiConfidence: candidate.aiConfidence,
+              rulePriority,
+              confirmedPriority,
+            },
+            select: { id: true },
+          });
+          await transaction.taskEvidence.createMany({
+            data: candidate.evidence.map(({ evidence }) => ({
+              datasetId: input.context.datasetId,
+              taskId: task.id,
+              ...toStoredEvidenceColumns(readStoredEvidenceReference(evidence)),
+            })),
+          });
+          if (confirmedPriority !== null) {
+            await transaction.taskPriorityAudit.create({
+              data: {
+                datasetId: input.context.datasetId,
+                taskId: task.id,
+                actorId: input.context.actorId,
+                action:
+                  confirmedPriority === candidate.aiSuggestedPriority
+                    ? 'ACCEPT_AI'
+                    : 'MANUAL_SET',
+                newConfirmedPriority: confirmedPriority,
+                aiSuggestedPriority: candidate.aiSuggestedPriority,
+              },
+            });
+          }
+          const marked = await transaction.taskExtractionCandidate.updateMany({
+            where: {
+              id: candidate.id,
+              datasetId: input.context.datasetId,
+              appliedAt: null,
+            },
+            data: {
+              appliedTaskId: task.id,
+              applyReceiptId: receipt.id,
+              appliedByActorId: input.context.actorId,
+              appliedAt: input.now,
+            },
+          });
+          if (marked.count !== 1) throw new TaskCandidateAlreadyAppliedError();
+          createdTaskIds.push(task.id);
+        }
+
+        await transaction.taskApplyReceipt.update({
+          where: { id: receipt.id },
+          data: { createdTaskIds, skippedCandidateIds },
+        });
+        const completed = await transaction.idempotencyRecord.updateMany({
+          where: {
+            id: record.id,
+            datasetId: input.context.datasetId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'COMPLETED',
+            resultReference: receipt.id,
+            updatedAt: input.now,
+          },
+        });
+        if (completed.count !== 1) throw new TaskPersistenceInvariantError();
+        return { createdTaskIds, skippedCandidateIds, isReplay: false };
+      });
+    } catch (error: unknown) {
+      if (!hasPrismaErrorCode(error, 'P2002')) throw error;
+      const existing = await this.findIdempotencyRecord(
+        this.prisma,
+        input.context,
+        TASK_APPLY_OPERATION,
+        input.idempotencyKey,
+      );
+      if (!existing) throw error;
+      return this.resolveApplyReplay(this.prisma, input, existing);
+    }
+  }
+
+  async findIncompleteByPatients(
+    context: TaskQueryContext,
+    patientIds: readonly string[],
+  ): Promise<readonly TaskReadModel[]> {
+    const uniquePatientIds = [...new Set(patientIds)];
+    if (uniquePatientIds.length === 0) return [];
+
+    const now = this.clock.now();
+    const accessiblePatientIds = await this.findAccessiblePatientIds(
+      this.prisma,
+      context,
+      now,
+      uniquePatientIds,
+    );
+    if (accessiblePatientIds.length === 0) return [];
+
+    const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
+      this.prisma,
+      context,
+      now,
+    );
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        datasetId: context.datasetId,
+        wardId: context.wardId,
+        actorId: context.actorId,
+        patientId: { in: accessiblePatientIds },
+        status: { in: ['TODO', 'IN_PROGRESS'] },
+      },
+      include: {
+        evidence: {
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          select: {
+            sourceType: true,
+            timelineEventId: true,
+            sourceTaskId: true,
+          },
+        },
+      },
+    });
+
+    return tasks
+      .map((task) => {
+        const rulePriority = calculateTaskRulePriority({
+          dueAt: task.dueAt,
+          now,
+          currentDutyEndsAt,
+        });
+        const effectivePriority = getEffectiveTaskPriority(
+          rulePriority,
+          task.confirmedPriority,
+        );
+        return {
+          id: task.id,
+          patientId: task.patientId,
+          title: task.title,
+          dueAt: task.dueAt,
+          effectivePriority,
+          version: task.version,
+          sourceReferences: task.evidence.map((evidence) => {
+            const { sourceType, sourceId } =
+              readStoredEvidenceReference(evidence);
+            return `${sourceType}:${sourceId}`;
+          }),
+          updatedAt: task.updatedAt,
+          createdAt: task.createdAt,
+        };
+      })
+      .sort((left, right) => compareTaskOrdering(left, right))
+      .map(
+        ({
+          id,
+          patientId,
+          title,
+          dueAt,
+          effectivePriority,
+          version,
+          sourceReferences,
+          updatedAt,
+        }) => ({
+          id,
+          patientId,
+          title,
+          dueAt,
+          effectivePriority,
+          version,
+          sourceReferences,
+          updatedAt,
+        }),
+      );
   }
 
   private async resolveCreateReplay(
@@ -870,6 +1207,41 @@ export class PrismaTaskRepository implements TaskRepository {
     }
 
     return { jobId: receipt.jobId, status: job.status, isReplay: true };
+  }
+
+  private async resolveApplyReplay(
+    client: DatabaseClient,
+    input: ApplyTaskCandidatesInput,
+    record: IdempotencyRow,
+  ): Promise<ApplyTaskCandidatesResult> {
+    assertIdempotencyMatch(input.context.wardId, input.requestHash, record);
+    if (record.status === 'PROCESSING') {
+      throw new IdempotencyRequestInProgressError();
+    }
+
+    const receipt = await client.taskApplyReceipt.findFirst({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        operation: TASK_APPLY_OPERATION,
+        idempotencyRecordId: record.id,
+        jobId: input.jobId,
+      },
+      select: {
+        id: true,
+        createdTaskIds: true,
+        skippedCandidateIds: true,
+      },
+    });
+    if (!receipt || record.resultReference !== receipt.id) {
+      throw new IdempotencyInvariantViolationError();
+    }
+    return {
+      createdTaskIds: receipt.createdTaskIds,
+      skippedCandidateIds: receipt.skippedCandidateIds,
+      isReplay: true,
+    };
   }
 
   private findIdempotencyRecord(

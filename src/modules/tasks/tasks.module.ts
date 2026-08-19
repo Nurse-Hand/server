@@ -3,6 +3,7 @@ import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { TASK_EXTRACTION_AI_GATEWAY } from './application/ports/task-extraction-ai.gateway';
 import { TASK_EXTRACTION_EVIDENCE_PORT } from './application/ports/task-extraction-evidence.port';
 import { TASK_PRIORITY_AI_GATEWAY } from './application/ports/task-priority-ai.gateway';
+import { TASK_QUERY_PORT } from './application/ports/task-query.port';
 import { TASK_REPOSITORY } from './application/ports/task.repository';
 import { TaskExtractionWorker } from './application/task-extraction.worker';
 import { TaskService } from './application/task.service';
@@ -23,6 +24,7 @@ import { TasksController } from './presentation/tasks.controller';
     DeterministicTaskExtractionAiAdapter,
     DeterministicTaskPriorityAiAdapter,
     { provide: TASK_REPOSITORY, useExisting: PrismaTaskRepository },
+    { provide: TASK_QUERY_PORT, useExisting: PrismaTaskRepository },
     {
       provide: TASK_EXTRACTION_EVIDENCE_PORT,
       useExisting: DeterministicTaskExtractionEvidenceAdapter,
@@ -36,6 +38,6 @@ import { TasksController } from './presentation/tasks.controller';
       useExisting: DeterministicTaskPriorityAiAdapter,
     },
   ],
-  exports: [TaskExtractionWorker],
+  exports: [TASK_QUERY_PORT, TaskExtractionWorker],
 })
 export class TasksModule {}

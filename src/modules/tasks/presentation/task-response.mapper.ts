@@ -1,4 +1,5 @@
 import type {
+  ApplyTaskCandidatesResult,
   ListTasksResult,
   ReserveTaskExtractionResult,
   TaskExtractionCandidateView,
@@ -6,6 +7,7 @@ import type {
   TaskView,
 } from '../application/ports/task.repository';
 import type {
+  ApplyTaskCandidatesDataDto,
   TaskAiSuggestionDto,
   TaskDataDto,
   TaskExtractionCandidateDto,
@@ -86,6 +88,15 @@ function toTaskExtractionFailureDto(
   };
 }
 
+export function toApplyTaskCandidatesDataDto(
+  result: ApplyTaskCandidatesResult,
+): ApplyTaskCandidatesDataDto {
+  return {
+    createdTaskIds: [...result.createdTaskIds],
+    skippedCandidateIds: [...result.skippedCandidateIds],
+  };
+}
+
 function toTaskAiSuggestionDto(task: TaskView): TaskAiSuggestionDto | null {
   if (task.aiSuggestedPriority === null || task.aiConfidence === null) {
     return null;
@@ -118,6 +129,7 @@ function toTaskExtractionCandidateDto(
       sourceId,
     })),
     duplicateTaskId: candidate.duplicateTaskId,
+    appliedTaskId: candidate.appliedTaskId,
   };
 }
 

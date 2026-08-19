@@ -152,6 +152,29 @@ export type TaskExtractionCandidateView = {
     sourceId: string;
   }[];
   duplicateTaskId: string | null;
+  appliedTaskId: string | null;
+};
+
+export type ApplyTaskCandidateItem = {
+  candidateId: string;
+  title?: string;
+  dueAt?: Date | null;
+  priorityOverride?: TaskPriority | null;
+};
+
+export type ApplyTaskCandidatesInput = {
+  context: DemoSessionContext;
+  jobId: string;
+  idempotencyKey: string;
+  requestHash: string;
+  items: readonly ApplyTaskCandidateItem[];
+  now: Date;
+};
+
+export type ApplyTaskCandidatesResult = {
+  createdTaskIds: readonly string[];
+  skippedCandidateIds: readonly string[];
+  isReplay: boolean;
 };
 
 export type TaskExtractionJobView = {
@@ -185,4 +208,7 @@ export interface TaskRepository {
     context: DemoSessionContext,
     jobId: string,
   ): Promise<TaskExtractionJobView>;
+  applyCandidates(
+    input: ApplyTaskCandidatesInput,
+  ): Promise<ApplyTaskCandidatesResult>;
 }
