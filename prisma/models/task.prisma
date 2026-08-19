@@ -105,10 +105,8 @@ model TaskEvidence {
   timelineEvent     TimelineEvent?          @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
   roundingSegment   RoundingPatientSegment? @relation(fields: [datasetId, roundingSegmentId], references: [datasetId, id], onDelete: Restrict)
 
+  /// sourceType shape and source-specific uniqueness are enforced by named CHECK and partial unique indexes in migration SQL.
   @@unique(name: "task_evidence_dataset_id", [datasetId, id])
-  @@unique(name: "task_evidence_timeline_source", [datasetId, taskId, timelineEventId])
-  @@unique(name: "task_evidence_task_source", [datasetId, taskId, sourceTaskId])
-  @@unique(name: "task_evidence_rounding_source", [datasetId, taskId, roundingSegmentId])
   @@index([datasetId, timelineEventId])
   @@index([datasetId, sourceTaskId])
   @@index([datasetId, roundingSegmentId])
@@ -190,9 +188,8 @@ model TaskExtractionEvidence {
   roundingSegment  RoundingPatientSegment            @relation(fields: [datasetId, roundingRecordId], references: [datasetId, id], onDelete: Restrict)
   candidates       TaskExtractionCandidateEvidence[] @relation("CandidateEvidenceEvidence")
 
+  /// sourceType shape and source-specific uniqueness are enforced by named CHECK and partial unique indexes in migration SQL.
   @@unique(name: "task_extraction_evidence_dataset_id_job", [datasetId, id, jobId])
-  @@unique(name: "task_extraction_evidence_timeline_source", [datasetId, jobId, roundingRecordId, timelineEventId])
-  @@unique(name: "task_extraction_evidence_task_source", [datasetId, jobId, roundingRecordId, sourceTaskId])
   @@index([datasetId, jobId, createdAt, id])
   @@index([datasetId, jobId, roundingRecordId])
   @@index([datasetId, timelineEventId])

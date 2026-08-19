@@ -253,6 +253,239 @@ describe('Task and Handoff PostgreSQL integration', () => {
     ).toBe(0);
   });
 
+  it('polymorphic Task evidence는 source shape와 source별 중복을 DB에서 거부한다', async () => {
+    const patient = await prisma.patient.findFirstOrThrow({
+      where: {
+        datasetId: context.datasetId,
+        wardId: context.wardId,
+        patientAssignments: {
+          some: {
+            nurseId: context.actorId,
+            startsAt: { lte: new Date() },
+            OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }],
+          },
+        },
+      },
+    });
+    const roundingSession = await prisma.roundingSession.create({
+      data: {
+        datasetId: context.datasetId,
+        actorId: context.actorId,
+        wardId: context.wardId,
+        status: 'COMPLETED',
+        startedAt: new Date(Date.now() - 60_000),
+        completedAt: new Date(),
+      },
+    });
+    const [firstSegment, secondSegment] = await Promise.all([
+      prisma.roundingPatientSegment.create({
+        data: {
+          datasetId: context.datasetId,
+          roundingSessionId: roundingSession.id,
+          patientId: patient.id,
+          wardId: context.wardId,
+          sequence: 1,
+          startedAt: new Date(Date.now() - 60_000),
+          endedAt: new Date(Date.now() - 30_000),
+        },
+      }),
+      prisma.roundingPatientSegment.create({
+        data: {
+          datasetId: context.datasetId,
+          roundingSessionId: roundingSession.id,
+          patientId: patient.id,
+          wardId: context.wardId,
+          sequence: 2,
+          startedAt: new Date(Date.now() - 30_000),
+          endedAt: new Date(),
+        },
+      }),
+    ]);
+    const timelineEvent = await prisma.timelineEvent.create({
+      data: {
+        datasetId: context.datasetId,
+        logicalKey: `evidence-shape-${randomUUID()}`,
+        patientId: patient.id,
+        wardId: context.wardId,
+        occurredAt: new Date(),
+        type: 'TASK',
+        source: 'MANUAL',
+        sourceReference: `integration:${randomUUID()}`,
+        summary: 'Synthetic evidence shape fixture',
+      },
+    });
+    const taskService = app.get(TaskService);
+    const dueAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const [{ task }, { task: sourceTask }] = await Promise.all([
+      taskService.create(context, `shape-task-${randomUUID()}`, randomUUID(), {
+        patientId: patient.id,
+        title: 'Synthetic evidence target',
+        dueAt,
+      }),
+      taskService.create(
+        context,
+        `shape-source-task-${randomUUID()}`,
+        randomUUID(),
+        {
+          patientId: patient.id,
+          title: 'Synthetic evidence source',
+          dueAt,
+        },
+      ),
+    ]);
+    const reservation = await taskService.reserveExtraction(
+      context,
+      `shape-extraction-${randomUUID()}`,
+      randomUUID(),
+      {
+        roundingSessionId: roundingSession.id,
+        recordIds: [firstSegment.id],
+      },
+    );
+
+    await expect(
+      prisma.taskEvidence.create({
+        data: {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'TIMELINE_EVENT',
+        },
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.taskEvidence.create({
+        data: {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'ROUNDING_SEGMENT',
+          timelineEventId: timelineEvent.id,
+          roundingSegmentId: secondSegment.id,
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    await prisma.taskEvidence.create({
+      data: {
+        datasetId: context.datasetId,
+        taskId: task.id,
+        sourceType: 'ROUNDING_SEGMENT',
+        roundingSegmentId: firstSegment.id,
+      },
+    });
+    await prisma.taskEvidence.createMany({
+      data: [
+        {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'TIMELINE_EVENT',
+          timelineEventId: timelineEvent.id,
+        },
+        {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'TASK',
+          sourceTaskId: sourceTask.id,
+        },
+      ],
+    });
+    await expect(
+      prisma.taskEvidence.create({
+        data: {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'ROUNDING_SEGMENT',
+          roundingSegmentId: firstSegment.id,
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    const extractionBase = {
+      datasetId: context.datasetId,
+      jobId: reservation.jobId,
+      roundingRecordId: secondSegment.id,
+      patientId: patient.id,
+      workDate: new Date('2026-08-19T00:00:00.000Z'),
+      summary: 'Synthetic invalid extraction evidence',
+    };
+    await expect(
+      prisma.taskExtractionEvidence.create({
+        data: { ...extractionBase, sourceType: 'TIMELINE_EVENT' },
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.taskExtractionEvidence.create({
+        data: {
+          ...extractionBase,
+          sourceType: 'ROUNDING_SEGMENT',
+          timelineEventId: timelineEvent.id,
+        },
+      }),
+    ).rejects.toBeDefined();
+    await prisma.taskExtractionEvidence.createMany({
+      data: [
+        {
+          ...extractionBase,
+          sourceType: 'TIMELINE_EVENT',
+          timelineEventId: timelineEvent.id,
+        },
+        {
+          ...extractionBase,
+          sourceType: 'TASK',
+          sourceTaskId: sourceTask.id,
+        },
+      ],
+    });
+    await expect(
+      prisma.taskExtractionEvidence.create({
+        data: {
+          ...extractionBase,
+          sourceType: 'TASK',
+          timelineEventId: timelineEvent.id,
+        },
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.taskExtractionEvidence.create({
+        data: {
+          ...extractionBase,
+          roundingRecordId: firstSegment.id,
+          sourceType: 'ROUNDING_SEGMENT',
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    expect(
+      await prisma.taskEvidence.count({
+        where: {
+          datasetId: context.datasetId,
+          taskId: task.id,
+          sourceType: 'ROUNDING_SEGMENT',
+          roundingSegmentId: firstSegment.id,
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.taskExtractionEvidence.count({
+        where: {
+          datasetId: context.datasetId,
+          jobId: reservation.jobId,
+          roundingRecordId: firstSegment.id,
+          sourceType: 'ROUNDING_SEGMENT',
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.taskEvidence.count({
+        where: { datasetId: context.datasetId, taskId: task.id },
+      }),
+    ).toBe(3);
+    expect(
+      await prisma.taskExtractionEvidence.count({
+        where: { datasetId: context.datasetId, jobId: reservation.jobId },
+      }),
+    ).toBe(3);
+  });
+
   it('dispatcher queue index와 Task/Handoff composite FK를 catalog에서 고정한다', async () => {
     const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
       SELECT indexname::text AS indexname
@@ -280,6 +513,60 @@ describe('Task and Handoff PostgreSQL integration', () => {
     expect(constraints.length).toBeGreaterThan(20);
     expect(
       constraints.every(({ columns }) => columns.includes('datasetId')),
+    ).toBe(true);
+
+    const evidenceChecks = await prisma.$queryRaw<
+      Array<{ constraint_name: string; definition: string }>
+    >`
+      SELECT
+        conname::text AS constraint_name,
+        pg_get_constraintdef(oid)::text AS definition
+      FROM pg_constraint
+      WHERE connamespace = current_schema()::regnamespace
+        AND conname IN (
+          'TaskEvidence_source_shape_check',
+          'TaskExtractionEvidence_source_shape_check'
+        )
+      ORDER BY conname
+    `;
+    expect(
+      evidenceChecks.map(({ constraint_name }) => constraint_name),
+    ).toEqual([
+      'TaskEvidence_source_shape_check',
+      'TaskExtractionEvidence_source_shape_check',
+    ]);
+    expect(
+      evidenceChecks.every(({ definition }) =>
+        definition.includes('ROUNDING_SEGMENT'),
+      ),
+    ).toBe(true);
+
+    const evidenceUniqueIndexes = await prisma.$queryRaw<
+      Array<{ index_name: string; definition: string }>
+    >`
+      SELECT indexname::text AS index_name, indexdef::text AS definition
+      FROM pg_indexes
+      WHERE schemaname = current_schema()
+        AND indexname IN (
+          'TaskEvidence_timeline_source_key',
+          'TaskEvidence_task_source_key',
+          'TaskEvidence_rounding_segment_source_key',
+          'TaskExtractionEvidence_timeline_source_key',
+          'TaskExtractionEvidence_task_source_key',
+          'TaskExtractionEvidence_rounding_segment_source_key'
+        )
+      ORDER BY indexname
+    `;
+    expect(evidenceUniqueIndexes).toHaveLength(6);
+    expect(
+      evidenceUniqueIndexes.every(({ definition }) =>
+        definition.includes('UNIQUE INDEX'),
+      ),
+    ).toBe(true);
+    expect(
+      evidenceUniqueIndexes.every(({ definition }) =>
+        definition.includes('WHERE'),
+      ),
     ).toBe(true);
   });
 });

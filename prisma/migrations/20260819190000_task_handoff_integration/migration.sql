@@ -552,6 +552,19 @@ CREATE TABLE "TaskExtractionEvidence" (
     CONSTRAINT "TaskExtractionEvidence_pkey" PRIMARY KEY ("id")
 );
 
+-- Polymorphic evidence rows must identify exactly one source column.
+ALTER TABLE "TaskEvidence" ADD CONSTRAINT "TaskEvidence_source_shape_check" CHECK (
+  ("sourceType" = 'TIMELINE_EVENT' AND "timelineEventId" IS NOT NULL AND "sourceTaskId" IS NULL AND "roundingSegmentId" IS NULL) OR
+  ("sourceType" = 'TASK' AND "timelineEventId" IS NULL AND "sourceTaskId" IS NOT NULL AND "roundingSegmentId" IS NULL) OR
+  ("sourceType" = 'ROUNDING_SEGMENT' AND "timelineEventId" IS NULL AND "sourceTaskId" IS NULL AND "roundingSegmentId" IS NOT NULL)
+);
+
+ALTER TABLE "TaskExtractionEvidence" ADD CONSTRAINT "TaskExtractionEvidence_source_shape_check" CHECK (
+  ("sourceType" = 'TIMELINE_EVENT' AND "timelineEventId" IS NOT NULL AND "sourceTaskId" IS NULL) OR
+  ("sourceType" = 'TASK' AND "timelineEventId" IS NULL AND "sourceTaskId" IS NOT NULL) OR
+  ("sourceType" = 'ROUNDING_SEGMENT' AND "timelineEventId" IS NULL AND "sourceTaskId" IS NULL)
+);
+
 -- CreateTable
 CREATE TABLE "TaskExtractionCandidate" (
     "id" UUID NOT NULL,
@@ -913,13 +926,13 @@ CREATE INDEX "TaskEvidence_datasetId_roundingSegmentId_idx" ON "TaskEvidence"("d
 CREATE UNIQUE INDEX "TaskEvidence_datasetId_id_key" ON "TaskEvidence"("datasetId", "id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_timelineEventId_key" ON "TaskEvidence"("datasetId", "taskId", "timelineEventId");
+CREATE UNIQUE INDEX "TaskEvidence_timeline_source_key" ON "TaskEvidence"("datasetId", "taskId", "timelineEventId") WHERE "sourceType" = 'TIMELINE_EVENT';
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_sourceTaskId_key" ON "TaskEvidence"("datasetId", "taskId", "sourceTaskId");
+CREATE UNIQUE INDEX "TaskEvidence_task_source_key" ON "TaskEvidence"("datasetId", "taskId", "sourceTaskId") WHERE "sourceType" = 'TASK';
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskEvidence_datasetId_taskId_roundingSegmentId_key" ON "TaskEvidence"("datasetId", "taskId", "roundingSegmentId");
+CREATE UNIQUE INDEX "TaskEvidence_rounding_segment_source_key" ON "TaskEvidence"("datasetId", "taskId", "roundingSegmentId") WHERE "sourceType" = 'ROUNDING_SEGMENT';
 
 -- CreateIndex
 CREATE INDEX "TaskPriorityAudit_datasetId_taskId_createdAt_id_idx" ON "TaskPriorityAudit"("datasetId", "taskId", "createdAt", "id");
@@ -973,10 +986,13 @@ CREATE INDEX "TaskExtractionEvidence_datasetId_sourceTaskId_idx" ON "TaskExtract
 CREATE UNIQUE INDEX "TaskExtractionEvidence_datasetId_id_jobId_key" ON "TaskExtractionEvidence"("datasetId", "id", "jobId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskExtractionEvidence_datasetId_jobId_roundingRecordId_tim_key" ON "TaskExtractionEvidence"("datasetId", "jobId", "roundingRecordId", "timelineEventId");
+CREATE UNIQUE INDEX "TaskExtractionEvidence_timeline_source_key" ON "TaskExtractionEvidence"("datasetId", "jobId", "roundingRecordId", "timelineEventId") WHERE "sourceType" = 'TIMELINE_EVENT';
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaskExtractionEvidence_datasetId_jobId_roundingRecordId_sou_key" ON "TaskExtractionEvidence"("datasetId", "jobId", "roundingRecordId", "sourceTaskId");
+CREATE UNIQUE INDEX "TaskExtractionEvidence_task_source_key" ON "TaskExtractionEvidence"("datasetId", "jobId", "roundingRecordId", "sourceTaskId") WHERE "sourceType" = 'TASK';
+
+-- CreateIndex (migration-only partial uniqueness; PostgreSQL NULL-distinct semantics would otherwise allow duplicate segment evidence)
+CREATE UNIQUE INDEX "TaskExtractionEvidence_rounding_segment_source_key" ON "TaskExtractionEvidence"("datasetId", "jobId", "roundingRecordId") WHERE "sourceType" = 'ROUNDING_SEGMENT';
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TaskExtractionCandidate_appliedTaskId_key" ON "TaskExtractionCandidate"("appliedTaskId");
