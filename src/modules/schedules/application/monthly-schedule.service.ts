@@ -108,7 +108,7 @@ export class MonthlyScheduleService {
           });
           if (!source) throw new ScheduleOcrJobNotFoundError();
           if (
-            source.resultExpiresAt !== null &&
+            source.resultExpiresAt === null ||
             source.resultExpiresAt <= this.clock.now()
           ) {
             throw new ScheduleOcrResultExpiredError();
@@ -166,6 +166,7 @@ export class MonthlyScheduleService {
         }
         await transaction.monthlyScheduleEntry.createMany({
           data: entries.map((entry) => ({
+            datasetId: input.context.datasetId,
             scheduleId,
             dutyDate: new Date(`${entry.date}T00:00:00.000Z`),
             duty: entry.duty,
@@ -199,8 +200,25 @@ export class MonthlyScheduleService {
     } catch (error: unknown) {
       if (!hasPrismaErrorCode(error, 'P2002')) throw error;
       const concurrentReplay = await this.findReplay(input, requestHash);
-      if (!concurrentReplay) throw error;
-      return concurrentReplay;
+      if (concurrentReplay) return concurrentReplay;
+      const concurrentSchedule = await this.prisma.monthlySchedule.findUnique({
+        where: {
+          monthly_schedule_scope_month: {
+            datasetId: input.context.datasetId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            yearMonth: input.yearMonth,
+          },
+        },
+        select: { version: true },
+      });
+      if (concurrentSchedule) {
+        throw new VersionConflictError(
+          input.expectedVersion,
+          concurrentSchedule.version,
+        );
+      }
+      throw error;
     }
   }
 

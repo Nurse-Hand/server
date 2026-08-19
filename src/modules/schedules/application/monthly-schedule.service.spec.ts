@@ -22,6 +22,7 @@ function createHarness(
     currentVersion?: number;
     source?: { resultExpiresAt: Date | null } | null;
     uniqueRace?: boolean;
+    monthlyCreateRace?: boolean;
   } = {},
 ) {
   let idempotencyRecord: {
@@ -44,6 +45,14 @@ function createHarness(
           ),
         ),
       create: jest.fn().mockImplementation(() => {
+        if (options.monthlyCreateRace) {
+          version = 1;
+          idempotencyRecord = null;
+          throw new Prisma.PrismaClientKnownRequestError(
+            'monthly scope unique race',
+            { code: 'P2002', clientVersion: 'test' },
+          );
+        }
         version = 1;
         return Promise.resolve({ id: scheduleId });
       }),
@@ -163,6 +172,13 @@ describe('MonthlyScheduleService', () => {
     ).rejects.toBeInstanceOf(ScheduleOcrResultExpiredError);
   });
 
+  it('만료 시각이 없는 source 후보도 fail-closed로 거부한다', async () => {
+    const harness = createHarness({ source: { resultExpiresAt: null } });
+    await expect(
+      harness.service.put({ ...command, sourceJobId }),
+    ).rejects.toBeInstanceOf(ScheduleOcrResultExpiredError);
+  });
+
   it('version 충돌을 거부한다', async () => {
     const harness = createHarness({ currentVersion: 2 });
     await expect(
@@ -184,6 +200,15 @@ describe('MonthlyScheduleService', () => {
       version: 1,
     });
     expect(harness.tx.monthlySchedule.create).not.toHaveBeenCalled();
+    expect(harness.tx.monthlyScheduleEntry.createMany).not.toHaveBeenCalled();
+  });
+
+  it('다른 멱등성 키의 첫 생성 경합은 승자 version을 담은 충돌로 반환한다', async () => {
+    const harness = createHarness({ monthlyCreateRace: true });
+    await expect(harness.service.put(command)).rejects.toMatchObject({
+      code: 'VERSION_CONFLICT',
+      publicDetails: { expectedVersion: 0, actualVersion: 1 },
+    });
     expect(harness.tx.monthlyScheduleEntry.createMany).not.toHaveBeenCalled();
   });
 });

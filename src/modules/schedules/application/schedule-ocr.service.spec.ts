@@ -106,8 +106,11 @@ describe('ScheduleOcrService reservation', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'FAILED',
+          attempt: 1,
+          claimedAt: new Date('2026-08-19T00:00:00.000Z'),
           failureCode: 'SCHEDULE_OCR_ENGINE_UNAVAILABLE',
           retryable: false,
+          resultReference: null,
         }),
       }),
     );
@@ -170,18 +173,49 @@ describe('ScheduleOcrService cleanup retry', () => {
   function createRetryHarness(
     deleteError?: Error,
     rowOverrides: Record<string, unknown> = {},
+    claimOptions: {
+      status?: 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+      leaseVersion?: number;
+      terminalRace?: boolean;
+    } = {},
   ) {
-    const aiJobUpdate = jest.fn().mockResolvedValue({
-      idempotencyRecordId: '00000000-0000-4000-8000-000000000106',
+    let updateCall = 0;
+    const aiJobUpdate = jest.fn().mockImplementation(() => {
+      updateCall += 1;
+      return Promise.resolve({
+        count: claimOptions.terminalRace && updateCall === 2 ? 0 : 1,
+      });
     });
     const scheduleUpdate = jest.fn().mockResolvedValue({});
+    const scheduleUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+    let findCall = 0;
     const transactionClient = {
-      aiJob: { update: aiJobUpdate },
+      aiJob: {
+        findUnique: jest.fn().mockImplementation(() => {
+          findCall += 1;
+          return Promise.resolve({
+            status:
+              claimOptions.terminalRace && findCall > 1
+                ? 'SUCCEEDED'
+                : (claimOptions.status ?? 'PROCESSING'),
+            leaseVersion: claimOptions.leaseVersion ?? 1,
+          });
+        }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          idempotencyRecordId: '00000000-0000-4000-8000-000000000106',
+        }),
+        updateMany: aiJobUpdate,
+      },
       idempotencyRecord: { update: jest.fn().mockResolvedValue({}) },
-      scheduleOcrJob: { update: scheduleUpdate },
+      scheduleOcrJob: {
+        update: scheduleUpdate,
+        updateMany: scheduleUpdateMany,
+      },
     };
     const prisma = {
       scheduleOcrJob: {
+        update: scheduleUpdate,
+        updateMany: scheduleUpdateMany,
         findMany: jest.fn().mockResolvedValue([
           {
             aiJobId: '00000000-0000-4000-8000-000000000105',
@@ -190,6 +224,7 @@ describe('ScheduleOcrService cleanup retry', () => {
             cleanupPendingFailureCode: null,
             cleanupPendingRetryable: null,
             cleanupPendingResultExpiresAt: new Date('2026-08-20T00:00:00.000Z'),
+            cleanupLeaseVersion: 1,
             aiJob: {
               failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
               retryable: true,
@@ -220,7 +255,13 @@ describe('ScheduleOcrService cleanup retry', () => {
       { recognize: jest.fn() } as unknown as ScheduleOcrGateway,
       storage,
     );
-    return { service, storage, aiJobUpdate, scheduleUpdate };
+    return {
+      service,
+      storage,
+      aiJobUpdate,
+      scheduleUpdate,
+      scheduleUpdateMany,
+    };
   }
 
   it('삭제 재시도 성공 시 원래 SUCCEEDED와 TTL을 복원하고 URI를 비운다', async () => {
@@ -249,18 +290,17 @@ describe('ScheduleOcrService cleanup retry', () => {
   it('삭제 재시도가 실패하면 URI를 지우지 않고 retryable cleanup 상태를 유지한다', async () => {
     const harness = createRetryHarness(new Error('EACCES'));
     await expect(harness.service.retryPendingCleanup()).resolves.toBe(0);
-    expect(harness.aiJobUpdate).toHaveBeenCalledWith(
+    expect(harness.aiJobUpdate).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'FAILED',
-          failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
-          retryable: true,
-        }),
+        data: expect.objectContaining({ status: 'FAILED' }),
       }),
     );
     expect(harness.scheduleUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.not.objectContaining({ storageUri: null }),
+        data: expect.objectContaining({
+          cleanupPendingStatus: 'SUCCEEDED',
+          cleanupFailedAt: new Date('2026-08-19T00:00:00.000Z'),
+        }),
       }),
     );
   });
@@ -298,6 +338,43 @@ describe('ScheduleOcrService cleanup retry', () => {
           failureCode: 'SCHEDULE_OCR_INTERRUPTED',
           retryable: true,
         }),
+      }),
+    );
+  });
+
+  it('terminal replay의 stale URI는 AiJob을 다시 갱신하지 않고 비운다', async () => {
+    const harness = createRetryHarness(
+      undefined,
+      {},
+      { status: 'SUCCEEDED', leaseVersion: 2 },
+    );
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(1);
+    expect(harness.aiJobUpdate).not.toHaveBeenCalled();
+    expect(harness.scheduleUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ storageUri: null }),
+      }),
+    );
+  });
+
+  it('stale lease는 파일 삭제 전에 fencing하고 다음 실행에 남긴다', async () => {
+    const harness = createRetryHarness(
+      undefined,
+      { cleanupLeaseVersion: 1 },
+      { status: 'PROCESSING', leaseVersion: 2 },
+    );
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(0);
+    expect(harness.storage.delete).not.toHaveBeenCalled();
+    expect(harness.scheduleUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('delete 뒤 terminal CAS가 0이면 terminal replay를 구분해 URI만 비운다', async () => {
+    const harness = createRetryHarness(undefined, {}, { terminalRace: true });
+    await expect(harness.service.retryPendingCleanup()).resolves.toBe(1);
+    expect(harness.storage.delete).toHaveBeenCalledTimes(1);
+    expect(harness.scheduleUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ storageUri: null }),
       }),
     );
   });

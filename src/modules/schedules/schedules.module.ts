@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { ScheduleOcrService } from './application/schedule-ocr.service';
 import { MonthlyScheduleService } from './application/monthly-schedule.service';
+import { ScheduleCleanupWorker } from './application/schedule-cleanup.worker';
 import { SCHEDULE_OCR_GATEWAY } from './application/ports/schedule-ocr.gateway';
 import { SCHEDULE_OCR_STORAGE } from './application/ports/schedule-ocr-storage.port';
 import { DeterministicScheduleOcrGateway } from './infrastructure/deterministic-schedule-ocr.gateway';
@@ -15,6 +16,7 @@ import { MonthlyScheduleController } from './presentation/monthly-schedule.contr
   providers: [
     ScheduleOcrService,
     MonthlyScheduleService,
+    ScheduleCleanupWorker,
     DeterministicScheduleOcrGateway,
     LocalScheduleOcrStorageAdapter,
     {

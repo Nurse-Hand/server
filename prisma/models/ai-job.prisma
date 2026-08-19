@@ -24,6 +24,7 @@ model AiJob {
   scheduleOcrJob      ScheduleOcrJob?
 
   @@unique(name: "ai_job_dataset_id", [datasetId, id])
+  @@unique(name: "ai_job_dataset_scope", [datasetId, id, actorId, wardId], map: "AiJob_dataset_scope_key")
   @@unique(name: "ai_job_dataset_scope_operation", [datasetId, id, actorId, wardId, operation])
   @@unique(name: "ai_job_idempotency_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation], map: "AiJob_idempotency_scope_key")
   @@index([datasetId, wardId, status, leaseExpiresAt, createdAt, id])

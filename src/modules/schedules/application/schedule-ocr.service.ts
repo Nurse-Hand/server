@@ -139,15 +139,21 @@ export class ScheduleOcrService {
     }
 
     if (isAllowedFixture && storageUri !== null) {
+      const leaseVersion = await this.startProcessing(reservation.jobId);
       try {
         await this.storage.store(storageUri, input.file.buffer);
       } catch {
-        await this.finalizeAfterCleanup(reservation.jobId, storageUri, {
-          status: 'FAILED',
-          failureCode: 'SCHEDULE_OCR_STORAGE_FAILED',
-          retryable: true,
-          resultExpiresAt: null,
-        });
+        await this.finalizeAfterCleanup(
+          reservation.jobId,
+          storageUri,
+          {
+            status: 'FAILED',
+            failureCode: 'SCHEDULE_OCR_STORAGE_FAILED',
+            retryable: true,
+            resultExpiresAt: null,
+          },
+          leaseVersion,
+        );
         return { jobId: reservation.jobId, status: 'QUEUED', isReplay: false };
       }
       await this.process({
@@ -155,6 +161,7 @@ export class ScheduleOcrService {
         file: input.file,
         jobId: reservation.jobId,
         storageUri,
+        leaseVersion,
       });
     }
     return { jobId: reservation.jobId, status: 'QUEUED', isReplay: false };
@@ -177,6 +184,7 @@ export class ScheduleOcrService {
         templateId: true,
         rowIndex: true,
         resultExpiresAt: true,
+        cleanupFailedAt: true,
         aiJob: { select: { status: true, failureCode: true, retryable: true } },
         cells: {
           orderBy: { dutyDate: 'asc' },
@@ -199,21 +207,28 @@ export class ScheduleOcrService {
     }
     return {
       jobId: row.aiJobId,
-      status: row.aiJob.status,
+      status: row.cleanupFailedAt === null ? row.aiJob.status : 'FAILED',
       yearMonth: row.yearMonth,
       templateId: row.templateId,
       rowIndex: row.rowIndex,
       failure:
-        row.aiJob.failureCode === null
-          ? null
-          : {
-              code: row.aiJob.failureCode,
-              retryable: row.aiJob.retryable ?? false,
+        row.cleanupFailedAt !== null
+          ? {
+              code: 'SCHEDULE_OCR_CLEANUP_FAILED',
+              retryable: true,
               message:
-                row.aiJob.failureCode === 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
-                  ? '이 이미지는 DEMO OCR 대상이 아닙니다. 수동으로 근무표를 등록해 주세요.'
-                  : 'OCR 후보를 만들 수 없습니다. 수동으로 근무표를 등록해 주세요.',
-            },
+                '업로드 파일을 안전하게 정리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+            }
+          : row.aiJob.failureCode === null
+            ? null
+            : {
+                code: row.aiJob.failureCode,
+                retryable: row.aiJob.retryable ?? false,
+                message:
+                  row.aiJob.failureCode === 'SCHEDULE_OCR_ENGINE_UNAVAILABLE'
+                    ? '이 이미지는 DEMO OCR 대상이 아닙니다. 수동으로 근무표를 등록해 주세요.'
+                    : 'OCR 후보를 만들 수 없습니다. 수동으로 근무표를 등록해 주세요.',
+              },
       resultExpiresAt: row.resultExpiresAt,
       candidates: row.cells.map((cell) => ({
         date: cell.dutyDate.toISOString().slice(0, 10),
@@ -247,6 +262,7 @@ export class ScheduleOcrService {
         cleanupPendingFailureCode: true,
         cleanupPendingRetryable: true,
         cleanupPendingResultExpiresAt: true,
+        cleanupLeaseVersion: true,
         aiJob: { select: { failureCode: true, retryable: true } },
         _count: { select: { cells: true } },
       },
@@ -256,30 +272,35 @@ export class ScheduleOcrService {
       if (item.storageUri === null) continue;
       const fallbackSucceeded = item._count.cells > 0;
       try {
-        await this.finalizeAfterCleanup(item.aiJobId, item.storageUri, {
-          status: (item.cleanupPendingStatus ??
-            (fallbackSucceeded ? 'SUCCEEDED' : 'FAILED')) as
-            'SUCCEEDED' | 'FAILED',
-          failureCode:
-            item.cleanupPendingStatus !== null
-              ? item.cleanupPendingFailureCode
-              : fallbackSucceeded
-                ? null
-                : (item.aiJob.failureCode ?? 'SCHEDULE_OCR_INTERRUPTED'),
-          retryable:
-            item.cleanupPendingStatus !== null
-              ? item.cleanupPendingRetryable
-              : fallbackSucceeded
-                ? null
-                : (item.aiJob.retryable ?? true),
-          resultExpiresAt:
-            item.cleanupPendingResultExpiresAt ??
-            (fallbackSucceeded
-              ? new Date(
-                  this.clock.now().getTime() + SCHEDULE_OCR_RESULT_TTL_MS,
-                )
-              : null),
-        });
+        await this.finalizeAfterCleanup(
+          item.aiJobId,
+          item.storageUri,
+          {
+            status: (item.cleanupPendingStatus ??
+              (fallbackSucceeded ? 'SUCCEEDED' : 'FAILED')) as
+              'SUCCEEDED' | 'FAILED',
+            failureCode:
+              item.cleanupPendingStatus !== null
+                ? item.cleanupPendingFailureCode
+                : fallbackSucceeded
+                  ? null
+                  : (item.aiJob.failureCode ?? 'SCHEDULE_OCR_INTERRUPTED'),
+            retryable:
+              item.cleanupPendingStatus !== null
+                ? item.cleanupPendingRetryable
+                : fallbackSucceeded
+                  ? null
+                  : (item.aiJob.retryable ?? true),
+            resultExpiresAt:
+              item.cleanupPendingResultExpiresAt ??
+              (fallbackSucceeded
+                ? new Date(
+                    this.clock.now().getTime() + SCHEDULE_OCR_RESULT_TTL_MS,
+                  )
+                : null),
+          },
+          item.cleanupLeaseVersion ?? undefined,
+        );
         completed += 1;
       } catch {
         // 다음 실행에서 다시 시도한다. URI나 내부 오류는 공개하지 않는다.
@@ -297,39 +318,55 @@ export class ScheduleOcrService {
       retryable: boolean | null;
       resultExpiresAt: Date | null;
     },
+    expectedLeaseVersion?: number,
   ): Promise<void> {
+    const cleanupClaim = await this.acquireCleanupClaim(
+      jobId,
+      expectedLeaseVersion,
+    );
     try {
       await this.storage.delete(storageUri);
     } catch (error: unknown) {
-      await this.prisma.$transaction(async (transaction) => {
-        await transaction.aiJob.update({
-          where: { id: jobId },
-          data: {
-            status: 'FAILED',
-            failureCode: 'SCHEDULE_OCR_CLEANUP_FAILED',
-            retryable: true,
-            resultReference: null,
-            version: { increment: 1 },
-            updatedAt: this.clock.now(),
-          },
-        });
-        await transaction.scheduleOcrJob.update({
-          where: { aiJobId: jobId },
-          data: {
-            cleanupPendingStatus: outcome.status,
-            cleanupPendingFailureCode: outcome.failureCode,
-            cleanupPendingRetryable: outcome.retryable,
-            cleanupPendingResultExpiresAt: outcome.resultExpiresAt,
-          },
-        });
+      await this.prisma.scheduleOcrJob.update({
+        where: { aiJobId: jobId },
+        data: {
+          cleanupPendingStatus: outcome.status,
+          cleanupPendingFailureCode: outcome.failureCode,
+          cleanupPendingRetryable: outcome.retryable,
+          cleanupPendingResultExpiresAt: outcome.resultExpiresAt,
+          cleanupLeaseVersion:
+            cleanupClaim.kind === 'CLAIMED'
+              ? cleanupClaim.leaseVersion
+              : expectedLeaseVersion,
+          cleanupFailedAt: this.clock.now(),
+        },
       });
       throw error;
     }
 
     const now = this.clock.now();
+    if (cleanupClaim.kind === 'TERMINAL') {
+      await this.prisma.scheduleOcrJob.updateMany({
+        where: { aiJobId: jobId, storageUri },
+        data: {
+          storageUri: null,
+          cleanupPendingStatus: null,
+          cleanupPendingFailureCode: null,
+          cleanupPendingRetryable: null,
+          cleanupPendingResultExpiresAt: null,
+          cleanupLeaseVersion: null,
+          cleanupFailedAt: null,
+        },
+      });
+      return;
+    }
     await this.prisma.$transaction(async (transaction) => {
-      const job = await transaction.aiJob.update({
-        where: { id: jobId },
+      const terminalized = await transaction.aiJob.updateMany({
+        where: {
+          id: jobId,
+          status: 'PROCESSING',
+          leaseVersion: cleanupClaim.leaseVersion,
+        },
         data: {
           status: outcome.status,
           failureCode: outcome.failureCode,
@@ -338,6 +375,31 @@ export class ScheduleOcrService {
           version: { increment: 1 },
           updatedAt: now,
         },
+      });
+      if (terminalized.count !== 1) {
+        const replay = await transaction.aiJob.findUnique({
+          where: { id: jobId },
+          select: { status: true },
+        });
+        if (replay?.status === 'SUCCEEDED' || replay?.status === 'FAILED') {
+          await transaction.scheduleOcrJob.updateMany({
+            where: { aiJobId: jobId, storageUri },
+            data: {
+              storageUri: null,
+              cleanupPendingStatus: null,
+              cleanupPendingFailureCode: null,
+              cleanupPendingRetryable: null,
+              cleanupPendingResultExpiresAt: null,
+              cleanupLeaseVersion: null,
+              cleanupFailedAt: null,
+            },
+          });
+          return;
+        }
+        throw new IdempotencyInvariantViolationError();
+      }
+      const job = await transaction.aiJob.findUniqueOrThrow({
+        where: { id: jobId },
         select: { idempotencyRecordId: true },
       });
       await transaction.idempotencyRecord.update({
@@ -353,6 +415,8 @@ export class ScheduleOcrService {
           cleanupPendingFailureCode: null,
           cleanupPendingRetryable: null,
           cleanupPendingResultExpiresAt: null,
+          cleanupLeaseVersion: null,
+          cleanupFailedAt: null,
         },
       });
     });
@@ -366,6 +430,7 @@ export class ScheduleOcrService {
       retryable: boolean | null;
       resultExpiresAt: Date | null;
     },
+    leaseVersion: number,
   ): Promise<void> {
     await this.prisma.scheduleOcrJob.update({
       where: { aiJobId: jobId },
@@ -374,6 +439,7 @@ export class ScheduleOcrService {
         cleanupPendingFailureCode: outcome.failureCode,
         cleanupPendingRetryable: outcome.retryable,
         cleanupPendingResultExpiresAt: outcome.resultExpiresAt,
+        cleanupLeaseVersion: leaseVersion,
       },
     });
   }
@@ -411,6 +477,7 @@ export class ScheduleOcrService {
             resultReference: input.isAllowedFixture ? null : jobId,
           },
         });
+        const reservedAt = this.clock.now();
         await transaction.aiJob.create({
           data: {
             id: jobId,
@@ -420,11 +487,17 @@ export class ScheduleOcrService {
             requestId: input.requestId,
             maxAttempts: 3,
             status: input.isAllowedFixture ? 'QUEUED' : 'FAILED',
+            attempt: input.isAllowedFixture ? 0 : 1,
+            claimedAt: input.isAllowedFixture ? null : reservedAt,
+            leaseExpiresAt: input.isAllowedFixture
+              ? null
+              : new Date(reservedAt.getTime() + SCHEDULE_OCR_ORPHAN_TTL_MS),
+            leaseVersion: input.isAllowedFixture ? 0 : 1,
             failureCode: input.isAllowedFixture
               ? null
               : 'SCHEDULE_OCR_ENGINE_UNAVAILABLE',
             retryable: input.isAllowedFixture ? null : false,
-            resultReference: input.isAllowedFixture ? null : jobId,
+            resultReference: null,
           },
         });
         await transaction.scheduleOcrJob.create({
@@ -493,6 +566,7 @@ export class ScheduleOcrService {
     requestId: string;
     jobId: string;
     storageUri: string;
+    leaseVersion: number;
   }): Promise<void> {
     let outcome: {
       status: 'SUCCEEDED' | 'FAILED';
@@ -501,15 +575,6 @@ export class ScheduleOcrService {
       resultExpiresAt: Date | null;
     };
     try {
-      await this.prisma.aiJob.update({
-        where: { id: input.jobId },
-        data: {
-          status: 'PROCESSING',
-          attempt: { increment: 1 },
-          version: { increment: 1 },
-          updatedAt: this.clock.now(),
-        },
-      });
       const candidates = await this.gateway.recognize({
         image: input.file.buffer,
         yearMonth: input.yearMonth,
@@ -520,6 +585,7 @@ export class ScheduleOcrService {
       assertCandidates(input.yearMonth, candidates);
       await this.prisma.scheduleOcrCell.createMany({
         data: candidates.map((candidate) => ({
+          datasetId: input.context.datasetId,
           aiJobId: input.jobId,
           dutyDate: new Date(
             `${input.yearMonth}-${String(candidate.day).padStart(2, '0')}T00:00:00.000Z`,
@@ -548,8 +614,97 @@ export class ScheduleOcrService {
         resultExpiresAt: null,
       };
     }
-    await this.recordPendingOutcome(input.jobId, outcome);
-    await this.finalizeAfterCleanup(input.jobId, input.storageUri, outcome);
+    await this.recordPendingOutcome(input.jobId, outcome, input.leaseVersion);
+    await this.finalizeAfterCleanup(
+      input.jobId,
+      input.storageUri,
+      outcome,
+      input.leaseVersion,
+    );
+  }
+
+  private async startProcessing(jobId: string): Promise<number> {
+    const claimedAt = this.clock.now();
+    return this.prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.aiJob.updateMany({
+        where: { id: jobId, status: 'QUEUED', leaseVersion: 0 },
+        data: {
+          status: 'PROCESSING',
+          attempt: { increment: 1 },
+          claimedAt,
+          leaseExpiresAt: new Date(
+            claimedAt.getTime() + SCHEDULE_OCR_ORPHAN_TTL_MS,
+          ),
+          leaseVersion: { increment: 1 },
+          version: { increment: 1 },
+          updatedAt: claimedAt,
+        },
+      });
+      if (claimed.count !== 1) throw new IdempotencyInvariantViolationError();
+      await transaction.scheduleOcrJob.update({
+        where: { aiJobId: jobId },
+        data: { cleanupLeaseVersion: 1 },
+      });
+      return 1;
+    });
+  }
+
+  private async acquireCleanupClaim(
+    jobId: string,
+    expectedLeaseVersion?: number,
+  ): Promise<{ kind: 'CLAIMED'; leaseVersion: number } | { kind: 'TERMINAL' }> {
+    return this.prisma.$transaction(async (transaction) => {
+      const job = await transaction.aiJob.findUnique({
+        where: { id: jobId },
+        select: { status: true, leaseVersion: true },
+      });
+      if (!job) throw new IdempotencyInvariantViolationError();
+      if (job.status === 'SUCCEEDED' || job.status === 'FAILED') {
+        return { kind: 'TERMINAL' } as const;
+      }
+      if (
+        expectedLeaseVersion !== undefined &&
+        job.leaseVersion !== expectedLeaseVersion
+      ) {
+        throw new IdempotencyInvariantViolationError();
+      }
+      const now = this.clock.now();
+      const claimed = await transaction.aiJob.updateMany({
+        where: {
+          id: jobId,
+          status: job.status,
+          leaseVersion: job.leaseVersion,
+        },
+        data:
+          job.status === 'QUEUED'
+            ? {
+                status: 'PROCESSING',
+                attempt: { increment: 1 },
+                claimedAt: now,
+                leaseExpiresAt: new Date(
+                  now.getTime() + SCHEDULE_OCR_ORPHAN_TTL_MS,
+                ),
+                leaseVersion: { increment: 1 },
+                version: { increment: 1 },
+                updatedAt: now,
+              }
+            : {
+                leaseExpiresAt: new Date(
+                  now.getTime() + SCHEDULE_OCR_ORPHAN_TTL_MS,
+                ),
+                leaseVersion: { increment: 1 },
+                version: { increment: 1 },
+                updatedAt: now,
+              },
+      });
+      if (claimed.count !== 1) throw new IdempotencyInvariantViolationError();
+      const leaseVersion = job.leaseVersion + 1;
+      await transaction.scheduleOcrJob.update({
+        where: { aiJobId: jobId },
+        data: { cleanupLeaseVersion: leaseVersion },
+      });
+      return { kind: 'CLAIMED', leaseVersion } as const;
+    });
   }
 }
 
