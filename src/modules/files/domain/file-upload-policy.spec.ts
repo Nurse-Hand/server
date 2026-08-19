@@ -27,7 +27,7 @@ describe('validateStoredFileUpload', () => {
   });
 
   it.each(['audio/x-m4a', 'audio/m4a', 'video/mp4'])(
-    '모바일 m4a MIME alias %s는 audio/mp4로 정규화한다',
+    '모바일 m4a MIME alias %s를 허용하고 그대로 보존한다',
     (mimeType) => {
       expect(
         validateStoredFileUpload({
@@ -39,7 +39,7 @@ describe('validateStoredFileUpload', () => {
       ).toMatchObject({
         extension: '.m4a',
         kind: 'AUDIO',
-        mimeType: 'audio/mp4',
+        mimeType,
         originalName: 'quick-note.m4a',
       });
     },
