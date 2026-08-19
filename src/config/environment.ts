@@ -6,7 +6,9 @@ import {
   IsOptional,
   Matches,
   IsString,
+  IsUrl,
   IsUUID,
+  MaxLength,
   Max,
   Min,
   validateSync,
@@ -56,6 +58,27 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsUUID()
   NO_LOGIN_MVP_DATASET_ID?: string;
+
+  @IsOptional()
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_tld: false,
+  })
+  AI_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/\S/)
+  @MaxLength(4_096)
+  AI_INTERNAL_API_TOKEN?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @Max(120_000)
+  AI_PRIORITY_TIMEOUT_MS?: number;
 }
 
 export function validateEnvironment(
@@ -82,6 +105,17 @@ export function validateEnvironment(
       NO_LOGIN_MVP_DATASET_ID:
         rawEnvironment.NO_LOGIN_MVP_DATASET_ID ??
         DEFAULT_NO_LOGIN_MVP_DATASET_ID,
+      ...(rawEnvironment.AI_BASE_URL === undefined
+        ? {}
+        : { AI_BASE_URL: rawEnvironment.AI_BASE_URL }),
+      ...(rawEnvironment.AI_INTERNAL_API_TOKEN === undefined
+        ? {}
+        : { AI_INTERNAL_API_TOKEN: rawEnvironment.AI_INTERNAL_API_TOKEN }),
+      ...(rawEnvironment.AI_PRIORITY_TIMEOUT_MS === undefined
+        ? {}
+        : {
+            AI_PRIORITY_TIMEOUT_MS: rawEnvironment.AI_PRIORITY_TIMEOUT_MS,
+          }),
     },
     { enableImplicitConversion: false },
   );
