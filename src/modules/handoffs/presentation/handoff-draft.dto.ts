@@ -215,12 +215,30 @@ export class HandoffDraftListItemDto {
   updatedAt!: string;
 }
 
-export class HandoffDraftListResponseDto {
-  @ApiProperty({ type: Object })
-  data!: { items: HandoffDraftListItemDto[] };
+export class HandoffDraftListDataDto {
+  @ApiProperty({ type: HandoffDraftListItemDto, isArray: true })
+  items!: HandoffDraftListItemDto[];
+}
 
-  @ApiProperty({ type: Object })
-  meta!: ApiMetaDto & { page: { nextCursor: string | null } };
+export class HandoffDraftListPageMetaDto {
+  @ApiProperty({ type: String, nullable: true })
+  nextCursor!: string | null;
+}
+
+export class HandoffDraftListMetaDto {
+  @ApiProperty({ format: 'uuid' })
+  requestId!: string;
+
+  @ApiProperty({ type: HandoffDraftListPageMetaDto })
+  page!: HandoffDraftListPageMetaDto;
+}
+
+export class HandoffDraftListResponseDto {
+  @ApiProperty({ type: HandoffDraftListDataDto })
+  data!: HandoffDraftListDataDto;
+
+  @ApiProperty({ type: HandoffDraftListMetaDto })
+  meta!: HandoffDraftListMetaDto;
 }
 
 export class HandoffGenerationJobDto {
