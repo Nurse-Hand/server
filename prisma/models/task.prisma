@@ -68,6 +68,7 @@ model Task {
   appliedCandidate    TaskExtractionCandidate? @relation("TaskCandidateApplied")
 
   @@unique(name: "task_dataset_id", [datasetId, id])
+  @@unique(name: "task_dataset_id_actor_ward", [datasetId, id, actorId, wardId])
   @@index([datasetId, wardId, actorId, workDate, status, patientId])
   @@index([datasetId, wardId, actorId, workDate, dueAt, createdAt, id])
   @@index([datasetId, wardId, patientId, status, dueAt, createdAt, id])
@@ -134,7 +135,7 @@ model TaskPrioritySuggestionBatch {
   actorId             String                            @db.Uuid
   wardId              String                            @db.Uuid
   workDate            DateTime                          @db.Date
-  requestId           String                            @unique @db.Uuid
+  requestId           String                            @db.Uuid
   operation           String                            @default("tasks.priority-suggestions") @db.VarChar(100)
   idempotencyRecordId String                            @unique @db.Uuid
   requestHash         String                            @db.Char(64)
@@ -152,6 +153,7 @@ model TaskPrioritySuggestionBatch {
   @@unique(name: "task_priority_suggestion_batch_dataset_id", [datasetId, id])
   @@unique(name: "task_priority_suggestion_batch_scope", [datasetId, id, actorId, wardId])
   @@unique(name: "task_priority_suggestion_batch_idempotency_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation])
+  @@index([datasetId, requestId])
   @@index([datasetId, wardId, actorId, workDate, createdAt, id])
 }
 
@@ -160,12 +162,14 @@ model TaskPrioritySuggestion {
   datasetId           String                       @db.Uuid
   batchId             String                       @db.Uuid
   taskId              String                       @db.Uuid
+  actorId             String                       @db.Uuid
+  wardId              String                       @db.Uuid
   aiScore             Float
   aiSuggestedPriority TaskPriority
   reasons             String[]
   createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
-  batch               TaskPrioritySuggestionBatch  @relation("TaskPrioritySuggestionBatchResults", fields: [datasetId, batchId], references: [datasetId, id], onDelete: Cascade)
-  task                Task                         @relation("TaskPrioritySuggestionTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Restrict)
+  batch               TaskPrioritySuggestionBatch  @relation("TaskPrioritySuggestionBatchResults", fields: [datasetId, batchId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Cascade)
+  task                Task                         @relation("TaskPrioritySuggestionTask", fields: [datasetId, taskId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Restrict)
   priorityAudits      TaskPriorityAudit[]           @relation("TaskPriorityAuditSuggestion")
 
   @@unique(name: "task_priority_suggestion_dataset_id", [datasetId, id])

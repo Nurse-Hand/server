@@ -10,7 +10,7 @@
 
 ### 2.1 책임 분리
 
-- AI는 `suggestedPriority`, 근거와 `confidence`를 제안한다.
+- 명시적 `tasks-prioritize-v1` batch는 `suggestedPriority`, 근거와 `score`를 제안한다. 업무 추출 후보의 별도 계약만 기존 `confidence`를 유지한다.
 - 간호사는 제안을 수락하거나 수정해 `confirmedPriority`를 확정하거나 기존 확정을 해제할 수 있다.
 - Node.js는 검증 가능한 시간과 상태만 사용해 `rulePriority`와 실제 정렬을 결정한다.
 - 숫자형 AI score는 명시적으로 생성한 같은 `tasks-prioritize-v1` batch의 참고 제안 표시 순서(`score DESC`, `taskId ASC`)에만 저장·응답한다. 서로 다른 batch·contract version 간 비교, 실제 Task 정렬, 자동 확정과 임상 위험도에는 사용하지 않는다.
