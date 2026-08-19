@@ -14,6 +14,7 @@ import { DemoModule } from './modules/demo/demo.module';
 import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
 import { HandoffsModule } from './modules/handoffs/handoffs.module';
+import { JobExecutionModule } from './modules/job-execution/job-execution.module';
 import { RoundingModule } from './modules/rounding/rounding.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
@@ -34,6 +35,7 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     RoundingModule,
     TasksModule,
     HandoffsModule,
+    JobExecutionModule,
     TimelineModule,
   ],
 })
