@@ -2,6 +2,7 @@ import {
   daysInYearMonth,
   isYearMonth,
   needsOcrReview,
+  normalizeScheduleEntries,
   normalizeOcrToken,
 } from './schedule-policy';
 
@@ -26,5 +27,22 @@ describe('schedule policy', () => {
     expect(needsOcrReview('D', 0.85)).toBe(false);
     expect(needsOcrReview('N', 0.8499)).toBe(true);
     expect(needsOcrReview('UNKNOWN', 1)).toBe(true);
+  });
+
+  it('canonical duty를 날짜순으로 정규화하고 월 밖 날짜를 거부한다', () => {
+    expect(
+      normalizeScheduleEntries('2026-08', [
+        { date: '2026-08-02', duty: 'OFF' },
+        { date: '2026-08-01', duty: 'DAY' },
+      ]),
+    ).toEqual([
+      { date: '2026-08-01', duty: 'DAY' },
+      { date: '2026-08-02', duty: 'OFF' },
+    ]);
+    expect(() =>
+      normalizeScheduleEntries('2026-02', [
+        { date: '2026-02-29', duty: 'DAY' },
+      ]),
+    ).toThrow(TypeError);
   });
 });

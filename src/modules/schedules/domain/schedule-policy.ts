@@ -40,3 +40,34 @@ export function needsOcrReview(
 ): boolean {
   return token === 'UNKNOWN' || confidence < 0.85;
 }
+
+export type ScheduleEntryInput = { date: string; duty: ScheduleDuty };
+
+export function normalizeScheduleEntries(
+  yearMonth: string,
+  entries: readonly ScheduleEntryInput[],
+): ScheduleEntryInput[] {
+  if (!isYearMonth(yearMonth) || entries.length > daysInYearMonth(yearMonth)) {
+    throw new TypeError('월별 근무표 날짜가 올바르지 않습니다.');
+  }
+  const normalized = [...entries].sort((left, right) =>
+    left.date.localeCompare(right.date),
+  );
+  const dates = new Set<string>();
+  for (const entry of normalized) {
+    if (
+      !entry.date.startsWith(`${yearMonth}-`) ||
+      !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(entry.date) ||
+      !SCHEDULE_DUTIES.includes(entry.duty) ||
+      dates.has(entry.date)
+    ) {
+      throw new TypeError('월별 근무표 날짜가 올바르지 않습니다.');
+    }
+    const day = Number(entry.date.slice(8, 10));
+    if (day > daysInYearMonth(yearMonth)) {
+      throw new TypeError('월별 근무표 날짜가 올바르지 않습니다.');
+    }
+    dates.add(entry.date);
+  }
+  return normalized;
+}

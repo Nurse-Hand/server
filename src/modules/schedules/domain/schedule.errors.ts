@@ -39,3 +39,23 @@ export class ScheduleOcrResultExpiredError extends ApplicationError {
     });
   }
 }
+
+export class MonthlyScheduleNotFoundError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'MONTHLY_SCHEDULE_NOT_FOUND',
+      kind: 'NOT_FOUND',
+      publicMessage: '월별 근무표를 찾을 수 없습니다.',
+    });
+  }
+}
+
+export class MonthlyScheduleInvalidError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'MONTHLY_SCHEDULE_INVALID',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '월별 근무표 내용을 확인해 주세요.',
+    });
+  }
+}
