@@ -152,11 +152,11 @@ export class TaskService {
     taskId: string,
     command: UpdateTaskCommand,
   ): Promise<TaskView> {
-    const hasTitle = Object.hasOwn(command, 'title');
-    const hasDescription = Object.hasOwn(command, 'description');
-    const hasDueAt = Object.hasOwn(command, 'dueAt');
-    const hasStatus = Object.hasOwn(command, 'status');
-    const hasPriority = Object.hasOwn(command, 'priorityOverride');
+    const hasTitle = command.title !== undefined;
+    const hasDescription = command.description !== undefined;
+    const hasDueAt = command.dueAt !== undefined;
+    const hasStatus = command.status !== undefined;
+    const hasPriority = command.priorityOverride !== undefined;
 
     if (
       !hasTitle &&
