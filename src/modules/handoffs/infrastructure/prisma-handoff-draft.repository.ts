@@ -344,6 +344,9 @@ export class PrismaHandoffDraftRepository implements HandoffDraftRepository {
           data: {
             datasetId: input.context.datasetId,
             handoffId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            operation: HANDOFF_JOB_OPERATIONS.GENERATE,
             aiJobId: job.id,
             idempotencyRecordId: record.id,
             requestHash: input.requestHash,

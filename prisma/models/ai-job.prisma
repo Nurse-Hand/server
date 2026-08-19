@@ -1,48 +1,59 @@
 model AiJob {
-  id                  String            @id @default(uuid()) @db.Uuid
-  datasetId           String            @db.Uuid
-  actorId             String            @db.Uuid
-  wardId              String            @db.Uuid
-  operation           String            @db.VarChar(100)
-  idempotencyRecordId String            @unique(map: "AiJob_idempotency_record_id_key") @db.Uuid
-  status              AiJobStatus       @default(QUEUED)
-  requestId           String            @db.Uuid
-  attempt             Int               @default(0)
-  maxAttempts         Int
-  claimedAt           DateTime?         @db.Timestamptz(3)
-  leaseExpiresAt      DateTime?         @db.Timestamptz(3)
-  leaseVersion        Int               @default(0)
-  failureCode         String?           @db.VarChar(64)
-  retryable           Boolean?
-  resultReference     String?           @db.VarChar(255)
-  version             Int               @default(1)
-  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime          @updatedAt @db.Timestamptz(3)
-  dataset             DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  membership          WardMembership    @relation("AiJobMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
-  idempotencyRecord   IdempotencyRecord @relation("IdempotencyJob", fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict, map: "AiJob_idempotency_scope_fkey")
+  id                       String                    @id @default(uuid()) @db.Uuid
+  datasetId                String                    @db.Uuid
+  actorId                  String                    @db.Uuid
+  wardId                   String                    @db.Uuid
+  operation                String                    @db.VarChar(100)
+  idempotencyRecordId      String                    @unique(map: "AiJob_idempotency_record_id_key") @db.Uuid
+  status                   AiJobStatus               @default(QUEUED)
+  requestId                String                    @db.Uuid
+  attempt                  Int                       @default(0)
+  maxAttempts              Int
+  claimedAt                DateTime?                 @db.Timestamptz(3)
+  leaseExpiresAt           DateTime?                 @db.Timestamptz(3)
+  leaseVersion             Int                       @default(0)
+  failureCode              String?                   @db.VarChar(64)
+  retryable                Boolean?
+  resultReference          String?                   @db.VarChar(255)
+  version                  Int                       @default(1)
+  createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                  @updatedAt @db.Timestamptz(3)
+  dataset                  DemoDataset               @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership               WardMembership            @relation("AiJobMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  idempotencyRecord        IdempotencyRecord         @relation("IdempotencyJob", fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict, map: "AiJob_idempotency_scope_fkey")
+  taskExtractionJob        TaskExtractionJob?
+  handoffPrecheck          HandoffPrecheck?          @relation("HandoffPrecheckAiJob")
+  handoffGenerationAttempt HandoffGenerationAttempt? @relation("HandoffGenerationAiJob")
 
   @@unique(name: "ai_job_dataset_id", [datasetId, id])
   @@unique(name: "ai_job_dataset_scope_operation", [datasetId, id, actorId, wardId, operation])
   @@unique(name: "ai_job_idempotency_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation], map: "AiJob_idempotency_scope_key")
   @@index([datasetId, wardId, status, leaseExpiresAt, createdAt, id])
+  @@index([operation, status, leaseExpiresAt, datasetId, wardId, createdAt, id], map: "AiJob_dispatch_queue_idx")
 }
 
 model IdempotencyRecord {
-  id              String            @id @default(uuid()) @db.Uuid
-  datasetId       String            @db.Uuid
-  actorId         String            @db.Uuid
-  wardId          String            @db.Uuid
-  operation       String            @db.VarChar(100)
-  idempotencyKey  String            @db.VarChar(128)
-  requestHash     String            @db.Char(64)
-  status          IdempotencyStatus @default(PROCESSING)
-  resultReference String?           @db.VarChar(255)
-  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
-  dataset         DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  membership      WardMembership    @relation("IdempotencyMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
-  aiJob           AiJob?            @relation("IdempotencyJob")
+  id                       String                        @id @default(uuid()) @db.Uuid
+  datasetId                String                        @db.Uuid
+  actorId                  String                        @db.Uuid
+  wardId                   String                        @db.Uuid
+  operation                String                        @db.VarChar(100)
+  idempotencyKey           String                        @db.VarChar(128)
+  requestHash              String                        @db.Char(64)
+  status                   IdempotencyStatus             @default(PROCESSING)
+  resultReference          String?                       @db.VarChar(255)
+  createdAt                DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                      @updatedAt @db.Timestamptz(3)
+  dataset                  DemoDataset                   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership               WardMembership                @relation("IdempotencyMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  aiJob                    AiJob?                        @relation("IdempotencyJob")
+  taskCreateReceipt        TaskCreateReceipt?
+  taskExtractionReceipt    TaskExtractionRequestReceipt?
+  taskApplyReceipt         TaskApplyReceipt?
+  handoffPrecheck          HandoffPrecheck?              @relation("HandoffPrecheckIdempotency")
+  handoffGenerationAttempt HandoffGenerationAttempt?     @relation("HandoffGenerationIdempotency")
+  handoffFinalSnapshot     HandoffFinalSnapshot?         @relation("HandoffFinalIdempotency")
+  handoffAcknowledgement   HandoffAcknowledgement?       @relation("HandoffAcknowledgementIdempotency")
 
   @@unique(name: "idempotency_dataset_id", [datasetId, id])
   @@unique(name: "idempotency_record_scope", [datasetId, id, actorId, wardId, operation], map: "IdempotencyRecord_scope_key")

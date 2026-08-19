@@ -1,11 +1,12 @@
 model Nurse {
-  id              String           @id @default(uuid()) @db.Uuid
-  datasetId       String           @db.Uuid
-  logicalKey      String           @db.VarChar(64)
-  displayName     String           @db.VarChar(100)
-  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
-  dataset         DemoDataset      @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  wardMemberships WardMembership[] @relation("MembershipNurse")
+  id                 String              @id @default(uuid()) @db.Uuid
+  datasetId          String              @db.Uuid
+  logicalKey         String              @db.VarChar(64)
+  displayName        String              @db.VarChar(100)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  wardMemberships    WardMembership[]    @relation("MembershipNurse")
+  taskPriorityAudits TaskPriorityAudit[]
 
   @@unique(name: "nurse_dataset_id", [datasetId, id])
   @@unique(name: "nurse_dataset_logical_key", [datasetId, logicalKey])
@@ -29,22 +30,27 @@ model Ward {
 }
 
 model WardMembership {
-  id                 String              @id @default(uuid()) @db.Uuid
-  datasetId          String              @db.Uuid
-  logicalKey         String              @db.VarChar(64)
-  nurseId            String              @db.Uuid
-  wardId             String              @db.Uuid
-  role               WardMembershipRole
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  nurse              Nurse               @relation("MembershipNurse", fields: [datasetId, nurseId], references: [datasetId, id], onDelete: Restrict)
-  ward               Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
-  demoSessions       DemoSession[]       @relation("DemoSessionMembership")
-  nurseShifts        NurseShift[]        @relation("ShiftMembership")
-  roundingSessions   RoundingSession[]   @relation("RoundingSessionMembership")
-  storedFiles        StoredFile[]        @relation("StoredFileMembership")
-  aiJobs             AiJob[]             @relation("AiJobMembership")
-  idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
+  id                       String              @id @default(uuid()) @db.Uuid
+  datasetId                String              @db.Uuid
+  logicalKey               String              @db.VarChar(64)
+  nurseId                  String              @db.Uuid
+  wardId                   String              @db.Uuid
+  role                     WardMembershipRole
+  createdAt                DateTime            @default(now()) @db.Timestamptz(3)
+  dataset                  DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  nurse                    Nurse               @relation("MembershipNurse", fields: [datasetId, nurseId], references: [datasetId, id], onDelete: Restrict)
+  ward                     Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  demoSessions             DemoSession[]       @relation("DemoSessionMembership")
+  nurseShifts              NurseShift[]        @relation("ShiftMembership")
+  roundingSessions         RoundingSession[]   @relation("RoundingSessionMembership")
+  storedFiles              StoredFile[]        @relation("StoredFileMembership")
+  aiJobs                   AiJob[]             @relation("AiJobMembership")
+  idempotencyRecords       IdempotencyRecord[] @relation("IdempotencyMembership")
+  tasks                    Task[]
+  sentHandoffPrechecks     HandoffPrecheck[]   @relation("HandoffPrecheckSender")
+  receivedHandoffPrechecks HandoffPrecheck[]   @relation("HandoffPrecheckReceiver")
+  sentHandoffs             Handoff[]           @relation("HandoffSender")
+  receivedHandoffs         Handoff[]           @relation("HandoffReceiver")
 
   @@unique(name: "membership_dataset_id", [datasetId, id])
   @@unique(name: "membership_dataset_logical_key", [datasetId, logicalKey])
@@ -52,18 +58,22 @@ model WardMembership {
 }
 
 model NurseShift {
-  id                 String              @id @default(uuid()) @db.Uuid
-  datasetId          String              @db.Uuid
-  logicalKey         String              @db.VarChar(64)
-  nurseId            String              @db.Uuid
-  wardId             String              @db.Uuid
-  duty               ShiftDuty
-  startsAt           DateTime            @db.Timestamptz(3)
-  endsAt             DateTime            @db.Timestamptz(3)
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  membership         WardMembership      @relation("ShiftMembership", fields: [datasetId, nurseId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
-  patientAssignments PatientAssignment[] @relation("AssignmentShift")
+  id                       String              @id @default(uuid()) @db.Uuid
+  datasetId                String              @db.Uuid
+  logicalKey               String              @db.VarChar(64)
+  nurseId                  String              @db.Uuid
+  wardId                   String              @db.Uuid
+  duty                     ShiftDuty
+  startsAt                 DateTime            @db.Timestamptz(3)
+  endsAt                   DateTime            @db.Timestamptz(3)
+  createdAt                DateTime            @default(now()) @db.Timestamptz(3)
+  dataset                  DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership               WardMembership      @relation("ShiftMembership", fields: [datasetId, nurseId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  patientAssignments       PatientAssignment[] @relation("AssignmentShift")
+  sentHandoffPrechecks     HandoffPrecheck[]   @relation("HandoffPrecheckSenderShift")
+  receivedHandoffPrechecks HandoffPrecheck[]   @relation("HandoffPrecheckReceiverShift")
+  sentHandoffs             Handoff[]           @relation("HandoffSenderShift")
+  receivedHandoffs         Handoff[]           @relation("HandoffReceiverShift")
 
   @@unique(name: "shift_dataset_id", [datasetId, id])
   @@unique(name: "shift_dataset_logical_key", [datasetId, logicalKey])
@@ -72,18 +82,23 @@ model NurseShift {
 }
 
 model Patient {
-  id                 String                   @id @default(uuid()) @db.Uuid
-  datasetId          String                   @db.Uuid
-  logicalKey         String                   @db.VarChar(64)
-  wardId             String                   @db.Uuid
-  displayName        String                   @db.VarChar(100)
-  roomLabel          String                   @db.VarChar(32)
-  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
-  dataset            DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  ward               Ward                     @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
-  patientAssignments PatientAssignment[]      @relation("AssignmentPatient")
-  timelineEvents     TimelineEvent[]          @relation("TimelineEventPatient")
-  roundingSegments   RoundingPatientSegment[] @relation("RoundingSegmentPatient")
+  id                       String                        @id @default(uuid()) @db.Uuid
+  datasetId                String                        @db.Uuid
+  logicalKey               String                        @db.VarChar(64)
+  wardId                   String                        @db.Uuid
+  displayName              String                        @db.VarChar(100)
+  roomLabel                String                        @db.VarChar(32)
+  createdAt                DateTime                      @default(now()) @db.Timestamptz(3)
+  dataset                  DemoDataset                   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  ward                     Ward                          @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  patientAssignments       PatientAssignment[]           @relation("AssignmentPatient")
+  timelineEvents           TimelineEvent[]               @relation("TimelineEventPatient")
+  roundingSegments         RoundingPatientSegment[]      @relation("RoundingSegmentPatient")
+  tasks                    Task[]
+  taskExtractionEvidence   TaskExtractionEvidence[]
+  taskExtractionCandidates TaskExtractionCandidate[]
+  handoffPrecheckInputs    HandoffPrecheckPatientInput[]
+  handoffDraftPatients     HandoffDraftPatient[]
 
   @@unique(name: "patient_dataset_id", [datasetId, id])
   @@unique(name: "patient_dataset_logical_key", [datasetId, logicalKey])
@@ -113,22 +128,25 @@ model PatientAssignment {
 }
 
 model TimelineEvent {
-  id              String              @id @default(uuid()) @db.Uuid
-  datasetId       String              @db.Uuid
-  logicalKey      String              @db.VarChar(64)
-  patientId       String              @db.Uuid
-  wardId          String              @db.Uuid
-  occurredAt      DateTime            @db.Timestamptz(3)
-  type            TimelineEventType
-  source          TimelineEventSource
-  sourceReference String              @db.VarChar(128)
-  summary         String              @db.VarChar(500)
-  version         Int                 @default(1)
-  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
-  dataset         DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  patient         Patient             @relation("TimelineEventPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
-  ward            Ward                @relation("TimelineEventWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  id                     String                         @id @default(uuid()) @db.Uuid
+  datasetId              String                         @db.Uuid
+  logicalKey             String                         @db.VarChar(64)
+  patientId              String                         @db.Uuid
+  wardId                 String                         @db.Uuid
+  occurredAt             DateTime                       @db.Timestamptz(3)
+  type                   TimelineEventType
+  source                 TimelineEventSource
+  sourceReference        String                         @db.VarChar(128)
+  summary                String                         @db.VarChar(500)
+  version                Int                            @default(1)
+  createdAt              DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                       @updatedAt @db.Timestamptz(3)
+  dataset                DemoDataset                    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  patient                Patient                        @relation("TimelineEventPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  ward                   Ward                           @relation("TimelineEventWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  taskEvidence           TaskEvidence[]
+  taskExtractionEvidence TaskExtractionEvidence[]
+  handoffPrecheckInputs  HandoffPrecheckTimelineInput[]
 
   @@unique(name: "timeline_event_dataset_id", [datasetId, id])
   @@unique(name: "timeline_event_dataset_logical_key", [datasetId, logicalKey])

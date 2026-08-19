@@ -33,32 +33,37 @@ enum TaskPriorityAuditAction {
 }
 
 model Task {
-  id                  String              @id @default(uuid()) @db.Uuid
-  datasetId           String              @db.Uuid
-  actorId             String              @db.Uuid
-  wardId              String              @db.Uuid
-  patientId           String?             @db.Uuid
-  title               String              @db.VarChar(200)
-  description         String?             @db.VarChar(1000)
-  dueAt               DateTime?           @db.Timestamptz(3)
-  workDate            DateTime            @db.Date
-  status              TaskStatus          @default(TODO)
-  source              TaskSource
-  aiSuggestedPriority TaskPriority?
-  aiReasons           String[]
-  aiConfidence        TaskAiConfidence?
-  rulePriority        TaskPriority
-  confirmedPriority   TaskPriority?
-  version             Int                 @default(1)
-  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
-  evidence            TaskEvidence[]      @relation("TaskEvidenceTask")
-  sourceEvidence      TaskEvidence[]      @relation("TaskEvidenceSourceTask")
-  sourceExtractionEvidence TaskExtractionEvidence[] @relation("TaskExtractionEvidenceSourceTask")
-  priorityAudits      TaskPriorityAudit[] @relation("TaskPriorityAuditTask")
-  createReceipt       TaskCreateReceipt?  @relation("TaskCreateReceiptTask")
-  duplicateCandidates TaskExtractionCandidate[] @relation("TaskCandidateDuplicate")
-  appliedCandidate    TaskExtractionCandidate? @relation("TaskCandidateApplied")
+  id                       String                     @id @default(uuid()) @db.Uuid
+  datasetId                String                     @db.Uuid
+  actorId                  String                     @db.Uuid
+  wardId                   String                     @db.Uuid
+  patientId                String?                    @db.Uuid
+  title                    String                     @db.VarChar(200)
+  description              String?                    @db.VarChar(1000)
+  dueAt                    DateTime?                  @db.Timestamptz(3)
+  workDate                 DateTime                   @db.Date
+  status                   TaskStatus                 @default(TODO)
+  source                   TaskSource
+  aiSuggestedPriority      TaskPriority?
+  aiReasons                String[]
+  aiConfidence             TaskAiConfidence?
+  rulePriority             TaskPriority
+  confirmedPriority        TaskPriority?
+  version                  Int                        @default(1)
+  createdAt                DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                   @updatedAt @db.Timestamptz(3)
+  evidence                 TaskEvidence[]             @relation("TaskEvidenceTask")
+  sourceEvidence           TaskEvidence[]             @relation("TaskEvidenceSourceTask")
+  sourceExtractionEvidence TaskExtractionEvidence[]   @relation("TaskExtractionEvidenceSourceTask")
+  priorityAudits           TaskPriorityAudit[]        @relation("TaskPriorityAuditTask")
+  createReceipt            TaskCreateReceipt?         @relation("TaskCreateReceiptTask")
+  duplicateCandidates      TaskExtractionCandidate[]  @relation("TaskCandidateDuplicate")
+  appliedCandidate         TaskExtractionCandidate?   @relation("TaskCandidateApplied")
+  handoffPrecheckInputs    HandoffPrecheckTaskInput[]
+  handoffDraftLinks        HandoffDraftLinkedTask[]
+  dataset                  DemoDataset                @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership               WardMembership             @relation(fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  patient                  Patient?                   @relation(fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
 
   @@unique(name: "task_dataset_id", [datasetId, id])
   @@index([datasetId, wardId, actorId, workDate, status, patientId])
@@ -67,16 +72,17 @@ model Task {
 }
 
 model TaskCreateReceipt {
-  id                  String   @id @default(uuid()) @db.Uuid
-  datasetId           String   @db.Uuid
-  actorId             String   @db.Uuid
-  wardId              String   @db.Uuid
-  operation           String   @default("tasks.create") @db.VarChar(100)
-  idempotencyRecordId String   @unique @db.Uuid
-  taskId              String   @unique @db.Uuid
+  id                  String            @id @default(uuid()) @db.Uuid
+  datasetId           String            @db.Uuid
+  actorId             String            @db.Uuid
+  wardId              String            @db.Uuid
+  operation           String            @default("tasks.create") @db.VarChar(100)
+  idempotencyRecordId String            @unique @db.Uuid
+  taskId              String            @unique @db.Uuid
   responseSnapshot    Json
-  createdAt           DateTime @default(now()) @db.Timestamptz(3)
-  task                Task     @relation("TaskCreateReceiptTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Restrict)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  task                Task              @relation("TaskCreateReceiptTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Restrict)
+  idempotencyRecord   IdempotencyRecord @relation(fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "task_create_receipt_dataset_id", [datasetId, id])
   @@unique(name: "task_create_receipt_task", [datasetId, taskId])
@@ -94,6 +100,7 @@ model TaskEvidence {
   createdAt       DateTime               @default(now()) @db.Timestamptz(3)
   task            Task                   @relation("TaskEvidenceTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Cascade)
   sourceTask      Task?                  @relation("TaskEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
+  timelineEvent   TimelineEvent?         @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "task_evidence_dataset_id", [datasetId, id])
   @@unique(name: "task_evidence_timeline_source", [datasetId, taskId, timelineEventId])
@@ -113,24 +120,27 @@ model TaskPriorityAudit {
   aiSuggestedPriority       TaskPriority?
   createdAt                 DateTime                @default(now()) @db.Timestamptz(3)
   task                      Task                    @relation("TaskPriorityAuditTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Cascade)
+  actor                     Nurse                   @relation(fields: [datasetId, actorId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "task_priority_audit_dataset_id", [datasetId, id])
   @@index([datasetId, taskId, createdAt, id])
 }
 
 model TaskExtractionJob {
-  id                String                         @id @db.Uuid
-  datasetId         String                         @db.Uuid
-  actorId           String                         @db.Uuid
-  wardId            String                         @db.Uuid
-  operation         String                         @default("tasks.extract") @db.VarChar(100)
-  roundingSessionId String                         @db.Uuid
+  id                String                        @id @db.Uuid
+  datasetId         String                        @db.Uuid
+  actorId           String                        @db.Uuid
+  wardId            String                        @db.Uuid
+  operation         String                        @default("tasks.extract") @db.VarChar(100)
+  roundingSessionId String                        @db.Uuid
   inputSnapshot     Json
-  createdAt         DateTime                       @default(now()) @db.Timestamptz(3)
+  createdAt         DateTime                      @default(now()) @db.Timestamptz(3)
   receipt           TaskExtractionRequestReceipt?
-  evidence          TaskExtractionEvidence[]       @relation("TaskExtractionEvidenceJob")
-  candidates        TaskExtractionCandidate[]      @relation("TaskExtractionCandidateJob")
-  applyReceipts     TaskApplyReceipt[]              @relation("TaskApplyReceiptJob")
+  evidence          TaskExtractionEvidence[]      @relation("TaskExtractionEvidenceJob")
+  candidates        TaskExtractionCandidate[]     @relation("TaskExtractionCandidateJob")
+  applyReceipts     TaskApplyReceipt[]            @relation("TaskApplyReceiptJob")
+  aiJob             AiJob                         @relation(fields: [datasetId, id, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Cascade)
+  roundingSession   RoundingSession               @relation(fields: [datasetId, roundingSessionId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "task_extraction_job_dataset_id", [datasetId, id])
   @@unique(name: "task_extraction_job_scope", [datasetId, id, actorId, wardId])
@@ -148,6 +158,7 @@ model TaskExtractionRequestReceipt {
   operation           String            @default("tasks.extract") @db.VarChar(100)
   createdAt           DateTime          @default(now()) @db.Timestamptz(3)
   job                 TaskExtractionJob @relation(fields: [datasetId, jobId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Cascade)
+  idempotencyRecord   IdempotencyRecord @relation(fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "task_extraction_receipt_dataset_id", [datasetId, id])
   @@unique(name: "task_extraction_receipt_job_scope", [datasetId, jobId, actorId, wardId])
@@ -156,20 +167,22 @@ model TaskExtractionRequestReceipt {
 }
 
 model TaskExtractionEvidence {
-  id              String                            @id @default(uuid()) @db.Uuid
-  datasetId       String                            @db.Uuid
-  jobId           String                            @db.Uuid
-  roundingRecordId String                           @db.Uuid
-  sourceType      TaskEvidenceSourceType
-  timelineEventId String?                           @db.Uuid
-  sourceTaskId    String?                           @db.Uuid
-  patientId       String?                           @db.Uuid
-  workDate        DateTime                          @db.Date
-  summary         String                            @db.VarChar(500)
-  createdAt       DateTime                          @default(now()) @db.Timestamptz(3)
-  job             TaskExtractionJob                 @relation("TaskExtractionEvidenceJob", fields: [datasetId, jobId], references: [datasetId, id], onDelete: Cascade)
-  sourceTask      Task?                             @relation("TaskExtractionEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
-  candidates      TaskExtractionCandidateEvidence[] @relation("CandidateEvidenceEvidence")
+  id               String                            @id @default(uuid()) @db.Uuid
+  datasetId        String                            @db.Uuid
+  jobId            String                            @db.Uuid
+  roundingRecordId String                            @db.Uuid
+  sourceType       TaskEvidenceSourceType
+  timelineEventId  String?                           @db.Uuid
+  sourceTaskId     String?                           @db.Uuid
+  patientId        String?                           @db.Uuid
+  workDate         DateTime                          @db.Date
+  summary          String                            @db.VarChar(500)
+  createdAt        DateTime                          @default(now()) @db.Timestamptz(3)
+  job              TaskExtractionJob                 @relation("TaskExtractionEvidenceJob", fields: [datasetId, jobId], references: [datasetId, id], onDelete: Cascade)
+  sourceTask       Task?                             @relation("TaskExtractionEvidenceSourceTask", fields: [datasetId, sourceTaskId], references: [datasetId, id], onDelete: Restrict)
+  timelineEvent    TimelineEvent?                    @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
+  patient          Patient?                          @relation(fields: [datasetId, patientId], references: [datasetId, id], onDelete: Restrict)
+  candidates       TaskExtractionCandidateEvidence[] @relation("CandidateEvidenceEvidence")
 
   @@unique(name: "task_extraction_evidence_dataset_id_job", [datasetId, id, jobId])
   @@unique(name: "task_extraction_evidence_timeline_source", [datasetId, jobId, roundingRecordId, timelineEventId])
@@ -203,6 +216,7 @@ model TaskExtractionCandidate {
   duplicateTask       Task?                             @relation("TaskCandidateDuplicate", fields: [datasetId, duplicateTaskId], references: [datasetId, id], onDelete: Restrict)
   appliedTask         Task?                             @relation("TaskCandidateApplied", fields: [datasetId, appliedTaskId], references: [datasetId, id], onDelete: Restrict)
   applyReceipt        TaskApplyReceipt?                 @relation("CandidateApplyReceipt", fields: [datasetId, jobId, applyReceiptId], references: [datasetId, jobId, id], onDelete: Restrict)
+  patient             Patient?                          @relation(fields: [datasetId, patientId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "task_extraction_candidate_dataset_id_job", [datasetId, id, jobId])
   @@unique(name: "task_extraction_candidate_applied_task", [datasetId, appliedTaskId])
@@ -211,14 +225,14 @@ model TaskExtractionCandidate {
 }
 
 model TaskExtractionCandidateEvidence {
-  id          String                      @id @default(uuid()) @db.Uuid
-  datasetId   String                      @db.Uuid
-  jobId       String                      @db.Uuid
-  candidateId String                      @db.Uuid
-  evidenceId  String                      @db.Uuid
-  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
-  candidate   TaskExtractionCandidate     @relation("CandidateEvidenceCandidate", fields: [datasetId, candidateId, jobId], references: [datasetId, id, jobId], onDelete: Cascade)
-  evidence    TaskExtractionEvidence      @relation("CandidateEvidenceEvidence", fields: [datasetId, evidenceId, jobId], references: [datasetId, id, jobId], onDelete: Cascade)
+  id          String                  @id @default(uuid()) @db.Uuid
+  datasetId   String                  @db.Uuid
+  jobId       String                  @db.Uuid
+  candidateId String                  @db.Uuid
+  evidenceId  String                  @db.Uuid
+  createdAt   DateTime                @default(now()) @db.Timestamptz(3)
+  candidate   TaskExtractionCandidate @relation("CandidateEvidenceCandidate", fields: [datasetId, candidateId, jobId], references: [datasetId, id, jobId], onDelete: Cascade)
+  evidence    TaskExtractionEvidence  @relation("CandidateEvidenceEvidence", fields: [datasetId, evidenceId, jobId], references: [datasetId, id, jobId], onDelete: Cascade)
 
   @@unique(name: "task_candidate_evidence_dataset_id", [datasetId, id])
   @@unique(name: "task_candidate_evidence_pair", [datasetId, candidateId, evidenceId])
@@ -226,18 +240,19 @@ model TaskExtractionCandidateEvidence {
 }
 
 model TaskApplyReceipt {
-  id                  String            @id @default(uuid()) @db.Uuid
-  datasetId           String            @db.Uuid
-  actorId             String            @db.Uuid
-  wardId              String            @db.Uuid
-  jobId               String            @db.Uuid
-  operation           String            @default("tasks.extract.apply") @db.VarChar(100)
-  idempotencyRecordId String            @unique @db.Uuid
+  id                  String                    @id @default(uuid()) @db.Uuid
+  datasetId           String                    @db.Uuid
+  actorId             String                    @db.Uuid
+  wardId              String                    @db.Uuid
+  jobId               String                    @db.Uuid
+  operation           String                    @default("tasks.extract.apply") @db.VarChar(100)
+  idempotencyRecordId String                    @unique @db.Uuid
   createdTaskIds      String[]
   skippedCandidateIds String[]
-  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
-  job                 TaskExtractionJob @relation("TaskApplyReceiptJob", fields: [datasetId, jobId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Restrict)
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  job                 TaskExtractionJob         @relation("TaskApplyReceiptJob", fields: [datasetId, jobId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Restrict)
   candidates          TaskExtractionCandidate[] @relation("CandidateApplyReceipt")
+  idempotencyRecord   IdempotencyRecord         @relation(fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "task_apply_receipt_dataset_id", [datasetId, id])
   @@unique(name: "task_apply_receipt_job_id", [datasetId, jobId, id])

@@ -63,33 +63,43 @@ enum HandoffAuditEventType {
 }
 
 model HandoffPrecheck {
-  id                      String                         @id @default(uuid()) @db.Uuid
-  datasetId               String                         @db.Uuid
-  wardId                  String                         @db.Uuid
-  senderActorId           String                         @db.Uuid
-  receiverActorId         String                         @db.Uuid
-  senderShiftId           String                         @db.Uuid
-  receiverShiftId         String                         @db.Uuid
-  handoffDate             DateTime                       @db.Date
-  targetDuty              ShiftDuty
-  aiJobId                 String                         @unique(map: "HandoffPrecheck_ai_job_id_key") @db.Uuid
-  idempotencyRecordId     String                         @unique(map: "HandoffPrecheck_idempotency_record_id_key") @db.Uuid
-  requestHash             String                         @db.Char(64)
-  requestId               String                         @db.Uuid
-  aiModelVersion          String?                        @db.VarChar(100)
-  aiContractVersion       String?                        @db.VarChar(100)
-  aiGeneratedAt           DateTime?                      @db.Timestamptz(3)
-  version                 Int                            @default(1)
-  lockedAt                DateTime?                      @db.Timestamptz(3)
-  createdAt               DateTime                       @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                       @updatedAt @db.Timestamptz(3)
-  patientInputs           HandoffPrecheckPatientInput[]
-  timelineInputs          HandoffPrecheckTimelineInput[]
-  taskInputs              HandoffPrecheckTaskInput[]
-  items                   HandoffPrecheckItem[]
-  handoff                 Handoff?
+  id                  String                         @id @default(uuid()) @db.Uuid
+  datasetId           String                         @db.Uuid
+  wardId              String                         @db.Uuid
+  senderActorId       String                         @db.Uuid
+  receiverActorId     String                         @db.Uuid
+  senderShiftId       String                         @db.Uuid
+  receiverShiftId     String                         @db.Uuid
+  handoffDate         DateTime                       @db.Date
+  targetDuty          ShiftDuty
+  operation           String                         @default("handoffs.precheck") @db.VarChar(100)
+  aiJobId             String                         @unique(map: "HandoffPrecheck_ai_job_id_key") @db.Uuid
+  idempotencyRecordId String                         @unique(map: "HandoffPrecheck_idempotency_record_id_key") @db.Uuid
+  requestHash         String                         @db.Char(64)
+  requestId           String                         @db.Uuid
+  aiModelVersion      String?                        @db.VarChar(100)
+  aiContractVersion   String?                        @db.VarChar(100)
+  aiGeneratedAt       DateTime?                      @db.Timestamptz(3)
+  version             Int                            @default(1)
+  lockedAt            DateTime?                      @db.Timestamptz(3)
+  createdAt           DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                       @updatedAt @db.Timestamptz(3)
+  patientInputs       HandoffPrecheckPatientInput[]
+  timelineInputs      HandoffPrecheckTimelineInput[]
+  taskInputs          HandoffPrecheckTaskInput[]
+  items               HandoffPrecheckItem[]
+  handoff             Handoff?
+  dataset             DemoDataset                    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  senderMembership    WardMembership                 @relation("HandoffPrecheckSender", fields: [datasetId, senderActorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  receiverMembership  WardMembership                 @relation("HandoffPrecheckReceiver", fields: [datasetId, receiverActorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  senderShift         NurseShift                     @relation("HandoffPrecheckSenderShift", fields: [datasetId, senderShiftId, senderActorId, wardId], references: [datasetId, id, nurseId, wardId], onDelete: Restrict)
+  receiverShift       NurseShift                     @relation("HandoffPrecheckReceiverShift", fields: [datasetId, receiverShiftId, receiverActorId, wardId], references: [datasetId, id, nurseId, wardId], onDelete: Restrict)
+  aiJob               AiJob                          @relation("HandoffPrecheckAiJob", fields: [datasetId, aiJobId, senderActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
+  idempotencyRecord   IdempotencyRecord              @relation("HandoffPrecheckIdempotency", fields: [datasetId, idempotencyRecordId, senderActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "handoff_precheck_dataset_id", [datasetId, id])
+  @@unique(name: "handoff_precheck_ai_job_scope", [datasetId, aiJobId, senderActorId, wardId, operation])
+  @@unique(name: "handoff_precheck_idempotency_scope", [datasetId, idempotencyRecordId, senderActorId, wardId, operation])
   @@index([datasetId, wardId, senderActorId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
@@ -102,6 +112,7 @@ model HandoffPrecheckPatientInput {
   version    Int             @default(1)
   createdAt  DateTime        @default(now()) @db.Timestamptz(3)
   precheck   HandoffPrecheck @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
+  patient    Patient         @relation(fields: [datasetId, patientId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "handoff_precheck_patient_dataset_id", [datasetId, id])
   @@unique(name: "handoff_precheck_patient_source", [datasetId, precheckId, patientId])
@@ -109,22 +120,23 @@ model HandoffPrecheckPatientInput {
 }
 
 model HandoffPrecheckTimelineInput {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  datasetId             String                    @db.Uuid
-  precheckId            String                    @db.Uuid
-  timelineEventId       String                    @db.Uuid
-  patientId             String                    @db.Uuid
-  occurredAt            DateTime                  @db.Timestamptz(3)
-  eventType             TimelineEventType
-  eventSource           TimelineEventSource
-  sourceReference       String                    @db.VarChar(128)
-  summary               String                    @db.VarChar(500)
-  sourceVersion         Int
-  version               Int                       @default(1)
-  capturedAt            DateTime                  @db.Timestamptz(3)
-  createdAt             DateTime                  @default(now()) @db.Timestamptz(3)
-  precheck              HandoffPrecheck           @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
-  precheckEvidence      HandoffPrecheckEvidence[]
+  id               String                    @id @default(uuid()) @db.Uuid
+  datasetId        String                    @db.Uuid
+  precheckId       String                    @db.Uuid
+  timelineEventId  String                    @db.Uuid
+  patientId        String                    @db.Uuid
+  occurredAt       DateTime                  @db.Timestamptz(3)
+  eventType        TimelineEventType
+  eventSource      TimelineEventSource
+  sourceReference  String                    @db.VarChar(128)
+  summary          String                    @db.VarChar(500)
+  sourceVersion    Int
+  version          Int                       @default(1)
+  capturedAt       DateTime                  @db.Timestamptz(3)
+  createdAt        DateTime                  @default(now()) @db.Timestamptz(3)
+  precheck         HandoffPrecheck           @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
+  precheckEvidence HandoffPrecheckEvidence[]
+  timelineEvent    TimelineEvent             @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "handoff_precheck_timeline_dataset_id", [datasetId, id])
   @@unique(name: "handoff_precheck_timeline_scope_id", [datasetId, precheckId, id])
@@ -133,22 +145,23 @@ model HandoffPrecheckTimelineInput {
 }
 
 model HandoffPrecheckTaskInput {
-  id                    String                               @id @default(uuid()) @db.Uuid
-  datasetId             String                               @db.Uuid
-  precheckId            String                               @db.Uuid
-  taskId                String                               @db.Uuid
-  patientId             String?                              @db.Uuid
-  title                 String                               @db.VarChar(500)
-  dueAt                 DateTime?                            @db.Timestamptz(3)
-  effectivePriority     HandoffTaskPriority
-  sourceVersion         Int
-  sourceUpdatedAt       DateTime                             @db.Timestamptz(3)
-  version               Int                                  @default(1)
-  capturedAt            DateTime                             @db.Timestamptz(3)
-  createdAt             DateTime                             @default(now()) @db.Timestamptz(3)
-  precheck              HandoffPrecheck                      @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
-  sourceReferences      HandoffPrecheckTaskSourceReference[]
-  precheckEvidence      HandoffPrecheckEvidence[]
+  id                String                               @id @default(uuid()) @db.Uuid
+  datasetId         String                               @db.Uuid
+  precheckId        String                               @db.Uuid
+  taskId            String                               @db.Uuid
+  patientId         String?                              @db.Uuid
+  title             String                               @db.VarChar(500)
+  dueAt             DateTime?                            @db.Timestamptz(3)
+  effectivePriority HandoffTaskPriority
+  sourceVersion     Int
+  sourceUpdatedAt   DateTime                             @db.Timestamptz(3)
+  version           Int                                  @default(1)
+  capturedAt        DateTime                             @db.Timestamptz(3)
+  createdAt         DateTime                             @default(now()) @db.Timestamptz(3)
+  precheck          HandoffPrecheck                      @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
+  sourceReferences  HandoffPrecheckTaskSourceReference[]
+  precheckEvidence  HandoffPrecheckEvidence[]
+  task              Task                                 @relation(fields: [datasetId, taskId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "handoff_precheck_task_dataset_id", [datasetId, id])
   @@unique(name: "handoff_precheck_task_scope_id", [datasetId, precheckId, id])
@@ -171,18 +184,18 @@ model HandoffPrecheckTaskSourceReference {
 }
 
 model HandoffPrecheckItem {
-  id           String                     @id @default(uuid()) @db.Uuid
-  datasetId    String                     @db.Uuid
-  precheckId   String                     @db.Uuid
-  position     Int
-  severity     HandoffItemSeverity
-  aiQuestion   String                     @db.Text
-  aiReason     String                     @db.Text
-  version      Int                        @default(1)
-  createdAt    DateTime                   @default(now()) @db.Timestamptz(3)
-  precheck     HandoffPrecheck            @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
-  evidence     HandoffPrecheckEvidence[]
-  answer       HandoffPrecheckAnswer?
+  id         String                    @id @default(uuid()) @db.Uuid
+  datasetId  String                    @db.Uuid
+  precheckId String                    @db.Uuid
+  position   Int
+  severity   HandoffItemSeverity
+  aiQuestion String                    @db.Text
+  aiReason   String                    @db.Text
+  version    Int                       @default(1)
+  createdAt  DateTime                  @default(now()) @db.Timestamptz(3)
+  precheck   HandoffPrecheck           @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Cascade)
+  evidence   HandoffPrecheckEvidence[]
+  answer     HandoffPrecheckAnswer?
 
   @@unique(name: "handoff_precheck_item_dataset_id", [datasetId, id])
   @@unique(name: "handoff_precheck_item_scope_id", [datasetId, precheckId, id])
@@ -229,35 +242,40 @@ model HandoffPrecheckAnswer {
 }
 
 model Handoff {
-  id                         String                          @id @default(uuid()) @db.Uuid
-  datasetId                  String                          @db.Uuid
-  wardId                     String                          @db.Uuid
-  senderActorId              String                          @db.Uuid
-  receiverActorId            String                          @db.Uuid
-  senderShiftId              String                          @db.Uuid
-  receiverShiftId            String                          @db.Uuid
-  handoffDate                DateTime                        @db.Date
-  targetDuty                 ShiftDuty
-  status                     HandoffStatus                   @default(GENERATING)
-  precheckId                 String                          @db.Uuid
-  precheckVersion            Int
-  templateKey                String                          @db.VarChar(64)
-  includeUnverified          Boolean
-  frozenInputPayload         Json
-  frozenInputHash            String                          @db.Char(64)
-  version                    Int                             @default(1)
-  finalizedAt                DateTime?                       @db.Timestamptz(3)
-  createdAt                  DateTime                        @default(now()) @db.Timestamptz(3)
-  updatedAt                  DateTime                        @updatedAt @db.Timestamptz(3)
-  precheck                   HandoffPrecheck                 @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Restrict)
-  generationAttempts         HandoffGenerationAttempt[]
-  frozenPrecheckItems        HandoffFrozenPrecheckItem[]
-  draftPatients              HandoffDraftPatient[]
-  draftTasks                 HandoffDraftLinkedTask[]
-  draftWarnings              HandoffDraftWarning[]
-  finalSnapshot              HandoffFinalSnapshot?
-  acknowledgements           HandoffAcknowledgement[]
-  auditEvents                HandoffAuditEvent[]
+  id                  String                      @id @default(uuid()) @db.Uuid
+  datasetId           String                      @db.Uuid
+  wardId              String                      @db.Uuid
+  senderActorId       String                      @db.Uuid
+  receiverActorId     String                      @db.Uuid
+  senderShiftId       String                      @db.Uuid
+  receiverShiftId     String                      @db.Uuid
+  handoffDate         DateTime                    @db.Date
+  targetDuty          ShiftDuty
+  status              HandoffStatus               @default(GENERATING)
+  precheckId          String                      @db.Uuid
+  precheckVersion     Int
+  templateKey         String                      @db.VarChar(64)
+  includeUnverified   Boolean
+  frozenInputPayload  Json
+  frozenInputHash     String                      @db.Char(64)
+  version             Int                         @default(1)
+  finalizedAt         DateTime?                   @db.Timestamptz(3)
+  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
+  precheck            HandoffPrecheck             @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Restrict)
+  generationAttempts  HandoffGenerationAttempt[]
+  frozenPrecheckItems HandoffFrozenPrecheckItem[]
+  draftPatients       HandoffDraftPatient[]
+  draftTasks          HandoffDraftLinkedTask[]
+  draftWarnings       HandoffDraftWarning[]
+  finalSnapshot       HandoffFinalSnapshot?
+  acknowledgements    HandoffAcknowledgement[]
+  auditEvents         HandoffAuditEvent[]
+  dataset             DemoDataset                 @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  senderMembership    WardMembership              @relation("HandoffSender", fields: [datasetId, senderActorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  receiverMembership  WardMembership              @relation("HandoffReceiver", fields: [datasetId, receiverActorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  senderShift         NurseShift                  @relation("HandoffSenderShift", fields: [datasetId, senderShiftId, senderActorId, wardId], references: [datasetId, id, nurseId, wardId], onDelete: Restrict)
+  receiverShift       NurseShift                  @relation("HandoffReceiverShift", fields: [datasetId, receiverShiftId, receiverActorId, wardId], references: [datasetId, id, nurseId, wardId], onDelete: Restrict)
 
   @@unique(name: "handoff_dataset_id", [datasetId, id])
   @@unique(name: "handoff_dataset_scope_id", [datasetId, wardId, id])
@@ -267,47 +285,54 @@ model Handoff {
 }
 
 model HandoffGenerationAttempt {
-  id                  String   @id @default(uuid()) @db.Uuid
-  datasetId           String   @db.Uuid
-  handoffId           String   @db.Uuid
-  aiJobId             String   @unique(map: "HandoffGenerationAttempt_ai_job_id_key") @db.Uuid
-  idempotencyRecordId String   @unique(map: "HandoffGenerationAttempt_idempotency_record_id_key") @db.Uuid
-  requestHash         String   @db.Char(64)
-  requestId           String   @db.Uuid
+  id                  String            @id @default(uuid()) @db.Uuid
+  datasetId           String            @db.Uuid
+  handoffId           String            @db.Uuid
+  actorId             String            @db.Uuid
+  wardId              String            @db.Uuid
+  operation           String            @default("handoffs.generate") @db.VarChar(100)
+  aiJobId             String            @unique(map: "HandoffGenerationAttempt_ai_job_id_key") @db.Uuid
+  idempotencyRecordId String            @unique(map: "HandoffGenerationAttempt_idempotency_record_id_key") @db.Uuid
+  requestHash         String            @db.Char(64)
+  requestId           String            @db.Uuid
   sequence            Int
-  aiModelVersion      String?  @db.VarChar(100)
-  aiContractVersion   String?  @db.VarChar(100)
-  aiGeneratedAt       DateTime? @db.Timestamptz(3)
-  publishedAt         DateTime? @db.Timestamptz(3)
-  version             Int      @default(1)
-  createdAt           DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
-  handoff             Handoff  @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  aiModelVersion      String?           @db.VarChar(100)
+  aiContractVersion   String?           @db.VarChar(100)
+  aiGeneratedAt       DateTime?         @db.Timestamptz(3)
+  publishedAt         DateTime?         @db.Timestamptz(3)
+  version             Int               @default(1)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime          @updatedAt @db.Timestamptz(3)
+  handoff             Handoff           @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  aiJob               AiJob             @relation("HandoffGenerationAiJob", fields: [datasetId, aiJobId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
+  idempotencyRecord   IdempotencyRecord @relation("HandoffGenerationIdempotency", fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "handoff_generation_attempt_dataset_id", [datasetId, id])
+  @@unique(name: "handoff_generation_attempt_ai_job_scope", [datasetId, aiJobId, actorId, wardId, operation])
+  @@unique(name: "handoff_generation_attempt_idempotency_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation])
   @@unique(name: "handoff_generation_attempt_sequence", [datasetId, handoffId, sequence])
   @@index([datasetId, handoffId, sequence(sort: Desc), id(sort: Desc)])
 }
 
 model HandoffFrozenPrecheckItem {
-  id                  String                           @id @default(uuid()) @db.Uuid
-  datasetId           String                           @db.Uuid
-  handoffId           String                           @db.Uuid
-  sourcePrecheckItemId String                           @db.Uuid
-  position            Int
-  severity            HandoffItemSeverity
-  aiQuestion          String                           @db.Text
-  answerCode          HandoffAnswerCode?
-  answerComment       String?                          @db.Text
-  answeredByActorId   String?                          @db.Uuid
-  answeredAt          DateTime?                        @db.Timestamptz(3)
-  sourceItemVersion   Int
-  sourceAnswerVersion Int?
-  isWarningCandidate  Boolean
-  version             Int                              @default(1)
-  createdAt           DateTime                         @default(now()) @db.Timestamptz(3)
-  handoff             Handoff                          @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
-  evidence            HandoffFrozenPrecheckEvidence[]
+  id                   String                          @id @default(uuid()) @db.Uuid
+  datasetId            String                          @db.Uuid
+  handoffId            String                          @db.Uuid
+  sourcePrecheckItemId String                          @db.Uuid
+  position             Int
+  severity             HandoffItemSeverity
+  aiQuestion           String                          @db.Text
+  answerCode           HandoffAnswerCode?
+  answerComment        String?                         @db.Text
+  answeredByActorId    String?                         @db.Uuid
+  answeredAt           DateTime?                       @db.Timestamptz(3)
+  sourceItemVersion    Int
+  sourceAnswerVersion  Int?
+  isWarningCandidate   Boolean
+  version              Int                             @default(1)
+  createdAt            DateTime                        @default(now()) @db.Timestamptz(3)
+  handoff              Handoff                         @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  evidence             HandoffFrozenPrecheckEvidence[]
 
   @@unique(name: "handoff_frozen_item_dataset_id", [datasetId, id])
   @@unique(name: "handoff_frozen_item_scope_id", [datasetId, handoffId, id])
@@ -317,15 +342,15 @@ model HandoffFrozenPrecheckItem {
 }
 
 model HandoffFrozenPrecheckEvidence {
-  id           String                      @id @default(uuid()) @db.Uuid
-  datasetId    String                      @db.Uuid
-  handoffId    String                      @db.Uuid
-  frozenItemId String                      @db.Uuid
+  id           String                    @id @default(uuid()) @db.Uuid
+  datasetId    String                    @db.Uuid
+  handoffId    String                    @db.Uuid
+  frozenItemId String                    @db.Uuid
   sourceType   HandoffEvidenceSourceType
-  sourceId     String                      @db.Uuid
-  version      Int                         @default(1)
-  createdAt    DateTime                    @default(now()) @db.Timestamptz(3)
-  frozenItem   HandoffFrozenPrecheckItem   @relation(fields: [datasetId, handoffId, frozenItemId], references: [datasetId, handoffId, id], onDelete: Cascade)
+  sourceId     String                    @db.Uuid
+  version      Int                       @default(1)
+  createdAt    DateTime                  @default(now()) @db.Timestamptz(3)
+  frozenItem   HandoffFrozenPrecheckItem @relation(fields: [datasetId, handoffId, frozenItemId], references: [datasetId, handoffId, id], onDelete: Cascade)
 
   @@unique(name: "handoff_frozen_evidence_dataset_id", [datasetId, id])
   @@unique(name: "handoff_frozen_evidence_source", [datasetId, handoffId, frozenItemId, sourceType, sourceId])
@@ -333,16 +358,17 @@ model HandoffFrozenPrecheckEvidence {
 }
 
 model HandoffDraftPatient {
-  id         String                @id @default(uuid()) @db.Uuid
-  datasetId  String                @db.Uuid
-  handoffId  String                @db.Uuid
-  patientId  String                @db.Uuid
-  position   Int
-  version    Int                   @default(1)
-  createdAt  DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime              @updatedAt @db.Timestamptz(3)
-  handoff    Handoff               @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
-  sections   HandoffDraftSection[]
+  id        String                @id @default(uuid()) @db.Uuid
+  datasetId String                @db.Uuid
+  handoffId String                @db.Uuid
+  patientId String                @db.Uuid
+  position  Int
+  version   Int                   @default(1)
+  createdAt DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime              @updatedAt @db.Timestamptz(3)
+  handoff   Handoff               @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  patient   Patient               @relation(fields: [datasetId, patientId], references: [datasetId, id], onDelete: Restrict)
+  sections  HandoffDraftSection[]
 
   @@unique(name: "handoff_draft_patient_dataset_id", [datasetId, id])
   @@unique(name: "handoff_draft_patient_scope_id", [datasetId, handoffId, id])
@@ -351,18 +377,18 @@ model HandoffDraftPatient {
 }
 
 model HandoffDraftSection {
-  id             String                   @id @default(uuid()) @db.Uuid
-  datasetId      String                   @db.Uuid
-  handoffId      String                   @db.Uuid
-  draftPatientId String                   @db.Uuid
+  id             String                 @id @default(uuid()) @db.Uuid
+  datasetId      String                 @db.Uuid
+  handoffId      String                 @db.Uuid
+  draftPatientId String                 @db.Uuid
   section        HandoffClinicalSection
-  aiOriginalText String                   @db.Text
-  currentText    String                   @db.Text
-  isModified     Boolean                  @default(false)
-  version        Int                      @default(1)
-  createdAt      DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime                 @updatedAt @db.Timestamptz(3)
-  draftPatient   HandoffDraftPatient      @relation(fields: [datasetId, handoffId, draftPatientId], references: [datasetId, handoffId, id], onDelete: Cascade)
+  aiOriginalText String                 @db.Text
+  currentText    String                 @db.Text
+  isModified     Boolean                @default(false)
+  version        Int                    @default(1)
+  createdAt      DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime               @updatedAt @db.Timestamptz(3)
+  draftPatient   HandoffDraftPatient    @relation(fields: [datasetId, handoffId, draftPatientId], references: [datasetId, handoffId, id], onDelete: Cascade)
   citations      HandoffDraftCitation[]
 
   @@unique(name: "handoff_draft_section_dataset_id", [datasetId, id])
@@ -391,23 +417,24 @@ model HandoffDraftCitation {
 }
 
 model HandoffDraftLinkedTask {
-  id                    String               @id @default(uuid()) @db.Uuid
-  datasetId             String               @db.Uuid
-  handoffId             String               @db.Uuid
-  taskId                String               @db.Uuid
-  patientId             String?              @db.Uuid
-  title                 String               @db.VarChar(500)
-  dueAt                 DateTime?            @db.Timestamptz(3)
-  effectivePriority     HandoffTaskPriority
-  sourceVersion         Int
-  sourceUpdatedAt       DateTime             @db.Timestamptz(3)
-  linkedByActorId       String               @db.Uuid
-  position              Int
-  version               Int                  @default(1)
-  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
-  handoff               Handoff              @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
-  sourceReferences      HandoffDraftTaskSourceReference[]
+  id                String                            @id @default(uuid()) @db.Uuid
+  datasetId         String                            @db.Uuid
+  handoffId         String                            @db.Uuid
+  taskId            String                            @db.Uuid
+  patientId         String?                           @db.Uuid
+  title             String                            @db.VarChar(500)
+  dueAt             DateTime?                         @db.Timestamptz(3)
+  effectivePriority HandoffTaskPriority
+  sourceVersion     Int
+  sourceUpdatedAt   DateTime                          @db.Timestamptz(3)
+  linkedByActorId   String                            @db.Uuid
+  position          Int
+  version           Int                               @default(1)
+  createdAt         DateTime                          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                          @updatedAt @db.Timestamptz(3)
+  handoff           Handoff                           @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  sourceReferences  HandoffDraftTaskSourceReference[]
+  task              Task                              @relation(fields: [datasetId, taskId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique(name: "handoff_draft_task_dataset_id", [datasetId, id])
   @@unique(name: "handoff_draft_task_scope_id", [datasetId, handoffId, id])
@@ -417,31 +444,31 @@ model HandoffDraftLinkedTask {
 }
 
 model HandoffDraftTaskSourceReference {
-  id            String                 @id @default(uuid()) @db.Uuid
-  datasetId     String                 @db.Uuid
-  handoffId     String                 @db.Uuid
-  linkedTaskId  String                 @db.Uuid
-  reference     String                 @db.VarChar(128)
-  version       Int                    @default(1)
-  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
-  linkedTask    HandoffDraftLinkedTask @relation(fields: [datasetId, handoffId, linkedTaskId], references: [datasetId, handoffId, id], onDelete: Cascade)
+  id           String                 @id @default(uuid()) @db.Uuid
+  datasetId    String                 @db.Uuid
+  handoffId    String                 @db.Uuid
+  linkedTaskId String                 @db.Uuid
+  reference    String                 @db.VarChar(128)
+  version      Int                    @default(1)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  linkedTask   HandoffDraftLinkedTask @relation(fields: [datasetId, handoffId, linkedTaskId], references: [datasetId, handoffId, id], onDelete: Cascade)
 
   @@unique(name: "handoff_draft_task_reference_dataset_id", [datasetId, id])
   @@unique(name: "handoff_draft_task_reference", [datasetId, handoffId, linkedTaskId, reference])
 }
 
 model HandoffDraftWarning {
-  id                 String             @id @default(uuid()) @db.Uuid
-  datasetId          String             @db.Uuid
-  handoffId          String             @db.Uuid
-  precheckItemId     String?            @db.Uuid
-  warningType        HandoffWarningType
-  message            String             @db.Text
+  id                  String             @id @default(uuid()) @db.Uuid
+  datasetId           String             @db.Uuid
+  handoffId           String             @db.Uuid
+  precheckItemId      String?            @db.Uuid
+  warningType         HandoffWarningType
+  message             String             @db.Text
   isIncludedInAiInput Boolean
-  version            Int                @default(1)
-  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
-  handoff            Handoff            @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
+  version             Int                @default(1)
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+  handoff             Handoff            @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Cascade)
 
   @@unique(name: "handoff_draft_warning_dataset_id", [datasetId, id])
   @@unique(name: "handoff_draft_warning_item", [datasetId, handoffId, warningType, precheckItemId])
@@ -449,50 +476,56 @@ model HandoffDraftWarning {
 }
 
 model HandoffFinalSnapshot {
-  id                    String                     @id @default(uuid()) @db.Uuid
-  datasetId             String                     @db.Uuid
-  wardId                String                     @db.Uuid
-  handoffId             String                     @db.Uuid
-  senderActorId         String                     @db.Uuid
-  receiverActorId       String                     @db.Uuid
-  finalizedByActorId    String                     @db.Uuid
-  resolution            HandoffFinalizeResolution
-  sourceDraftVersion    Int
-  precheckVersion       Int
-  templateKey           String                     @db.VarChar(64)
-  includeUnverified     Boolean
-  idempotencyRecordId   String                     @unique(map: "HandoffFinalSnapshot_idempotency_record_id_key") @db.Uuid
-  requestHash           String                     @db.Char(64)
-  snapshotPayload       Json
-  snapshotHash          String                     @db.Char(64)
-  version               Int                        @default(1)
-  finalizedAt           DateTime                   @db.Timestamptz(3)
-  createdAt             DateTime                   @default(now()) @db.Timestamptz(3)
-  handoff               Handoff                    @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
+  id                  String                    @id @default(uuid()) @db.Uuid
+  datasetId           String                    @db.Uuid
+  wardId              String                    @db.Uuid
+  handoffId           String                    @db.Uuid
+  senderActorId       String                    @db.Uuid
+  receiverActorId     String                    @db.Uuid
+  finalizedByActorId  String                    @db.Uuid
+  operation           String                    @default("handoffs.finalize") @db.VarChar(100)
+  resolution          HandoffFinalizeResolution
+  sourceDraftVersion  Int
+  precheckVersion     Int
+  templateKey         String                    @db.VarChar(64)
+  includeUnverified   Boolean
+  idempotencyRecordId String                    @unique(map: "HandoffFinalSnapshot_idempotency_record_id_key") @db.Uuid
+  requestHash         String                    @db.Char(64)
+  snapshotPayload     Json
+  snapshotHash        String                    @db.Char(64)
+  version             Int                       @default(1)
+  finalizedAt         DateTime                  @db.Timestamptz(3)
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  handoff             Handoff                   @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
+  idempotencyRecord   IdempotencyRecord         @relation("HandoffFinalIdempotency", fields: [datasetId, idempotencyRecordId, finalizedByActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "handoff_final_snapshot_dataset_id", [datasetId, id])
+  @@unique(name: "handoff_final_snapshot_idempotency_scope", [datasetId, idempotencyRecordId, finalizedByActorId, wardId, operation])
   @@unique(name: "handoff_final_snapshot_handoff", [datasetId, handoffId])
   @@index([datasetId, wardId, senderActorId, finalizedAt(sort: Desc), id(sort: Desc)])
   @@index([datasetId, wardId, receiverActorId, finalizedAt(sort: Desc), id(sort: Desc)])
 }
 
 model HandoffAcknowledgement {
-  id                  String                          @id @default(uuid()) @db.Uuid
-  datasetId           String                          @db.Uuid
-  wardId              String                          @db.Uuid
-  handoffId           String                          @db.Uuid
-  senderActorId       String                          @db.Uuid
-  receiverActorId     String                          @db.Uuid
+  id                  String                       @id @default(uuid()) @db.Uuid
+  datasetId           String                       @db.Uuid
+  wardId              String                       @db.Uuid
+  handoffId           String                       @db.Uuid
+  senderActorId       String                       @db.Uuid
+  receiverActorId     String                       @db.Uuid
+  operation           String                       @default("handoffs.acknowledge") @db.VarChar(100)
   status              HandoffAcknowledgementStatus
-  comment             String?                         @db.Text
-  idempotencyRecordId String                          @unique(map: "HandoffAcknowledgement_idempotency_record_id_key") @db.Uuid
-  requestHash         String                          @db.Char(64)
-  version             Int                             @default(1)
-  createdAt           DateTime                        @default(now()) @db.Timestamptz(3)
-  handoff             Handoff                         @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
+  comment             String?                      @db.Text
+  idempotencyRecordId String                       @unique(map: "HandoffAcknowledgement_idempotency_record_id_key") @db.Uuid
+  requestHash         String                       @db.Char(64)
+  version             Int                          @default(1)
+  createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  handoff             Handoff                      @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
   auditEvent          HandoffAuditEvent?
+  idempotencyRecord   IdempotencyRecord            @relation("HandoffAcknowledgementIdempotency", fields: [datasetId, idempotencyRecordId, receiverActorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict)
 
   @@unique(name: "handoff_acknowledgement_dataset_id", [datasetId, id])
+  @@unique(name: "handoff_acknowledgement_idempotency_scope", [datasetId, idempotencyRecordId, receiverActorId, wardId, operation])
   @@unique(name: "handoff_acknowledgement_scope_id", [datasetId, handoffId, id])
   @@unique(name: "handoff_acknowledgement_status", [datasetId, handoffId, status])
   @@index([datasetId, handoffId, status, createdAt(sort: Desc), id(sort: Desc)])
@@ -500,22 +533,22 @@ model HandoffAcknowledgement {
 }
 
 model HandoffAuditEvent {
-  id                    String                      @id @default(uuid()) @db.Uuid
-  datasetId             String                      @db.Uuid
-  wardId                String                      @db.Uuid
-  handoffId             String                      @db.Uuid
-  senderActorId         String                      @db.Uuid
-  receiverActorId       String                      @db.Uuid
-  actorId               String                      @db.Uuid
-  eventType             HandoffAuditEventType
-  acknowledgementId     String?                     @db.Uuid
-  deduplicationKey      String?                     @db.VarChar(255)
-  eventPayload          Json?
-  version               Int                         @default(1)
-  occurredAt            DateTime                    @db.Timestamptz(3)
-  createdAt             DateTime                    @default(now()) @db.Timestamptz(3)
-  handoff               Handoff                     @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
-  acknowledgement       HandoffAcknowledgement?     @relation(fields: [datasetId, handoffId, acknowledgementId], references: [datasetId, handoffId, id], onDelete: Restrict)
+  id                String                  @id @default(uuid()) @db.Uuid
+  datasetId         String                  @db.Uuid
+  wardId            String                  @db.Uuid
+  handoffId         String                  @db.Uuid
+  senderActorId     String                  @db.Uuid
+  receiverActorId   String                  @db.Uuid
+  actorId           String                  @db.Uuid
+  eventType         HandoffAuditEventType
+  acknowledgementId String?                 @db.Uuid
+  deduplicationKey  String?                 @db.VarChar(255)
+  eventPayload      Json?
+  version           Int                     @default(1)
+  occurredAt        DateTime                @db.Timestamptz(3)
+  createdAt         DateTime                @default(now()) @db.Timestamptz(3)
+  handoff           Handoff                 @relation(fields: [datasetId, handoffId], references: [datasetId, id], onDelete: Restrict)
+  acknowledgement   HandoffAcknowledgement? @relation(fields: [datasetId, handoffId, acknowledgementId], references: [datasetId, handoffId, id], onDelete: Restrict)
 
   @@unique(name: "handoff_audit_event_dataset_id", [datasetId, id])
   @@unique(name: "handoff_audit_event_acknowledgement", [datasetId, handoffId, acknowledgementId])

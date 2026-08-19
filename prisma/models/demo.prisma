@@ -15,6 +15,9 @@ model DemoDataset {
   storedFiles        StoredFile[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
+  tasks              Task[]
+  handoffPrechecks   HandoffPrecheck[]
+  handoffs           Handoff[]
 }
 
 model DemoSession {
