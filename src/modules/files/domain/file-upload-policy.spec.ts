@@ -26,6 +26,25 @@ describe('validateStoredFileUpload', () => {
     });
   });
 
+  it.each(['audio/x-m4a', 'audio/m4a', 'video/mp4'])(
+    '모바일 m4a MIME alias %s는 audio/mp4로 정규화한다',
+    (mimeType) => {
+      expect(
+        validateStoredFileUpload({
+          kind: 'AUDIO',
+          mimeType,
+          originalName: 'quick-note.m4a',
+          sizeBytes: 1_024,
+        }),
+      ).toMatchObject({
+        extension: '.m4a',
+        kind: 'AUDIO',
+        mimeType: 'audio/mp4',
+        originalName: 'quick-note.m4a',
+      });
+    },
+  );
+
   it('허용되지 않은 MIME type은 거부한다', () => {
     expect(() =>
       validateStoredFileUpload({
