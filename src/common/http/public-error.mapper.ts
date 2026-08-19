@@ -17,6 +17,7 @@ const APPLICATION_ERROR_STATUS: Readonly<Record<ApplicationErrorKind, number>> =
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
     FORBIDDEN: HttpStatus.FORBIDDEN,
     NOT_FOUND: HttpStatus.NOT_FOUND,
+    GONE: HttpStatus.GONE,
     CONFLICT: HttpStatus.CONFLICT,
     UNPROCESSABLE_ENTITY: HttpStatus.UNPROCESSABLE_ENTITY,
     TOO_MANY_REQUESTS: HttpStatus.TOO_MANY_REQUESTS,
@@ -46,6 +47,10 @@ const DEFAULT_ERRORS: Readonly<Record<number, Omit<PublicError, 'status'>>> = {
   [HttpStatus.CONFLICT]: {
     code: 'CONFLICT',
     message: '현재 상태와 요청이 충돌합니다.',
+  },
+  [HttpStatus.GONE]: {
+    code: 'GONE',
+    message: '요청한 리소스가 만료되었습니다.',
   },
   [HttpStatus.UNPROCESSABLE_ENTITY]: {
     code: 'UNPROCESSABLE_ENTITY',
