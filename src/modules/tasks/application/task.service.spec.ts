@@ -432,6 +432,38 @@ describe('TaskService', () => {
       expect(input).not.toHaveProperty('confirmedPriority');
     });
 
+    it('AI 제안 수락 식별자와 확정 우선순위를 함께 repository에 전달한다', async () => {
+      await service.update(CONTEXT, TASK_VIEW.id, {
+        version: 1,
+        priorityOverride: 'CRITICAL',
+        prioritySuggestionId: JOB_ID,
+      });
+
+      expect(repository.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          confirmedPriority: 'CRITICAL',
+          prioritySuggestionId: JOB_ID,
+        }),
+      );
+    });
+
+    it('prioritySuggestionId 단독 또는 null 확정 조합을 거부한다', () => {
+      expect(() =>
+        service.update(CONTEXT, TASK_VIEW.id, {
+          version: 1,
+          prioritySuggestionId: JOB_ID,
+        }),
+      ).toThrow(TaskCommandInvalidError);
+      expect(() =>
+        service.update(CONTEXT, TASK_VIEW.id, {
+          version: 1,
+          priorityOverride: null,
+          prioritySuggestionId: JOB_ID,
+        }),
+      ).toThrow(TaskCommandInvalidError);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
     it('repository의 optimistic version conflict를 그대로 보존한다', async () => {
       repository.update.mockRejectedValueOnce(new VersionConflictError(1, 2));
 

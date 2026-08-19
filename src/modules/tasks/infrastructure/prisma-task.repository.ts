@@ -31,6 +31,13 @@ import type {
   TaskView,
   UpdateTaskInput,
 } from '../application/ports/task.repository';
+import type {
+  ReserveTaskPrioritySuggestionResult,
+  TaskPrioritySuggestionBatchResult,
+  TaskPrioritySuggestionFailure,
+  TaskPrioritySuggestionRepository,
+  TaskPrioritySuggestionSnapshotTask,
+} from '../application/ports/task-priority-suggestion.repository';
 import {
   TaskCandidateAlreadyAppliedError,
   TaskCompletedImmutableError,
@@ -38,6 +45,7 @@ import {
   TaskCursorInvalidError,
   TaskNotFoundError,
   TaskPersistenceInvariantError,
+  TaskPrioritySuggestionAcceptanceInvalidError,
   TaskExtractionNotSucceededError,
 } from '../domain/task.errors';
 import {
@@ -50,6 +58,8 @@ import {
   TASK_APPLY_OPERATION,
   TASK_CREATE_OPERATION,
   TASK_EXTRACTION_OPERATION,
+  TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+  TASK_PRIORITY_SUGGESTION_OPERATION,
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
@@ -87,7 +97,9 @@ type IdempotencyRow = {
 };
 
 @Injectable()
-export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
+export class PrismaTaskRepository
+  implements TaskRepository, TaskQueryPort, TaskPrioritySuggestionRepository
+{
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
@@ -162,6 +174,237 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
       nextCursor:
         hasNext && last ? encodeTaskCursor({ filter, taskId: last.id }) : null,
     };
+  }
+
+  async findSnapshot(input: {
+    context: DemoSessionContext;
+    workDate: Date;
+  }): Promise<readonly TaskPrioritySuggestionSnapshotTask[]> {
+    const rows = await this.prisma.task.findMany({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        workDate: input.workDate,
+        source: 'MANUAL',
+        status: { in: ['TODO', 'IN_PROGRESS'] },
+      },
+      orderBy: { id: 'asc' },
+      take: 51,
+      select: {
+        id: true,
+        patientId: true,
+        title: true,
+        dueAt: true,
+        version: true,
+      },
+    });
+
+    return rows.map(({ id, ...row }) => ({ taskId: id, ...row }));
+  }
+
+  async reserve(input: {
+    context: DemoSessionContext;
+    workDate: Date;
+    idempotencyKey: string;
+    requestHash: string;
+    requestId: string;
+    inputSnapshot: readonly TaskPrioritySuggestionSnapshotTask[];
+    now: Date;
+  }): Promise<ReserveTaskPrioritySuggestionResult> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await this.findIdempotencyRecord(
+          transaction,
+          input.context,
+          TASK_PRIORITY_SUGGESTION_OPERATION,
+          input.idempotencyKey,
+        );
+        if (existing) {
+          return this.resolvePrioritySuggestionReplay(
+            transaction,
+            input,
+            existing,
+          );
+        }
+
+        const record = await transaction.idempotencyRecord.create({
+          data: {
+            ...input.context,
+            operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+          },
+          select: { id: true },
+        });
+        const batch = await transaction.taskPrioritySuggestionBatch.create({
+          data: {
+            ...input.context,
+            workDate: input.workDate,
+            requestId: input.requestId,
+            operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+            idempotencyRecordId: record.id,
+            requestHash: input.requestHash,
+            contractVersion: TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+            inputSnapshot: serializePrioritySuggestionInput(
+              input.inputSnapshot,
+            ),
+            createdAt: input.now,
+            updatedAt: input.now,
+          },
+          select: { id: true },
+        });
+
+        return { state: 'RESERVED' as const, batchId: batch.id };
+      });
+    } catch (error: unknown) {
+      if (!hasPrismaErrorCode(error, 'P2002')) throw error;
+      const existing = await this.findIdempotencyRecord(
+        this.prisma,
+        input.context,
+        TASK_PRIORITY_SUGGESTION_OPERATION,
+        input.idempotencyKey,
+      );
+      if (!existing) throw error;
+      return this.resolvePrioritySuggestionReplay(this.prisma, input, existing);
+    }
+  }
+
+  async completeSuccess(input: {
+    context: DemoSessionContext;
+    batchId: string;
+    suggestions: readonly {
+      taskId: string;
+      aiScore: number;
+      aiSuggestedPriority: TaskPriority;
+      reasons: readonly string[];
+    }[];
+    skippedTaskIds: readonly string[];
+    evaluatedAt: Date;
+  }): Promise<TaskPrioritySuggestionBatchResult> {
+    return this.prisma.$transaction(async (transaction) => {
+      const batch = await this.findProcessingPrioritySuggestionBatch(
+        transaction,
+        input.context,
+        input.batchId,
+      );
+      const suggestions = [];
+      for (const suggestion of input.suggestions) {
+        const created = await transaction.taskPrioritySuggestion.create({
+          data: {
+            datasetId: input.context.datasetId,
+            batchId: batch.id,
+            taskId: suggestion.taskId,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            aiScore: suggestion.aiScore,
+            aiSuggestedPriority: suggestion.aiSuggestedPriority,
+            reasons: [...suggestion.reasons],
+            createdAt: input.evaluatedAt,
+          },
+          select: {
+            id: true,
+            taskId: true,
+            aiScore: true,
+            aiSuggestedPriority: true,
+            reasons: true,
+          },
+        });
+        suggestions.push({
+          suggestionId: created.id,
+          taskId: created.taskId,
+          aiScore: created.aiScore,
+          aiSuggestedPriority: created.aiSuggestedPriority,
+          reasons: created.reasons,
+        });
+      }
+      const result: TaskPrioritySuggestionBatchResult = {
+        batchId: batch.id,
+        evaluatedAt: input.evaluatedAt,
+        contractVersion: TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+        suggestions,
+        skippedTaskIds: [...input.skippedTaskIds],
+        isReplay: false,
+      };
+      const responseSnapshot = serializePrioritySuggestionResult(result);
+      const completedBatch =
+        await transaction.taskPrioritySuggestionBatch.updateMany({
+          where: {
+            id: batch.id,
+            datasetId: input.context.datasetId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'SUCCEEDED',
+            responseSnapshot,
+            evaluatedAt: input.evaluatedAt,
+            updatedAt: input.evaluatedAt,
+          },
+        });
+      const completedRecord = await transaction.idempotencyRecord.updateMany({
+        where: {
+          id: batch.idempotencyRecordId,
+          datasetId: input.context.datasetId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'COMPLETED',
+          resultReference: batch.id,
+          updatedAt: input.evaluatedAt,
+        },
+      });
+      if (completedBatch.count !== 1 || completedRecord.count !== 1) {
+        throw new TaskPersistenceInvariantError();
+      }
+      return result;
+    });
+  }
+
+  async completeFailure(input: {
+    context: DemoSessionContext;
+    batchId: string;
+    failure: TaskPrioritySuggestionFailure;
+    evaluatedAt: Date;
+  }): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      const batch = await this.findProcessingPrioritySuggestionBatch(
+        transaction,
+        input.context,
+        input.batchId,
+      );
+      const failureSnapshot = serializePrioritySuggestionFailure(input.failure);
+      const completedBatch =
+        await transaction.taskPrioritySuggestionBatch.updateMany({
+          where: {
+            id: batch.id,
+            datasetId: input.context.datasetId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'FAILED',
+            responseSnapshot: failureSnapshot,
+            failureCode: input.failure.code,
+            failureHttpStatus: input.failure.httpStatus,
+            evaluatedAt: input.evaluatedAt,
+            updatedAt: input.evaluatedAt,
+          },
+        });
+      const completedRecord = await transaction.idempotencyRecord.updateMany({
+        where: {
+          id: batch.idempotencyRecordId,
+          datasetId: input.context.datasetId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'COMPLETED',
+          resultReference: batch.id,
+          updatedAt: input.evaluatedAt,
+        },
+      });
+      if (completedBatch.count !== 1 || completedRecord.count !== 1) {
+        throw new TaskPersistenceInvariantError();
+      }
+    });
   }
 
   async create(input: CreateTaskInput): Promise<CreateTaskResult> {
@@ -316,6 +559,34 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         throw new TaskCompletedImmutableError();
       }
 
+      const acceptedSuggestion =
+        input.prioritySuggestionId === undefined
+          ? null
+          : await transaction.taskPrioritySuggestion.findFirst({
+              where: {
+                id: input.prioritySuggestionId,
+                datasetId: input.context.datasetId,
+                taskId: current.id,
+                actorId: input.context.actorId,
+                wardId: input.context.wardId,
+                batch: {
+                  actorId: input.context.actorId,
+                  wardId: input.context.wardId,
+                  status: 'SUCCEEDED',
+                },
+              },
+              select: { id: true, aiSuggestedPriority: true },
+            });
+      if (input.prioritySuggestionId !== undefined && !acceptedSuggestion) {
+        throw new TaskNotFoundError();
+      }
+      if (
+        acceptedSuggestion &&
+        acceptedSuggestion.aiSuggestedPriority !== input.confirmedPriority
+      ) {
+        throw new TaskPrioritySuggestionAcceptanceInvalidError();
+      }
+
       const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
         transaction,
         input.context,
@@ -367,12 +638,15 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             action:
               input.confirmedPriority === null
                 ? 'CLEARED'
-                : input.confirmedPriority === current.aiSuggestedPriority
+                : acceptedSuggestion
                   ? 'ACCEPT_AI'
                   : 'MANUAL_SET',
             previousConfirmedPriority: current.confirmedPriority,
             newConfirmedPriority: input.confirmedPriority,
-            aiSuggestedPriority: current.aiSuggestedPriority,
+            aiSuggestedPriority:
+              acceptedSuggestion?.aiSuggestedPriority ??
+              current.aiSuggestedPriority,
+            prioritySuggestionId: acceptedSuggestion?.id,
           },
         });
       }
@@ -1244,6 +1518,77 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
     };
   }
 
+  private async resolvePrioritySuggestionReplay(
+    client: DatabaseClient,
+    input: {
+      context: DemoSessionContext;
+      requestHash: string;
+    },
+    record: IdempotencyRow,
+  ): Promise<ReserveTaskPrioritySuggestionResult> {
+    assertIdempotencyMatch(input.context.wardId, input.requestHash, record);
+    if (record.status === 'PROCESSING') {
+      throw new IdempotencyRequestInProgressError();
+    }
+
+    const batch = await client.taskPrioritySuggestionBatch.findFirst({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+        idempotencyRecordId: record.id,
+      },
+      select: {
+        id: true,
+        status: true,
+        responseSnapshot: true,
+        failureCode: true,
+        failureHttpStatus: true,
+      },
+    });
+    if (!batch || record.resultReference !== batch.id) {
+      throw new IdempotencyInvariantViolationError();
+    }
+    if (batch.status === 'SUCCEEDED') {
+      return {
+        state: 'SUCCEEDED',
+        result: deserializePrioritySuggestionResult(batch.responseSnapshot),
+      };
+    }
+    if (batch.status === 'FAILED') {
+      return {
+        state: 'FAILED',
+        failure: deserializePrioritySuggestionFailure(
+          batch.responseSnapshot,
+          batch.failureCode,
+          batch.failureHttpStatus,
+        ),
+      };
+    }
+    throw new IdempotencyInvariantViolationError();
+  }
+
+  private async findProcessingPrioritySuggestionBatch(
+    transaction: Prisma.TransactionClient,
+    context: DemoSessionContext,
+    batchId: string,
+  ): Promise<{ id: string; idempotencyRecordId: string }> {
+    const batch = await transaction.taskPrioritySuggestionBatch.findFirst({
+      where: {
+        id: batchId,
+        datasetId: context.datasetId,
+        actorId: context.actorId,
+        wardId: context.wardId,
+        operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+        status: 'PROCESSING',
+      },
+      select: { id: true, idempotencyRecordId: true },
+    });
+    if (!batch) throw new TaskPersistenceInvariantError();
+    return batch;
+  }
+
   private findIdempotencyRecord(
     client: DatabaseClient,
     context: DemoSessionContext,
@@ -1487,6 +1832,130 @@ function serializeTaskView(task: TaskView): Prisma.InputJsonObject {
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
+}
+
+function serializePrioritySuggestionInput(
+  tasks: readonly TaskPrioritySuggestionSnapshotTask[],
+): Prisma.InputJsonArray {
+  return tasks.map((task) => ({
+    taskId: task.taskId,
+    patientId: task.patientId,
+    title: task.title,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    version: task.version,
+  }));
+}
+
+function serializePrioritySuggestionResult(
+  result: TaskPrioritySuggestionBatchResult,
+): Prisma.InputJsonObject {
+  return {
+    batchId: result.batchId,
+    evaluatedAt: result.evaluatedAt.toISOString(),
+    contractVersion: result.contractVersion,
+    suggestions: result.suggestions.map((suggestion) => ({
+      suggestionId: suggestion.suggestionId,
+      taskId: suggestion.taskId,
+      aiScore: suggestion.aiScore,
+      aiSuggestedPriority: suggestion.aiSuggestedPriority,
+      reasons: [...suggestion.reasons],
+    })),
+    skippedTaskIds: [...result.skippedTaskIds],
+  };
+}
+
+function deserializePrioritySuggestionResult(
+  value: Prisma.JsonValue | null,
+): TaskPrioritySuggestionBatchResult {
+  const snapshot = readJsonObject(value);
+  const evaluatedAt = readDate(snapshot.evaluatedAt);
+  const suggestions = readJsonArray(snapshot.suggestions).map((item) => {
+    const suggestion = readJsonObject(item);
+    const reasons = readStringArray(suggestion.reasons);
+    if (
+      typeof suggestion.suggestionId !== 'string' ||
+      typeof suggestion.taskId !== 'string' ||
+      typeof suggestion.aiScore !== 'number' ||
+      !Number.isFinite(suggestion.aiScore) ||
+      suggestion.aiScore < 0 ||
+      (suggestion.aiSuggestedPriority !== 'CRITICAL' &&
+        suggestion.aiSuggestedPriority !== 'NORMAL')
+    ) {
+      throw new IdempotencyInvariantViolationError();
+    }
+    return {
+      suggestionId: suggestion.suggestionId,
+      taskId: suggestion.taskId,
+      aiScore: suggestion.aiScore,
+      aiSuggestedPriority: suggestion.aiSuggestedPriority as TaskPriority,
+      reasons,
+    };
+  });
+  const skippedTaskIds = readStringArray(snapshot.skippedTaskIds);
+  if (
+    typeof snapshot.batchId !== 'string' ||
+    snapshot.contractVersion !== TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION
+  ) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return {
+    batchId: snapshot.batchId,
+    evaluatedAt,
+    contractVersion: snapshot.contractVersion,
+    suggestions,
+    skippedTaskIds,
+    isReplay: true,
+  };
+}
+
+function serializePrioritySuggestionFailure(
+  failure: TaskPrioritySuggestionFailure,
+): Prisma.InputJsonObject {
+  return { code: failure.code, httpStatus: failure.httpStatus };
+}
+
+function deserializePrioritySuggestionFailure(
+  value: Prisma.JsonValue | null,
+  storedCode: string | null,
+  storedHttpStatus: number | null,
+): TaskPrioritySuggestionFailure {
+  const snapshot = readJsonObject(value);
+  const code = snapshot.code;
+  const httpStatus = snapshot.httpStatus;
+  if (
+    code !== storedCode ||
+    httpStatus !== storedHttpStatus ||
+    ((code !== 'TASK_AI_TIMEOUT' || httpStatus !== 504) &&
+      (code !== 'TASK_AI_RESPONSE_INVALID' || httpStatus !== 502) &&
+      (code !== 'TASK_AI_UNAVAILABLE' || httpStatus !== 503))
+  ) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return { code, httpStatus };
+}
+
+function readJsonObject(
+  value: Prisma.JsonValue | null | undefined,
+): Prisma.JsonObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return value;
+}
+
+function readJsonArray(
+  value: Prisma.JsonValue | undefined,
+): readonly Prisma.JsonValue[] {
+  if (!Array.isArray(value)) throw new IdempotencyInvariantViolationError();
+  return value;
+}
+
+function readStringArray(value: Prisma.JsonValue | undefined): string[] {
+  const items = readJsonArray(value);
+  if (items.some((item) => typeof item !== 'string')) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return items as string[];
 }
 
 function deserializeTaskView(value: Prisma.JsonValue): TaskView {

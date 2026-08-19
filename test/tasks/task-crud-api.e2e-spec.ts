@@ -14,6 +14,7 @@ import type { DemoSessionContext } from '../../src/modules/demo/application/demo
 import type { RequestWithDemoSessionContext } from '../../src/modules/demo/presentation/demo-session.guard';
 import type { TaskView } from '../../src/modules/tasks/application/ports/task.repository';
 import { TaskService } from '../../src/modules/tasks/application/task.service';
+import { TaskPrioritySuggestionService } from '../../src/modules/tasks/application/task-priority-suggestion.service';
 import {
   TaskCurrentDutyUnresolvedError,
   TaskNotFoundError,
@@ -102,7 +103,13 @@ describe('Task CRUD public API (isolated e2e)', () => {
     taskService = createTaskServiceDouble();
     const moduleFixture = await Test.createTestingModule({
       controllers: [TasksController],
-      providers: [{ provide: TaskService, useValue: taskService }],
+      providers: [
+        { provide: TaskService, useValue: taskService },
+        {
+          provide: TaskPrioritySuggestionService,
+          useValue: { createBatch: jest.fn() },
+        },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();

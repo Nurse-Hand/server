@@ -76,6 +76,7 @@ export type UpdateTaskInput = {
   workDate?: Date;
   status?: TaskStatus;
   confirmedPriority?: TaskPriority | null;
+  prioritySuggestionId?: string;
   now: Date;
 };
 

@@ -70,6 +70,7 @@ type UpdateTaskCommand = {
   dueAt?: string | null;
   status?: TaskStatus;
   priorityOverride?: TaskPriority | null;
+  prioritySuggestionId?: string;
 };
 
 type ApplyCandidateCommand = {
@@ -265,6 +266,7 @@ export class TaskService {
     const hasDueAt = command.dueAt !== undefined;
     const hasStatus = command.status !== undefined;
     const hasPriority = command.priorityOverride !== undefined;
+    const hasPrioritySuggestion = command.prioritySuggestionId !== undefined;
 
     if (
       !hasTitle &&
@@ -296,6 +298,17 @@ export class TaskService {
     }
 
     if (
+      hasPrioritySuggestion &&
+      (!isUUID(command.prioritySuggestionId, '4') ||
+        !hasPriority ||
+        confirmedPriority === null)
+    ) {
+      throw new TaskCommandInvalidError(
+        'prioritySuggestionId에는 null이 아닌 priorityOverride가 필요합니다.',
+      );
+    }
+
+    if (
       command.status !== undefined &&
       !TASK_STATUSES.includes(command.status)
     ) {
@@ -317,6 +330,9 @@ export class TaskService {
         : { dueAt, workDate: deriveSeoulWorkDate(dueAt) }),
       ...(hasStatus ? { status: command.status } : {}),
       ...(hasPriority ? { confirmedPriority: confirmedPriority! } : {}),
+      ...(hasPrioritySuggestion
+        ? { prioritySuggestionId: command.prioritySuggestionId }
+        : {}),
       now: this.clock.now(),
     });
   }
