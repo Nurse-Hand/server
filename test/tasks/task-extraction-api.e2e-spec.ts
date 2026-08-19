@@ -13,7 +13,10 @@ import type { DemoSessionContext } from '../../src/modules/demo/application/demo
 import type { RequestWithDemoSessionContext } from '../../src/modules/demo/presentation/demo-session.guard';
 import type { TaskExtractionJobView } from '../../src/modules/tasks/application/ports/task.repository';
 import { TaskService } from '../../src/modules/tasks/application/task.service';
-import { TaskNotFoundError } from '../../src/modules/tasks/domain/task.errors';
+import {
+  TaskExtractionEvidenceInvalidError,
+  TaskNotFoundError,
+} from '../../src/modules/tasks/domain/task.errors';
 import { TasksController } from '../../src/modules/tasks/presentation/tasks.controller';
 
 const DEMO_SESSION_ID = 'synthetic-task-extraction-session';
@@ -256,6 +259,31 @@ describe('Task extraction public API (isolated e2e)', () => {
       });
     },
   );
+
+  it('Evidence snapshot invalid를 502 공통 error envelope로 반환한다', async () => {
+    taskService.reserveExtraction.mockRejectedValueOnce(
+      new TaskExtractionEvidenceInvalidError(),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/task-extraction-jobs')
+      .set('X-Demo-Session-Id', DEMO_SESSION_ID)
+      .set('X-Request-Id', REQUEST_ID)
+      .set('X-Idempotency-Key', IDEMPOTENCY_KEY)
+      .send({
+        roundingSessionId: ROUNDING_SESSION_ID,
+        recordIds: [RECORD_ID],
+      })
+      .expect(502);
+
+    expect(response.body).toEqual({
+      error: {
+        code: 'TASK_EXTRACTION_EVIDENCE_INVALID',
+        message: '라운딩 근거를 안전하게 처리할 수 없습니다.',
+      },
+      meta: { requestId: REQUEST_ID },
+    });
+  });
 
   it('scope 밖 job의 404를 공통 error envelope로 반환한다', async () => {
     taskService.findExtractionJob.mockRejectedValueOnce(
