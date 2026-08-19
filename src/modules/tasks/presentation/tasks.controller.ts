@@ -69,6 +69,7 @@ export class TasksController {
   @ApiOkResponse({ type: TaskListResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
   @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
   async list(
     @DemoSessionContextParam() context: DemoSessionContext,

@@ -53,8 +53,12 @@ function HasTaskPatchField(validationOptions?: ValidationOptions) {
             return false;
           }
 
-          return TASK_PATCH_FIELDS.some((field) =>
-            Object.prototype.hasOwnProperty.call(args.object, field),
+          const request = args.object as Record<string, unknown>;
+
+          return TASK_PATCH_FIELDS.some(
+            (field) =>
+              Object.prototype.hasOwnProperty.call(request, field) &&
+              request[field] !== undefined,
           );
         },
       },
