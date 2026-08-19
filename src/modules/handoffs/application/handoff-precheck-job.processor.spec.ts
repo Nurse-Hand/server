@@ -5,7 +5,9 @@ import type {
   AiJobRepository,
 } from '../../ai-jobs/application/ports/ai-job.repository';
 import { DeterministicHandoffPrecheckAiGateway } from '../infrastructure/ai/deterministic-handoff-precheck-ai.gateway';
+import { HandoffAiResultInvalidError } from '../domain/handoff.errors';
 import { HandoffPrecheckJobProcessor } from './handoff-precheck-job.processor';
+import type { HandoffPrecheckAiGateway } from './ports/handoff-precheck-ai.gateway';
 import type { HandoffPrecheckRepository } from './ports/handoff-precheck.repository';
 
 const DATASET_ID = '00000000-0000-4000-8000-000000000101';
@@ -100,7 +102,110 @@ describe('HandoffPrecheckJobProcessor', () => {
       );
     },
   );
+
+  it('getWork 내부 오류는 동일 오류를 전파하고 gateway와 AiJob fail을 호출하지 않는다', async () => {
+    const error = new Error('database invariant');
+    const aiJobs = aiJobRepository();
+    const repository = precheckRepository();
+    const gateway: jest.Mocked<HandoffPrecheckAiGateway> = {
+      analyze: jest.fn(),
+    };
+    repository.getWork.mockRejectedValueOnce(error);
+    const processor = createProcessor(aiJobs, repository, gateway);
+
+    await expect(
+      processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
+    ).rejects.toBe(error);
+    expect(gateway.analyze).not.toHaveBeenCalled();
+    expect(repository.publishResult).not.toHaveBeenCalled();
+    expect(aiJobs.fail).not.toHaveBeenCalled();
+  });
+
+  it('publishResult 내부 오류는 동일 오류를 전파하고 AiJob fail을 호출하지 않는다', async () => {
+    const error = new Error('transaction invariant');
+    const aiJobs = aiJobRepository();
+    const repository = precheckRepository();
+    repository.publishResult.mockRejectedValueOnce(error);
+    const processor = createProcessor(
+      aiJobs,
+      repository,
+      new DeterministicHandoffPrecheckAiGateway(),
+    );
+
+    await expect(
+      processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
+    ).rejects.toBe(error);
+    expect(aiJobs.fail).not.toHaveBeenCalled();
+  });
+
+  it('알 수 없는 gateway 오류는 unavailable로 오분류하지 않고 동일 오류를 전파한다', async () => {
+    const error = new Error('unexpected provider wrapper');
+    const aiJobs = aiJobRepository();
+    const repository = precheckRepository();
+    const gateway: jest.Mocked<HandoffPrecheckAiGateway> = {
+      analyze: jest.fn().mockRejectedValue(error),
+    };
+    const processor = createProcessor(aiJobs, repository, gateway);
+
+    await expect(
+      processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
+    ).rejects.toBe(error);
+    expect(repository.publishResult).not.toHaveBeenCalled();
+    expect(aiJobs.fail).not.toHaveBeenCalled();
+  });
+
+  it('claim-lost 오류는 기존처럼 동일 오류를 전파하고 AiJob fail을 호출하지 않는다', async () => {
+    const error = { code: 'HANDOFF_JOB_CLAIM_LOST' };
+    const aiJobs = aiJobRepository();
+    const repository = precheckRepository();
+    const gateway: jest.Mocked<HandoffPrecheckAiGateway> = {
+      analyze: jest.fn().mockRejectedValue(error),
+    };
+    const processor = createProcessor(aiJobs, repository, gateway);
+
+    await expect(
+      processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
+    ).rejects.toBe(error);
+    expect(repository.publishResult).not.toHaveBeenCalled();
+    expect(aiJobs.fail).not.toHaveBeenCalled();
+  });
+
+  it('명시적인 HANDOFF_AI_RESULT_INVALID는 non-retryable AI 실패로 전이한다', async () => {
+    const aiJobs = aiJobRepository();
+    const repository = precheckRepository();
+    const gateway: jest.Mocked<HandoffPrecheckAiGateway> = {
+      analyze: jest.fn().mockRejectedValue(new HandoffAiResultInvalidError()),
+    };
+    const processor = createProcessor(aiJobs, repository, gateway);
+
+    await expect(
+      processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
+    ).resolves.toEqual({
+      jobId: JOB_ID,
+      status: 'FAILED',
+      failureCode: 'HANDOFF_AI_INVALID_RESPONSE',
+    });
+    expect(aiJobs.fail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failureCode: 'HANDOFF_AI_INVALID_RESPONSE',
+        retryable: false,
+      }),
+    );
+  });
 });
+
+function createProcessor(
+  aiJobs: jest.Mocked<AiJobRepository>,
+  repository: jest.Mocked<HandoffPrecheckRepository>,
+  gateway: HandoffPrecheckAiGateway,
+): HandoffPrecheckJobProcessor {
+  return new HandoffPrecheckJobProcessor(
+    new AiJobService(aiJobs, new FixedClock()),
+    repository,
+    gateway,
+    new FixedClock(),
+  );
+}
 
 function claim(): AiJobClaim {
   return {
