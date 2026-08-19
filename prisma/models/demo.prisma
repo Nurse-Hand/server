@@ -11,6 +11,7 @@ model DemoDataset {
   patients           Patient[]
   patientAssignments PatientAssignment[]
   timelineEvents     TimelineEvent[]
+  storedFiles        StoredFile[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
 }

@@ -41,6 +41,7 @@ model WardMembership {
   ward               Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
   demoSessions       DemoSession[]       @relation("DemoSessionMembership")
   nurseShifts        NurseShift[]        @relation("ShiftMembership")
+  storedFiles        StoredFile[]        @relation("StoredFileMembership")
   aiJobs             AiJob[]             @relation("AiJobMembership")
   idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
 
