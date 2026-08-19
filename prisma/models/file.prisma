@@ -1,0 +1,24 @@
+enum StoredFileKind {
+  AUDIO
+  PHOTO
+}
+
+model StoredFile {
+  id           String         @id @default(uuid()) @db.Uuid
+  datasetId    String         @db.Uuid
+  actorId      String         @db.Uuid
+  wardId       String         @db.Uuid
+  storageUri   String         @unique @db.VarChar(255)
+  mimeType     String         @db.VarChar(100)
+  sizeBytes    Int
+  checksum     String         @db.Char(64)
+  originalName String         @db.VarChar(255)
+  kind         StoredFileKind
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  dataset      DemoDataset    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership   WardMembership @relation("StoredFileMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+
+  @@unique(name: "stored_file_dataset_id", [datasetId, id])
+  @@index([datasetId, wardId, kind, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([kind, createdAt(sort: Desc), id(sort: Desc)])
+}

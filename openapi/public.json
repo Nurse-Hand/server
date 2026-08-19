@@ -1,0 +1,1244 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/demo-sessions": {
+      "post": {
+        "operationId": "DemoSessionsController_create",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDemoSessionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DEMO_MODE가 비활성화된 환경",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "격리된 synthetic demo session 생성",
+        "tags": [
+          "Demo"
+        ],
+        "security": []
+      }
+    },
+    "/api/v1/files/audio": {
+      "post": {
+        "operationId": "FilesController_uploadAudio",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadFileRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "오디오 파일 저장",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/files/photos": {
+      "post": {
+        "operationId": "FilesController_uploadPhoto",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadFileRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "사진 파일 저장",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_getHealth",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "서버 liveness 확인",
+        "tags": [
+          "Health"
+        ],
+        "security": []
+      }
+    },
+    "/api/v1/rounding-sessions": {
+      "post": {
+        "operationId": "RoundingSessionsController_start",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRoundingSessionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "라운딩 세션 시작",
+        "tags": [
+          "Rounding"
+        ]
+      }
+    },
+    "/api/v1/rounding-sessions/{sessionId}/patient-segments": {
+      "post": {
+        "operationId": "RoundingSessionsController_addPatientSegment",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRoundingPatientSegmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "현재 환자 라운딩 구간 저장",
+        "tags": [
+          "Rounding"
+        ]
+      }
+    },
+    "/api/v1/rounding-sessions/{sessionId}/complete": {
+      "post": {
+        "operationId": "RoundingSessionsController_complete",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteRoundingSessionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "전체 라운딩 종료",
+        "tags": [
+          "Rounding"
+        ]
+      }
+    },
+    "/api/v1/rounding-sessions/{sessionId}": {
+      "get": {
+        "operationId": "RoundingSessionsController_read",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingSessionResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "라운딩 세션 상세 조회",
+        "tags": [
+          "Rounding"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Nurse Hand Public API",
+    "description": "Nurse Hand 모바일 앱을 위한 공개 Node.js API",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "demo-session": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Demo-Session-Id",
+        "description": "인증 제외 기간에 보호 API의 dataset/actor/ward 범위를 복원하는 opaque demo session 값"
+      }
+    },
+    "schemas": {
+      "CreateDemoSessionRequestDto": {
+        "type": "object",
+        "properties": {
+          "scenarioKey": {
+            "type": "string",
+            "enum": [
+              "SYNTHETIC_MEDICAL_DAY_SHIFT"
+            ]
+          }
+        },
+        "required": [
+          "scenarioKey"
+        ]
+      },
+      "DemoSessionCredentialDto": {
+        "type": "object",
+        "properties": {
+          "persona": {
+            "enum": [
+              "SENDER",
+              "RECEIVER"
+            ],
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "X-Demo-Session-Id header로 전달할 1회 발급 opaque session 값",
+            "example": "syntheticOpaqueSessionValueNotPersistedAsPlaintext"
+          }
+        },
+        "required": [
+          "persona",
+          "sessionId"
+        ]
+      },
+      "DemoSessionDataDto": {
+        "type": "object",
+        "properties": {
+          "scenarioKey": {
+            "type": "string",
+            "enum": [
+              "SYNTHETIC_MEDICAL_DAY_SHIFT"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-18T01:00:00.000Z"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DemoSessionCredentialDto"
+            }
+          }
+        },
+        "required": [
+          "scenarioKey",
+          "expiresAt",
+          "sessions"
+        ]
+      },
+      "ApiMetaDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "requestId"
+        ]
+      },
+      "DemoSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DemoSessionDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "ApiErrorDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "VALIDATION_FAILED"
+          },
+          "message": {
+            "type": "string",
+            "example": "요청 값이 올바르지 않습니다."
+          },
+          "details": {
+            "type": "object",
+            "description": "클라이언트가 수정 가능한 구조화 오류 정보"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ApiErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "error",
+          "meta"
+        ]
+      },
+      "UploadFileRequestDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "multipart/form-data file field",
+            "format": "binary"
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "StoredFileDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "AUDIO",
+              "PHOTO"
+            ],
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "audio/mp4"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "example": 123456
+          },
+          "checksum": {
+            "type": "string",
+            "example": "f8ae677a835c417379ac9867a8d316afd95f0f3d36cb8d6f7cefeaa2e5ec9d27"
+          },
+          "originalName": {
+            "type": "string",
+            "example": "rounding-note.m4a"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-08-19T00:00:00.000Z",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mimeType",
+          "sizeBytes",
+          "checksum",
+          "originalName",
+          "createdAt"
+        ]
+      },
+      "StoredFileResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StoredFileDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "HealthDataDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ],
+            "example": "ok"
+          },
+          "timestamp": {
+            "type": "string",
+            "example": "2026-08-18T00:00:00.000Z",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "status",
+          "timestamp"
+        ]
+      },
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HealthDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "StartRoundingSessionRequestDto": {
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "생략하면 서버 현재 시각을 사용한다."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "RoundingPatientSegmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "number"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "sequence",
+          "startedAt",
+          "endedAt",
+          "note"
+        ]
+      },
+      "RoundingSessionDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "RECORDING",
+              "COMPLETED"
+            ],
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "wardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundingPatientSegmentDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "actorId",
+          "wardId",
+          "startedAt",
+          "completedAt",
+          "note",
+          "version",
+          "segments"
+        ]
+      },
+      "RoundingSessionResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoundingSessionDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "AddRoundingPatientSegmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "patientId",
+          "startedAt",
+          "endedAt"
+        ]
+      },
+      "CompleteRoundingSessionRequestDto": {
+        "type": "object",
+        "properties": {
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "생략하면 서버 현재 시각을 사용한다."
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "demo-session": []
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+model Nurse {
+  id              String           @id @default(uuid()) @db.Uuid
+  datasetId       String           @db.Uuid
+  logicalKey      String           @db.VarChar(64)
+  displayName     String           @db.VarChar(100)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  dataset         DemoDataset      @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  wardMemberships WardMembership[] @relation("MembershipNurse")
+
+  @@unique(name: "nurse_dataset_id", [datasetId, id])
+  @@unique(name: "nurse_dataset_logical_key", [datasetId, logicalKey])
+}
+
+model Ward {
+  id              String           @id @default(uuid()) @db.Uuid
+  datasetId       String           @db.Uuid
+  logicalKey      String           @db.VarChar(64)
+  code            String           @db.VarChar(32)
+  displayName     String           @db.VarChar(100)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  dataset         DemoDataset      @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  wardMemberships WardMembership[] @relation("MembershipWard")
+  patients        Patient[]        @relation("PatientWard")
+  timelineEvents  TimelineEvent[]  @relation("TimelineEventWard")
+
+  @@unique(name: "ward_dataset_id", [datasetId, id])
+  @@unique(name: "ward_dataset_logical_key", [datasetId, logicalKey])
+  @@unique(name: "ward_dataset_code", [datasetId, code])
+}
+
+model WardMembership {
+  id                 String              @id @default(uuid()) @db.Uuid
+  datasetId          String              @db.Uuid
+  logicalKey         String              @db.VarChar(64)
+  nurseId            String              @db.Uuid
+  wardId             String              @db.Uuid
+  role               WardMembershipRole
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  nurse              Nurse               @relation("MembershipNurse", fields: [datasetId, nurseId], references: [datasetId, id], onDelete: Restrict)
+  ward               Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  demoSessions       DemoSession[]       @relation("DemoSessionMembership")
+  nurseShifts        NurseShift[]        @relation("ShiftMembership")
+  roundingSessions   RoundingSession[]   @relation("RoundingSessionMembership")
+  storedFiles        StoredFile[]        @relation("StoredFileMembership")
+  aiJobs             AiJob[]             @relation("AiJobMembership")
+  idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
+
+  @@unique(name: "membership_dataset_id", [datasetId, id])
+  @@unique(name: "membership_dataset_logical_key", [datasetId, logicalKey])
+  @@unique(name: "membership_dataset_nurse_ward", [datasetId, nurseId, wardId])
+}
+
+model NurseShift {
+  id                 String              @id @default(uuid()) @db.Uuid
+  datasetId          String              @db.Uuid
+  logicalKey         String              @db.VarChar(64)
+  nurseId            String              @db.Uuid
+  wardId             String              @db.Uuid
+  duty               ShiftDuty
+  startsAt           DateTime            @db.Timestamptz(3)
+  endsAt             DateTime            @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership         WardMembership      @relation("ShiftMembership", fields: [datasetId, nurseId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  patientAssignments PatientAssignment[] @relation("AssignmentShift")
+
+  @@unique(name: "shift_dataset_id", [datasetId, id])
+  @@unique(name: "shift_dataset_logical_key", [datasetId, logicalKey])
+  @@unique(name: "shift_dataset_id_nurse_ward", [datasetId, id, nurseId, wardId])
+  @@index([datasetId, nurseId, startsAt, endsAt])
+}
+
+model Patient {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  datasetId          String                   @db.Uuid
+  logicalKey         String                   @db.VarChar(64)
+  wardId             String                   @db.Uuid
+  displayName        String                   @db.VarChar(100)
+  roomLabel          String                   @db.VarChar(32)
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  ward               Ward                     @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  patientAssignments PatientAssignment[]      @relation("AssignmentPatient")
+  timelineEvents     TimelineEvent[]          @relation("TimelineEventPatient")
+  roundingSegments   RoundingPatientSegment[] @relation("RoundingSegmentPatient")
+
+  @@unique(name: "patient_dataset_id", [datasetId, id])
+  @@unique(name: "patient_dataset_logical_key", [datasetId, logicalKey])
+  @@unique(name: "patient_dataset_id_ward", [datasetId, id, wardId])
+  @@index([datasetId, wardId, id])
+}
+
+model PatientAssignment {
+  id           String      @id @default(uuid()) @db.Uuid
+  datasetId    String      @db.Uuid
+  logicalKey   String      @db.VarChar(64)
+  patientId    String      @db.Uuid
+  nurseId      String      @db.Uuid
+  wardId       String      @db.Uuid
+  nurseShiftId String      @db.Uuid
+  startsAt     DateTime    @db.Timestamptz(3)
+  endsAt       DateTime?   @db.Timestamptz(3)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  dataset      DemoDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  patient      Patient     @relation("AssignmentPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  nurseShift   NurseShift  @relation("AssignmentShift", fields: [datasetId, nurseShiftId, nurseId, wardId], references: [datasetId, id, nurseId, wardId], onDelete: Restrict)
+
+  @@unique(name: "assignment_dataset_id", [datasetId, id])
+  @@unique(name: "assignment_dataset_logical_key", [datasetId, logicalKey])
+  @@unique(name: "assignment_dataset_patient_shift", [datasetId, patientId, nurseShiftId])
+  @@index([datasetId, nurseId, wardId, patientId])
+}
+
+model TimelineEvent {
+  id              String              @id @default(uuid()) @db.Uuid
+  datasetId       String              @db.Uuid
+  logicalKey      String              @db.VarChar(64)
+  patientId       String              @db.Uuid
+  wardId          String              @db.Uuid
+  occurredAt      DateTime            @db.Timestamptz(3)
+  type            TimelineEventType
+  source          TimelineEventSource
+  sourceReference String              @db.VarChar(128)
+  summary         String              @db.VarChar(500)
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  dataset         DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  patient         Patient             @relation("TimelineEventPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  ward            Ward                @relation("TimelineEventWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+
+  @@unique(name: "timeline_event_dataset_id", [datasetId, id])
+  @@unique(name: "timeline_event_dataset_logical_key", [datasetId, logicalKey])
+  @@index([datasetId, wardId, patientId, occurredAt(sort: Desc), id(sort: Desc)])
+}

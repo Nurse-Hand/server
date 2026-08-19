@@ -1,10 +1,12 @@
 # Dependencies
 node_modules/
+src/generated/
 
 # Build and test output
 dist/
 build/
 coverage/
+.tsbuildinfo
 .nyc_output/
 
 # Runtime files
@@ -16,18 +18,38 @@ temp/
 # Local configuration and secrets
 .env
 .env.*
-!.env.example
 *.pem
 *.key
+
+# Local planning notes and private product drafts
+docs/planning/
+docs/private/
+docs/notion/
+docs/**/*.local.md
+docs/**/*.draft.md
+
+# Local mock or source media files
+record_data/
+mockdata/audio/
+fixtures/audio/
+tools/**/mockdata/audio/
+tools/**/fixtures/audio/
+*.m4a
+*.wav
+*.mp3
+*.aac
+*.flac
 
 # Tool caches
 .cache/
 .eslintcache
 .turbo/
+.local/
+.serena/
+.worktrees/
 
 # Editors and operating systems
 .DS_Store
 .idea/
 .vscode/
 *.swp
-

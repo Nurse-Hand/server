@@ -1,0 +1,33 @@
+model DemoDataset {
+  id                 String              @id @default(uuid()) @db.Uuid
+  kind               DemoDatasetKind     @default(SYNTHETIC)
+  scenarioKey        String              @db.VarChar(64)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  sessions           DemoSession[]
+  nurses             Nurse[]
+  wards              Ward[]
+  wardMemberships    WardMembership[]
+  nurseShifts        NurseShift[]
+  patients           Patient[]
+  patientAssignments PatientAssignment[]
+  timelineEvents     TimelineEvent[]
+  roundingSessions   RoundingSession[]
+  storedFiles        StoredFile[]
+  aiJobs             AiJob[]
+  idempotencyRecords IdempotencyRecord[]
+}
+
+model DemoSession {
+  id           String         @id @default(uuid()) @db.Uuid
+  datasetId    String         @db.Uuid
+  tokenDigest  String         @unique @db.Char(64)
+  actorNurseId String         @db.Uuid
+  wardId       String         @db.Uuid
+  expiresAt    DateTime       @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  dataset      DemoDataset    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership   WardMembership @relation("DemoSessionMembership", fields: [datasetId, actorNurseId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+
+  @@unique(name: "demo_session_dataset_actor", [datasetId, actorNurseId])
+  @@index([expiresAt])
+}

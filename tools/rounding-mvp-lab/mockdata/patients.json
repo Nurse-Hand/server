@@ -1,0 +1,41 @@
+{
+  "scenarioKey": "SYNTHETIC_MEDICAL_DAY_SHIFT",
+  "generatedAt": "2026-08-19T09:00:00+09:00",
+  "items": [
+    {
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+      "patientLabel": "P-7A-101",
+      "roomLabel": "701-A",
+      "ageBand": "50s",
+      "primaryConcern": "복강경 수술 후 배액 및 통증 모니터링",
+      "safetyFlags": ["낙상 주의", "배액관 라인"],
+      "handoffFocus": [
+        "14:00 배액량 재측정",
+        "통증 점수 추적",
+        "보행 시작 전 어지럼 확인"
+      ]
+    },
+    {
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+      "patientLabel": "P-7A-102",
+      "roomLabel": "702-B",
+      "ageBand": "60s",
+      "primaryConcern": "식후 혈당과 오심 재평가",
+      "safetyFlags": ["저혈당 주의", "식사량 편차"],
+      "handoffFocus": [
+        "13:30 혈당 재측정",
+        "sliding scale 확인",
+        "식후 오심 경과 확인"
+      ]
+    },
+    {
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+      "patientLabel": "P-7A-103",
+      "roomLabel": "703-A",
+      "ageBand": "40s",
+      "primaryConcern": "산소 유지와 활동 후 SpO2 추적",
+      "safetyFlags": ["보행 시 산소 저하", "I&O 누락 주의"],
+      "handoffFocus": ["보행 후 SpO2", "산소 감량 조건", "I&O 입력 확인"]
+    }
+  ]
+}
