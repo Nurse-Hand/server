@@ -3,12 +3,13 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  Matches,
   IsString,
+  Matches,
   Max,
   Min,
   validateSync,
 } from 'class-validator';
+import { isSafeAbsoluteStorageRoot } from './storage-root-path';
 
 const LOCAL_DATABASE_URL =
   'postgresql://nurse_hand:nurse_hand@localhost:5432/nurse_hand';
@@ -42,7 +43,6 @@ export class EnvironmentVariables {
   DEMO_SESSION_TTL_SECONDS!: number;
 
   @IsString()
-  @Matches(/^(?:\/|[A-Za-z]:[\\/])/)
   FILE_STORAGE_ROOT!: string;
 }
 
@@ -75,13 +75,17 @@ export function validateEnvironment(
     skipMissingProperties: false,
   });
 
-  if (validationErrors.length > 0) {
-    const invalidFields = validationErrors
-      .map(({ property }) => property)
-      .sort()
-      .join(', ');
+  const invalidFields = new Set(
+    validationErrors.map(({ property }) => property),
+  );
+  if (!isSafeAbsoluteStorageRoot(environment.FILE_STORAGE_ROOT)) {
+    invalidFields.add('FILE_STORAGE_ROOT');
+  }
 
-    throw new Error(`환경변수 검증 실패: ${invalidFields}`);
+  if (invalidFields.size > 0) {
+    const invalidFieldNames = [...invalidFields].sort().join(', ');
+
+    throw new Error(`환경변수 검증 실패: ${invalidFieldNames}`);
   }
 
   if (environment.NODE_ENV === 'production' && environment.DEMO_MODE) {

@@ -52,21 +52,45 @@ describe('validateEnvironment', () => {
     ).toThrow('환경변수 검증 실패: PORT');
   });
 
-  it('FILE_STORAGE_ROOT가 절대 경로가 아니면 거부한다', () => {
-    expect(() =>
-      validateEnvironment({
-        NODE_ENV: 'test',
-        FILE_STORAGE_ROOT: 'relative/uploads',
-      }),
-    ).toThrow('환경변수 검증 실패: FILE_STORAGE_ROOT');
-  });
-
-  it('Windows drive 절대 경로를 허용한다', () => {
+  it.each([
+    '/data/uploads',
+    '/srv/nurse-hand/files/',
+    'C:\\synthetic\\uploads',
+    'D:/nurse-hand/files/',
+  ])('안전한 POSIX 또는 drive 절대 경로를 허용한다: %s', (storageRoot) => {
     expect(
       validateEnvironment({
         NODE_ENV: 'test',
-        FILE_STORAGE_ROOT: 'C:\\synthetic\\uploads',
+        FILE_STORAGE_ROOT: storageRoot,
       }).FILE_STORAGE_ROOT,
-    ).toBe('C:\\synthetic\\uploads');
+    ).toBe(storageRoot);
+  });
+
+  it.each([
+    'relative/uploads',
+    'C:relative\\uploads',
+    'C:\\..\\tmp',
+    'C:\\?\\bad',
+    'C:\\data:extra\\uploads',
+    'C:\\data\\bad<name',
+    'C:\\data\\bad.\\',
+    '\\\\server\\share',
+    '\\\\?\\C:\\data',
+    '\\\\.\\C:\\data',
+    '//server/share',
+    '//?/C:/data',
+    '/../tmp',
+    '/data/../tmp',
+    '/data/./tmp',
+    '/data:extra/tmp',
+    '/data/bad|name',
+    '/data/control\u0000name',
+  ])('위험하거나 비정규 FILE_STORAGE_ROOT를 거부한다: %s', (storageRoot) => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: 'test',
+        FILE_STORAGE_ROOT: storageRoot,
+      }),
+    ).toThrow('환경변수 검증 실패: FILE_STORAGE_ROOT');
   });
 });
