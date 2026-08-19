@@ -41,8 +41,6 @@ services:
       NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
       NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
       FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}
-    ports:
-      - '127.0.0.1:${APP_PORT:-3000}:3000'
     volumes:
       - '${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}:${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}'
     command: >
@@ -102,6 +100,14 @@ services:
       retries: 3
       start_period: 30s
 
+  certbot:
+    image: certbot/certbot:latest
+    container_name: nurse-hand-certbot
+    restart: 'no'
+    volumes:
+      - '${LETSENCRYPT_DIR:-/data/nurse-hand/letsencrypt}:/etc/letsencrypt'
+      - '${CERTBOT_WEBROOT_DIR:-/data/nurse-hand/certbot/www}:/var/www/certbot'
+
   nginx:
     image: nginx:1.27-alpine
     container_name: nurse-hand-nginx
@@ -111,11 +117,37 @@ services:
         condition: service_healthy
     ports:
       - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    volumes:
+      - '${LETSENCRYPT_DIR:-/data/nurse-hand/letsencrypt}:/etc/letsencrypt:ro'
+      - '${CERTBOT_WEBROOT_DIR:-/data/nurse-hand/certbot/www}:/var/www/certbot:ro'
     command: |
-      sh -c "cat > /etc/nginx/conf.d/default.conf <<'EOF'
+      sh -c "mkdir -p /var/www/certbot /etc/letsencrypt && if [ -s /etc/letsencrypt/live/api.nursehand.com/fullchain.pem ] && [ -s /etc/letsencrypt/live/api.nursehand.com/privkey.pem ]; then cat > /etc/nginx/conf.d/default.conf <<'EOF'
       server {
         listen 80;
         server_name api.nursehand.com;
+
+        client_max_body_size 300M;
+
+        location ^~ /.well-known/acme-challenge/ {
+          root /var/www/certbot;
+        }
+
+        location / {
+          return 301 https://api.nursehand.com$$request_uri;
+        }
+      }
+
+      server {
+        listen 443 ssl http2;
+        server_name api.nursehand.com;
+
+        ssl_certificate /etc/letsencrypt/live/api.nursehand.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/api.nursehand.com/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
 
         client_max_body_size 300M;
 
@@ -138,10 +170,21 @@ services:
         }
       }
       EOF
+      else cat > /etc/nginx/conf.d/default.conf <<'EOF'
+      server {
+        listen 80;
+        server_name api.nursehand.com;
+
+        client_max_body_size 300M;
+
+        location ^~ /.well-known/acme-challenge/ {
+          root /var/www/certbot;
+        }
+
+        location / {
+          return 302 /docs;
+        }
+      }
+      EOF
+      fi
       nginx -g 'daemon off;'"
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/api/v1/health']
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s

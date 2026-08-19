@@ -27,11 +27,15 @@ docker compose --env-file .env -f docker-compose.local.yml up -d
 - Demo UI: `http://localhost:5173`
 - PostgreSQL: `localhost:5432`
 
-`docker-compose.prod.yml`은 가비아 단일 서버 배포 기준으로 `db`, `api`, `ai`, `nginx`를 같이 띄웁니다. 운영 compose는 DB와 AI 서버 포트를 외부에 열지 않고, Docker Nginx가 `api.nursehand.com:80` 요청을 API 컨테이너의 `api:3000`으로 프록시합니다. `/` 요청은 Swagger UI인 `/docs`로 이동합니다.
+`docker-compose.prod.yml`은 가비아 단일 서버 배포 기준으로 `db`, `api`, `ai`, `nginx`, `certbot`을 같이 띄웁니다. 운영 compose는 DB와 AI 서버 포트를 외부에 열지 않고, Docker Nginx가 `api.nursehand.com`의 `80/443` 요청을 API 컨테이너의 `api:3000`으로 프록시합니다. `/` 요청은 Swagger UI인 `/docs`로 이동합니다.
 
 ```bash
 docker compose --env-file .env -f docker-compose.prod.yml up -d
 ```
+
+초기 HTTPS 인증서가 없으면 `deploy/deploy-server.sh`가 `certbot` 웹루트 발급을 한 번 수행합니다. 운영 서버의 `.env`에는 `CERTBOT_EMAIL`과 `API_DOMAIN=api.nursehand.com`을 넣어두면 됩니다.
+
+운영 서버에서는 host Nginx를 쓰지 않고 Docker Nginx가 `80/443`을 직접 사용합니다.
 
 필요하면 이미지와 데이터 경로를 `.env`로 바꿉니다.
 
@@ -48,6 +52,12 @@ docker compose --env-file .env -f docker-compose.prod.yml up -d
 - `POSTGRES_DATA_DIR`
 - `AI_DATA_DIR`
 - `AI_TMP_DIR`
+- `API_DOMAIN`
+- `CERTBOT_EMAIL`
+- `LETSENCRYPT_DIR`
+- `CERTBOT_WEBROOT_DIR`
+- `HTTP_PORT`
+- `HTTPS_PORT`
 
 운영 서버 배포는 git에 올리지 않는 `.env`를 사용합니다.
 
