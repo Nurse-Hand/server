@@ -3,8 +3,8 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsString,
   Matches,
+  IsString,
   Max,
   Min,
   validateSync,
@@ -40,6 +40,10 @@ export class EnvironmentVariables {
   @Min(1)
   @Max(MAX_DEMO_SESSION_TTL_SECONDS)
   DEMO_SESSION_TTL_SECONDS!: number;
+
+  @IsString()
+  @Matches(/^\//)
+  FILE_STORAGE_ROOT!: string;
 }
 
 export function validateEnvironment(
@@ -61,6 +65,7 @@ export function validateEnvironment(
       DEMO_MODE: rawEnvironment.DEMO_MODE ?? false,
       DEMO_SESSION_TTL_SECONDS:
         rawEnvironment.DEMO_SESSION_TTL_SECONDS ?? MAX_DEMO_SESSION_TTL_SECONDS,
+      FILE_STORAGE_ROOT: rawEnvironment.FILE_STORAGE_ROOT ?? '/data/uploads',
     },
     { enableImplicitConversion: false },
   );

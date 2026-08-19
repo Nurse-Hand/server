@@ -11,6 +11,7 @@ describe('validateEnvironment', () => {
         'postgresql://nurse_hand:nurse_hand@localhost:5432/nurse_hand',
       DEMO_MODE: false,
       DEMO_SESSION_TTL_SECONDS: 25200,
+      FILE_STORAGE_ROOT: '/data/uploads',
     });
   });
 
@@ -49,5 +50,14 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({ NODE_ENV: 'test', PORT: '70000' }),
     ).toThrow('환경변수 검증 실패: PORT');
+  });
+
+  it('FILE_STORAGE_ROOT가 절대 경로가 아니면 거부한다', () => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: 'test',
+        FILE_STORAGE_ROOT: 'relative/uploads',
+      }),
+    ).toThrow('환경변수 검증 실패: FILE_STORAGE_ROOT');
   });
 });
