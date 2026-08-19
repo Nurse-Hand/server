@@ -51,6 +51,22 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           SERVER_IMAGE: ${{ env.IMAGE_NAME }}:latest
         run: |
+          required_vars=(
+            SSH_HOST
+            SSH_PORT
+            SSH_USER
+            SSH_PRIVATE_KEY
+            DOCKERHUB_USERNAME
+            DOCKERHUB_TOKEN
+            SERVER_IMAGE
+          )
+          for var_name in "${required_vars[@]}"; do
+            if [[ -z "${!var_name}" ]]; then
+              echo "Missing required CD environment variable: ${var_name}" >&2
+              exit 1
+            fi
+          done
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/gabia_deploy_key
