@@ -13,14 +13,14 @@
 - AI는 `suggestedPriority`, 근거와 `confidence`를 제안한다.
 - 간호사는 제안을 수락하거나 수정해 `confirmedPriority`를 확정하거나 기존 확정을 해제할 수 있다.
 - Node.js는 검증 가능한 시간과 상태만 사용해 `rulePriority`와 실제 정렬을 결정한다.
-- 숫자형 AI score는 schema, DTO, fixture, 응답과 정렬에 사용하지 않는다.
+- 숫자형 AI score는 명시적으로 생성한 같은 `tasks-prioritize-v1` batch의 참고 제안 표시 순서(`score DESC`, `taskId ASC`)에만 저장·응답한다. 서로 다른 batch·contract version 간 비교, 실제 Task 정렬, 자동 확정과 임상 위험도에는 사용하지 않는다.
 - `effectivePriority`는 `confirmedPriority ?? rulePriority`다. AI 제안은 간호사가 확정하기 전까지 표시 정보이며 실제 정렬에 직접 사용하지 않는다.
 
 이 priority enum은 환자의 임상 위험도나 진단이 아니라 간호사가 수행할 **업무 처리 긴급도**를 뜻한다. AI는 저장된 Timeline event 또는 Task 근거 ID에 연결된 제안만 반환하며 새로운 진단이나 환자 위험도를 확정하지 않는다. 간호사가 확정하지 않은 AI 이유는 실제 정렬 근거로 표시하지 않는다.
 
 AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 보존한다. 제안 수락, 수동 변경과 확정 해제는 append-only 감사 기록으로 남긴다.
 
-화면의 선택형 `긴급도`는 별도 점수 필드가 아니라 기존 `priorityOverride`로 간호사가 확정한 처리 긴급도를 표현한다. `시간민감도`는 마감 시각인 `dueAt`으로 표현한다. 서로 합의되지 않은 가중치, 임계값 또는 `priorityScore`를 추가 입력·저장·정렬 필드로 만들지 않는다.
+화면의 선택형 `긴급도`는 기존 `priorityOverride`로 간호사가 확정한 처리 긴급도를 표현한다. `시간민감도`는 마감 시각인 `dueAt`으로 표현한다. AI의 `score`는 같은 batch 내 참고 제안 순서 외에는 의미를 부여하지 않으며, 별도 `priorityScore` 입력이나 Task 정렬 필드로 만들지 않는다.
 
 ### 2.2 Node.js 규칙
 

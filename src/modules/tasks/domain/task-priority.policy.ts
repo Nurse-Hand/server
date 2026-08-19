@@ -1,4 +1,8 @@
-import type { TaskListSort, TaskPriority } from './task.types';
+import type {
+  TaskListSort,
+  TaskPriority,
+  TaskPriorityAiPriority,
+} from './task.types';
 
 const PRIORITY_RANK: Readonly<Record<TaskPriority, number>> = {
   CRITICAL: 0,
@@ -39,6 +43,27 @@ export type TaskOrderingValue = {
   createdAt: Date;
   effectivePriority: TaskPriority;
 };
+
+export type TaskPrioritySuggestionOrderingValue = {
+  taskId: string;
+  aiScore: number;
+};
+
+export function mapAiTaskPriority(
+  priority: TaskPriorityAiPriority,
+): TaskPriority {
+  return priority === 'CRITICAL' ? 'CRITICAL' : 'NORMAL';
+}
+
+export function compareTaskPrioritySuggestions(
+  left: TaskPrioritySuggestionOrderingValue,
+  right: TaskPrioritySuggestionOrderingValue,
+): number {
+  const scoreDifference = right.aiScore - left.aiScore;
+  return scoreDifference === 0
+    ? left.taskId.localeCompare(right.taskId)
+    : scoreDifference;
+}
 
 export function compareTaskOrdering(
   left: TaskOrderingValue,
