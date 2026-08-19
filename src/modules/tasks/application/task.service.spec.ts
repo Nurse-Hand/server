@@ -2,6 +2,7 @@ import { createCanonicalRequestHash } from '../../../common/idempotency/canonica
 import { VersionConflictError } from '../../../common/errors/version-conflict.error';
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
+import type { RoundingSessionQueryPort } from '../../rounding/application/ports/rounding-session-query.port';
 import {
   TaskApplyInvalidError,
   TaskCommandInvalidError,
@@ -45,15 +46,22 @@ class FixedClock extends Clock {
 describe('TaskService', () => {
   let repository: jest.Mocked<TaskRepository>;
   let evidencePort: jest.Mocked<TaskExtractionEvidencePort>;
+  let roundingSessions: jest.Mocked<RoundingSessionQueryPort>;
   let service: TaskService;
 
   beforeEach(() => {
     repository = createRepositoryMock();
     evidencePort = { read: jest.fn() };
+    roundingSessions = { assertCompleted: jest.fn() };
     evidencePort.read.mockResolvedValue(
       createEvidenceSnapshot([RECORD_ID_A, RECORD_ID_B]),
     );
-    service = new TaskService(repository, evidencePort, new FixedClock(NOW));
+    service = new TaskService(
+      repository,
+      evidencePort,
+      roundingSessions,
+      new FixedClock(NOW),
+    );
   });
 
   describe('list', () => {
@@ -257,6 +265,7 @@ describe('TaskService', () => {
         isReplay: true,
       });
       expect(evidencePort.read).not.toHaveBeenCalled();
+      expect(roundingSessions.assertCompleted).not.toHaveBeenCalled();
       expect(repository.reserveExtraction).not.toHaveBeenCalled();
     });
 
@@ -275,6 +284,11 @@ describe('TaskService', () => {
       });
 
       expect(evidencePort.read).toHaveBeenNthCalledWith(1, {
+        context: CONTEXT,
+        roundingSessionId: ROUNDING_SESSION_ID,
+        recordIds: [RECORD_ID_A, RECORD_ID_B],
+      });
+      expect(roundingSessions.assertCompleted).toHaveBeenNthCalledWith(1, {
         context: CONTEXT,
         roundingSessionId: ROUNDING_SESSION_ID,
         recordIds: [RECORD_ID_A, RECORD_ID_B],

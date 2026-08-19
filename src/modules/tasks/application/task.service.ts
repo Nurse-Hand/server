@@ -4,6 +4,10 @@ import { createCanonicalRequestHash } from '../../../common/idempotency/canonica
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
+  ROUNDING_SESSION_QUERY_PORT,
+  type RoundingSessionQueryPort,
+} from '../../rounding/application/ports/rounding-session-query.port';
+import {
   TaskApplyInvalidError,
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
@@ -94,6 +98,8 @@ export class TaskService {
     private readonly repository: TaskRepository,
     @Inject(TASK_EXTRACTION_EVIDENCE_PORT)
     private readonly evidencePort: TaskExtractionEvidencePort,
+    @Inject(ROUNDING_SESSION_QUERY_PORT)
+    private readonly roundingSessions: RoundingSessionQueryPort,
     private readonly clock: Clock,
   ) {}
 
@@ -219,6 +225,12 @@ export class TaskService {
     if (replay !== null) {
       return replay;
     }
+
+    await this.roundingSessions.assertCompleted({
+      context,
+      roundingSessionId: command.roundingSessionId,
+      recordIds: normalizedRecordIds,
+    });
 
     const now = this.clock.now();
     const snapshot = await this.evidencePort.read({

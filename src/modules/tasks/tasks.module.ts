@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
+import { RoundingModule } from '../rounding/rounding.module';
 import { TASK_EXTRACTION_AI_GATEWAY } from './application/ports/task-extraction-ai.gateway';
 import { TASK_EXTRACTION_EVIDENCE_PORT } from './application/ports/task-extraction-evidence.port';
 import { TASK_PRIORITY_AI_GATEWAY } from './application/ports/task-priority-ai.gateway';
@@ -14,7 +15,7 @@ import { PrismaTaskRepository } from './infrastructure/prisma-task.repository';
 import { TasksController } from './presentation/tasks.controller';
 
 @Module({
-  imports: [AiJobsModule],
+  imports: [AiJobsModule, RoundingModule],
   controllers: [TasksController],
   providers: [
     TaskService,
