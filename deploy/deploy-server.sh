@@ -8,6 +8,9 @@ API_DOMAIN="${API_DOMAIN:-api.nursehand.com}"
 LETSENCRYPT_DIR="${LETSENCRYPT_DIR:-/data/nurse-hand/letsencrypt}"
 CERTBOT_WEBROOT_DIR="${CERTBOT_WEBROOT_DIR:-/data/nurse-hand/certbot/www}"
 CERTBOT_EMAIL="${CERTBOT_EMAIL:-}"
+FILE_STORAGE_HOST_ROOT="${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}"
+NURSE_HAND_CONTAINER_UID="${NURSE_HAND_CONTAINER_UID:-10001}"
+NURSE_HAND_CONTAINER_GID="${NURSE_HAND_CONTAINER_GID:-10001}"
 
 if [[ ! -f .env ]]; then
   echo "Missing .env in $(pwd). Create it on the server before deploying." >&2
@@ -23,6 +26,10 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl stop nginx >/dev/null 2>&1 || true
   systemctl disable nginx >/dev/null 2>&1 || true
 fi
+
+mkdir -p "${FILE_STORAGE_HOST_ROOT}"
+chown -R "${NURSE_HAND_CONTAINER_UID}:${NURSE_HAND_CONTAINER_GID}" \
+  "${FILE_STORAGE_HOST_ROOT}"
 
 printf '%s' "${DOCKERHUB_TOKEN}" \
   | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin

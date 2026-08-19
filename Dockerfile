@@ -26,7 +26,8 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && useradd --create-home --shell /usr/sbin/nologin nursehand
+  && groupadd --gid 10001 nursehand \
+  && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin nursehand
 
 COPY package.json package-lock.json ./
 COPY --from=deps /app/node_modules ./node_modules

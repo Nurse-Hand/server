@@ -40,9 +40,9 @@ services:
       DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-25200}
       NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
       NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
-      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}
+      FILE_STORAGE_ROOT: /data/nurse-hand/uploads
     volumes:
-      - '${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}:${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}'
+      - '${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}:/data/nurse-hand/uploads'
     command: >
       sh -c "npx prisma migrate deploy &&
       node dist/src/main.js"
