@@ -3,14 +3,14 @@ name: CD
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev]
+    branches: [main]
 
 permissions:
   contents: read
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/nurse-hand-server
-  DEPLOY_PATH: ${{ vars.GABIA_DEPLOY_PATH || 'nurse-hand-server' }}
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_SERVER_REPOSITORY || 'nursehand-server' }}
+  DEPLOY_PATH: ${{ vars.GABIA_DEPLOY_PATH || '/data/nurse-hand' }}
 
 jobs:
   build-and-push:
@@ -49,6 +49,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
@@ -67,6 +68,70 @@ jobs:
       - name: Checkout deployment files
         uses: actions/checkout@v4
 
+      - name: Render production env
+        env:
+          NURSE_HAND_SERVER_IMAGE: ${{ needs.build-and-push.outputs.image }}
+          NURSE_HAND_AI_IMAGE: ${{ vars.NURSE_HAND_AI_IMAGE || 'jadest03/nurse-hand-ai:latest' }}
+          APP_PORT: ${{ vars.APP_PORT || '3000' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_DATA_DIR: ${{ vars.POSTGRES_DATA_DIR || '/data/nurse-hand/postgres' }}
+          DEMO_MODE: ${{ vars.DEMO_MODE || 'false' }}
+          DEMO_SESSION_TTL_SECONDS: ${{ vars.DEMO_SESSION_TTL_SECONDS || '25200' }}
+          NO_LOGIN_MVP_CONTEXT: ${{ vars.NO_LOGIN_MVP_CONTEXT || 'true' }}
+          NO_LOGIN_MVP_DATASET_ID: ${{ vars.NO_LOGIN_MVP_DATASET_ID || '00000000-0000-4000-8000-000000000101' }}
+          FILE_STORAGE_ROOT: ${{ vars.FILE_STORAGE_ROOT || '/data/nurse-hand/uploads' }}
+          AI_DATA_DIR: ${{ vars.AI_DATA_DIR || '/data/nurse-hand/ai/data' }}
+          AI_TMP_DIR: ${{ vars.AI_TMP_DIR || '/data/nurse-hand/ai/tmp' }}
+          INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+          DEEPGRAM_MODEL: ${{ vars.DEEPGRAM_MODEL || 'nova-3' }}
+          DEEPGRAM_LANGUAGE: ${{ vars.DEEPGRAM_LANGUAGE || 'ko-KR' }}
+          PYANNOTE_AUTH_TOKEN: ${{ secrets.PYANNOTE_AUTH_TOKEN }}
+          PYANNOTE_DIARIZATION_MODEL: ${{ vars.PYANNOTE_DIARIZATION_MODEL || 'pyannote/speaker-diarization-community-1' }}
+          MATCH_THRESHOLD: ${{ vars.MATCH_THRESHOLD || '0.7' }}
+          TOP_K_DEFAULT: ${{ vars.TOP_K_DEFAULT || '3' }}
+          MIN_SEGMENT_SEC: ${{ vars.MIN_SEGMENT_SEC || '0.8' }}
+          MIN_SPEAKER_TOTAL_SEC: ${{ vars.MIN_SPEAKER_TOTAL_SEC || '1.2' }}
+          KEEP_UPLOADS: ${{ vars.KEEP_UPLOADS || 'false' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .deploy
+          cat > .deploy/.env <<EOF
+          NURSE_HAND_SERVER_IMAGE=${NURSE_HAND_SERVER_IMAGE}
+          NURSE_HAND_AI_IMAGE=${NURSE_HAND_AI_IMAGE}
+          APP_PORT=${APP_PORT}
+          DATABASE_URL=${DATABASE_URL}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_DATA_DIR=${POSTGRES_DATA_DIR}
+          DEMO_MODE=${DEMO_MODE}
+          DEMO_SESSION_TTL_SECONDS=${DEMO_SESSION_TTL_SECONDS}
+          NO_LOGIN_MVP_CONTEXT=${NO_LOGIN_MVP_CONTEXT}
+          NO_LOGIN_MVP_DATASET_ID=${NO_LOGIN_MVP_DATASET_ID}
+          FILE_STORAGE_ROOT=${FILE_STORAGE_ROOT}
+          AI_DATA_DIR=${AI_DATA_DIR}
+          AI_TMP_DIR=${AI_TMP_DIR}
+          INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          OPENAI_MODEL=${OPENAI_MODEL}
+          DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+          DEEPGRAM_MODEL=${DEEPGRAM_MODEL}
+          DEEPGRAM_LANGUAGE=${DEEPGRAM_LANGUAGE}
+          PYANNOTE_AUTH_TOKEN=${PYANNOTE_AUTH_TOKEN}
+          PYANNOTE_DIARIZATION_MODEL=${PYANNOTE_DIARIZATION_MODEL}
+          MATCH_THRESHOLD=${MATCH_THRESHOLD}
+          TOP_K_DEFAULT=${TOP_K_DEFAULT}
+          MIN_SEGMENT_SEC=${MIN_SEGMENT_SEC}
+          MIN_SPEAKER_TOTAL_SEC=${MIN_SPEAKER_TOTAL_SEC}
+          KEEP_UPLOADS=${KEEP_UPLOADS}
+          EOF
+
       - name: Install SSH key
         env:
           GABIA_SSH_PRIVATE_KEY: ${{ secrets.GABIA_SSH_PRIVATE_KEY }}
@@ -84,7 +149,7 @@ jobs:
           set -euo pipefail
           ssh-keyscan -p "${GABIA_SSH_PORT:-22}" "${GABIA_SSH_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Copy compose files
+      - name: Copy deployment files
         env:
           GABIA_SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
           GABIA_SSH_PORT: ${{ secrets.GABIA_SSH_PORT }}
@@ -97,6 +162,9 @@ jobs:
           scp -i ~/.ssh/nurse_hand_deploy -P "${SSH_PORT}" \
             docker-compose.prod.yml deploy/deploy-server.sh \
             "${SSH_TARGET}:${DEPLOY_PATH}/"
+          scp -i ~/.ssh/nurse_hand_deploy -P "${SSH_PORT}" \
+            .deploy/.env \
+            "${SSH_TARGET}:${DEPLOY_PATH}/.env"
 
       - name: Pull and restart
         env:
@@ -105,10 +173,9 @@ jobs:
           GABIA_SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
           GABIA_SSH_PORT: ${{ secrets.GABIA_SSH_PORT }}
           GABIA_SSH_USER: ${{ secrets.GABIA_SSH_USER }}
-          NURSE_HAND_SERVER_IMAGE: ${{ needs.build-and-push.outputs.image }}
         run: |
           set -euo pipefail
           SSH_PORT="${GABIA_SSH_PORT:-22}"
           SSH_TARGET="${GABIA_SSH_USER}@${GABIA_SSH_HOST}"
           ssh -i ~/.ssh/nurse_hand_deploy -p "${SSH_PORT}" "${SSH_TARGET}" \
-            "cd '${DEPLOY_PATH}' && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${NURSE_HAND_SERVER_IMAGE}' bash ./deploy-server.sh"
+            "cd '${DEPLOY_PATH}' && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' bash ./deploy-server.sh"

@@ -1,4 +1,7 @@
-import { validateEnvironment } from './environment';
+import {
+  DEFAULT_NO_LOGIN_MVP_DATASET_ID,
+  validateEnvironment,
+} from './environment';
 
 describe('validateEnvironment', () => {
   it('개발 환경에는 안전한 로컬 기본값을 적용한다', () => {
@@ -12,6 +15,8 @@ describe('validateEnvironment', () => {
       DEMO_MODE: false,
       DEMO_SESSION_TTL_SECONDS: 25200,
       FILE_STORAGE_ROOT: '/data/uploads',
+      NO_LOGIN_MVP_CONTEXT: false,
+      NO_LOGIN_MVP_DATASET_ID: DEFAULT_NO_LOGIN_MVP_DATASET_ID,
     });
   });
 
@@ -35,6 +40,15 @@ describe('validateEnvironment', () => {
     expect(
       validateEnvironment({ NODE_ENV: 'test', DEMO_MODE: 'false' }).DEMO_MODE,
     ).toBe(false);
+  });
+
+  it('NO_LOGIN_MVP_CONTEXT=true 문자열을 true로 해석한다', () => {
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'test',
+        NO_LOGIN_MVP_CONTEXT: 'true',
+      }).NO_LOGIN_MVP_CONTEXT,
+    ).toBe(true);
   });
 
   it('demo session TTL이 7시간을 넘으면 거부한다', () => {

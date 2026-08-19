@@ -13,14 +13,45 @@ npm ci
 npm run start:dev
 ```
 
-로컬 Docker 실행은 git에 올리지 않는 `.env.local`을 사용합니다.
+로컬 Docker 실행은 git에 올리지 않는 `.env`를 사용합니다.
 
 ```bash
 docker build -t nurse-hand-server:dev .
-docker compose --env-file .env.local -f docker-compose.prod.yml up -d
+docker compose --env-file .env -f docker-compose.local.yml up -d
 ```
 
+`docker-compose.local.yml`은 로컬 테스트 기준으로 `db`, `api`, `ai`, `demo-ui`를 같이 띄웁니다.
+
+- API: `http://localhost:3000`
+- Swagger UI: `http://localhost:3000/docs`
+- Demo UI: `http://localhost:5173`
+- PostgreSQL: `localhost:5432`
+
+`docker-compose.prod.yml`은 가비아 단일 서버 배포 기준으로 `db`, `api`, `ai`를 같이 띄웁니다. 운영 compose는 DB와 AI 서버 포트를 외부에 열지 않고, API도 서버 내부 Nginx 프록시를 전제로 `127.0.0.1:${APP_PORT:-3000}`에 바인딩합니다.
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml up -d
+```
+
+필요하면 이미지와 데이터 경로를 `.env`로 바꿉니다.
+
+- `NURSE_HAND_SERVER_IMAGE`
+- `NURSE_HAND_AI_IMAGE`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `DEEPGRAM_API_KEY`
+- `PYANNOTE_AUTH_TOKEN`
+- `FILE_STORAGE_ROOT`
+- `DEMO_UI_PORT` (local compose 전용)
+- `NO_LOGIN_MVP_CONTEXT` (`true`이면 `DEMO_MODE=false`에서도 MVP 시연용 synthetic context를 자동 생성)
+- `NO_LOGIN_MVP_DATASET_ID`
+- `POSTGRES_DATA_DIR`
+- `AI_DATA_DIR`
+- `AI_TMP_DIR`
+
 운영 서버 배포는 git에 올리지 않는 `.env`를 사용합니다.
+
+파일 업로드는 컨테이너 내부가 아니라 `FILE_STORAGE_ROOT`에 저장합니다. 운영에서는 가비아 서버의 블록 스토리지를 `/data`에 마운트한 뒤 `/data/nurse-hand/uploads`를 그대로 쓰면 됩니다.
 
 - Health: `GET http://localhost:3000/api/v1/health`
 - Swagger UI: `http://localhost:3000/docs`

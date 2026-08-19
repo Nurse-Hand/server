@@ -821,6 +821,2768 @@
           "Rounding"
         ]
       }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "operationId": "TasksController_list",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "query",
+            "description": "Asia/Seoul 기준 업무일",
+            "schema": {
+              "format": "date",
+              "example": "2026-08-19",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TODO",
+                "IN_PROGRESS",
+                "DONE"
+              ]
+            }
+          },
+          {
+            "name": "patientId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "priority",
+              "type": "string",
+              "enum": [
+                "priority",
+                "dueAt"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "서버가 발급한 opaque cursor",
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "업무 목록 조회",
+        "tags": [
+          "Tasks"
+        ]
+      },
+      "post": {
+        "operationId": "TasksController_create",
+        "parameters": [
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "description": "같은 actor와 endpoint에서 요청 replay를 식별하는 opaque key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[\\x21-\\x7E]+$"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "업무 직접 생성",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/task-extraction-jobs": {
+      "post": {
+        "operationId": "TasksController_reserveExtraction",
+        "parameters": [
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "description": "같은 actor와 endpoint에서 요청 replay를 식별하는 opaque key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[\\x21-\\x7E]+$"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveTaskExtractionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskExtractionReservationResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "라운딩 근거에서 업무 후보 추출 작업 접수",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/task-extraction-jobs/{jobId}": {
+      "get": {
+        "operationId": "TasksController_findExtractionJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskExtractionJobResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "업무 후보 추출 작업 상태와 결과 조회",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/tasks/{taskId}": {
+      "patch": {
+        "operationId": "TasksController_update",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "업무 내용·마감·상태·확정 우선순위 수정",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/task-extraction-jobs/{jobId}/apply": {
+      "post": {
+        "operationId": "TasksController_applyCandidates",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "description": "같은 actor와 endpoint에서 요청 replay를 식별하는 opaque key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[\\x21-\\x7E]+$"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyTaskCandidatesRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyTaskCandidatesResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "선택한 업무 후보를 원자적으로 반영",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/api/v1/handoff-prechecks": {
+      "post": {
+        "operationId": "HandoffPrechecksController_createPrecheck",
+        "parameters": [
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoffPrecheckRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedHandoffPrecheckResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 사전검증 작업 접수",
+        "tags": [
+          "Handoff Prechecks"
+        ]
+      }
+    },
+    "/api/v1/handoff-prechecks/{precheckId}": {
+      "get": {
+        "operationId": "HandoffPrechecksController_getPrecheck",
+        "parameters": [
+          {
+            "name": "precheckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffPrecheckResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 사전검증 결과 조회",
+        "tags": [
+          "Handoff Prechecks"
+        ]
+      }
+    },
+    "/api/v1/handoff-prechecks/{precheckId}/items/{itemId}": {
+      "patch": {
+        "operationId": "HandoffPrechecksController_answerPrecheckItem",
+        "parameters": [
+          {
+            "name": "precheckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerHandoffPrecheckItemRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsweredHandoffPrecheckItemResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 역질문 답변 저장",
+        "tags": [
+          "Handoff Prechecks"
+        ]
+      }
+    },
+    "/api/v1/handoffs": {
+      "get": {
+        "operationId": "HandoffDraftsController_list",
+        "parameters": [
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "example": "2026-08-13",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "FINALIZED"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffDraftListResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 목록 조회",
+        "tags": [
+          "Handoffs"
+        ]
+      },
+      "post": {
+        "operationId": "HandoffDraftsController_create",
+        "parameters": [
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoffDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedHandoffDraftResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 6개 임상 섹션 초안 생성 작업 접수",
+        "tags": [
+          "Handoffs"
+        ]
+      }
+    },
+    "/api/v1/handoffs/{handoffId}": {
+      "get": {
+        "operationId": "HandoffDraftsController_get",
+        "parameters": [
+          {
+            "name": "handoffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffDraftDetailResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 생성 상태와 초안 상세 조회",
+        "tags": [
+          "Handoffs"
+        ]
+      },
+      "patch": {
+        "operationId": "HandoffDraftsController_update",
+        "parameters": [
+          {
+            "name": "handoffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHandoffDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatedHandoffDraftResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "DRAFT 인수인계 임상 섹션과 연결 업무 수정",
+        "tags": [
+          "Handoffs"
+        ]
+      }
+    },
+    "/api/v1/handoffs/{handoffId}/finalize": {
+      "post": {
+        "operationId": "HandoffFinalizationController_finalize",
+        "parameters": [
+          {
+            "name": "handoffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinalizeHandoffRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalizedHandoffResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 초안을 불변 snapshot으로 최종 확정",
+        "tags": [
+          "Handoffs"
+        ]
+      }
+    },
+    "/api/v1/handoffs/{handoffId}/acknowledgements": {
+      "post": {
+        "operationId": "HandoffAcknowledgementsController_acknowledge",
+        "parameters": [
+          {
+            "name": "handoffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoffAcknowledgementRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffAcknowledgementResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "수신 간호사의 질문 또는 수신 확인 기록",
+        "tags": [
+          "Handoffs"
+        ]
+      }
+    },
+    "/api/v1/handoffs/{handoffId}/history": {
+      "get": {
+        "operationId": "HandoffAcknowledgementsController_history",
+        "parameters": [
+          {
+            "name": "handoffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "\\S",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffHistoryResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계 변경 및 수신 이력 조회",
+        "tags": [
+          "Handoffs"
+        ]
+      }
     }
   },
   "info": {
@@ -1233,6 +3995,1785 @@
             "description": "생략하면 서버 현재 시각을 사용한다."
           }
         }
+      },
+      "TaskAiSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "suggestedPriority": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "suggestedPriority",
+          "reasons",
+          "confidence"
+        ]
+      },
+      "TaskDataDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "example": "통증 재평가"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "workDate": {
+            "type": "string",
+            "example": "2026-08-19",
+            "format": "date"
+          },
+          "status": {
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "MANUAL",
+              "AI_EXTRACTED"
+            ],
+            "type": "string"
+          },
+          "aiSuggestion": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskAiSuggestionDto"
+              }
+            ]
+          },
+          "rulePriority": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "confirmedPriority": {
+            "nullable": true,
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "effectivePriority": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "taskId",
+          "patientId",
+          "title",
+          "description",
+          "dueAt",
+          "workDate",
+          "status",
+          "source",
+          "aiSuggestion",
+          "rulePriority",
+          "confirmedPriority",
+          "effectivePriority",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TaskListDataDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskDataDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "TaskListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskListDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "CreateTaskRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "통증 재평가"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "example": "진통제 투여 후 통증 점수를 다시 확인합니다."
+          },
+          "dueAt": {
+            "type": "string",
+            "example": "2026-08-19T14:00:00+09:00",
+            "format": "date-time"
+          },
+          "priorityOverride": {
+            "nullable": true,
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "dueAt"
+        ]
+      },
+      "TaskResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "ReserveTaskExtractionRequestDto": {
+        "type": "object",
+        "properties": {
+          "roundingSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recordIds": {
+            "type": "array",
+            "items": {
+              "required": true,
+              "uniqueItems": true,
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "required": [
+          "roundingSessionId",
+          "recordIds"
+        ]
+      },
+      "TaskExtractionReservationDataDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "status"
+        ]
+      },
+      "TaskExtractionReservationResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskExtractionReservationDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "TaskExtractionFailureDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "TASK_AI_TIMEOUT"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "retryable"
+        ]
+      },
+      "TaskExtractionEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "enum": [
+              "TIMELINE_EVENT",
+              "TASK"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "sourceType",
+          "sourceId"
+        ]
+      },
+      "TaskExtractionCandidateDto": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "workDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "aiSuggestion": {
+            "$ref": "#/components/schemas/TaskAiSuggestionDto"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskExtractionEvidenceDto"
+            }
+          },
+          "duplicateTaskId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "appliedTaskId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "candidateId",
+          "patientId",
+          "title",
+          "description",
+          "dueAt",
+          "workDate",
+          "aiSuggestion",
+          "evidence",
+          "duplicateTaskId",
+          "appliedTaskId"
+        ]
+      },
+      "TaskExtractionJobDataDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "failure": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskExtractionFailureDto"
+              }
+            ]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskExtractionCandidateDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "failure",
+          "candidates",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TaskExtractionJobResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskExtractionJobDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "UpdateTaskRequestDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "통증 재평가"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "null 변경은 도메인 규칙에 따라 422로 거부됩니다.",
+            "example": "2026-08-19T15:00:00+09:00",
+            "format": "date-time"
+          },
+          "status": {
+            "enum": [
+              "TODO",
+              "IN_PROGRESS",
+              "DONE"
+            ],
+            "type": "string"
+          },
+          "priorityOverride": {
+            "nullable": true,
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "ApplyTaskCandidateRequestDto": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selected": {
+            "type": "boolean",
+            "description": "실제 업무로 반영할 후보인지 여부",
+            "example": true
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "null이면 후보 업무의 마감을 제거합니다.",
+            "format": "date-time"
+          },
+          "priorityOverride": {
+            "nullable": true,
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidateId",
+          "selected"
+        ]
+      },
+      "ApplyTaskCandidatesRequestDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplyTaskCandidateRequestDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ApplyTaskCandidatesDataDto": {
+        "type": "object",
+        "properties": {
+          "createdTaskIds": {
+            "type": "array",
+            "items": {
+              "required": true,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          "skippedCandidateIds": {
+            "type": "array",
+            "items": {
+              "required": true,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        "required": [
+          "createdTaskIds",
+          "skippedCandidateIds"
+        ]
+      },
+      "ApplyTaskCandidatesResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ApplyTaskCandidatesDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "CreateHandoffPrecheckRequestDto": {
+        "type": "object",
+        "properties": {
+          "shiftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetDuty": {
+            "enum": [
+              "DAY",
+              "EVENING",
+              "NIGHT"
+            ],
+            "type": "string",
+            "example": "EVENING"
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date",
+            "example": "2026-08-13"
+          }
+        },
+        "required": [
+          "shiftId",
+          "targetDuty",
+          "date"
+        ]
+      },
+      "CreatedHandoffPrecheckDataDto": {
+        "type": "object",
+        "properties": {
+          "precheckId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED"
+            ]
+          }
+        },
+        "required": [
+          "precheckId",
+          "status"
+        ]
+      },
+      "CreatedHandoffPrecheckResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedHandoffPrecheckDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "HandoffPrecheckSummaryDto": {
+        "type": "object",
+        "properties": {
+          "critical": {
+            "type": "number",
+            "minimum": 0
+          },
+          "recommended": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "critical",
+          "recommended"
+        ]
+      },
+      "HandoffPrecheckEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "enum": [
+              "TIMELINE_EVENT",
+              "TASK"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceReference": {
+            "type": "string",
+            "description": "입력 snapshot에 보존된 source reference"
+          },
+          "occurredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "excerptKind": {
+            "enum": [
+              "UTTERANCE",
+              "SUMMARY",
+              "TASK_TITLE"
+            ],
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "근거로 펼쳐 볼 snapshot 텍스트"
+          }
+        },
+        "required": [
+          "sourceType",
+          "sourceId",
+          "sourceReference",
+          "excerptKind",
+          "excerpt"
+        ]
+      },
+      "HandoffPrecheckItemDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "RECOMMENDED"
+            ],
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffPrecheckEvidenceDto"
+            }
+          },
+          "answer": {
+            "nullable": true,
+            "enum": [
+              "NO_ISSUE",
+              "INCLUDE_HANDOFF",
+              "UNVERIFIED",
+              "NOT_APPLICABLE"
+            ],
+            "type": "string"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "itemId",
+          "patientId",
+          "severity",
+          "question",
+          "reason",
+          "evidence",
+          "version"
+        ]
+      },
+      "HandoffPrecheckDataDto": {
+        "type": "object",
+        "properties": {
+          "precheckId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "retryable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "modelVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "generatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/HandoffPrecheckSummaryDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffPrecheckItemDto"
+            }
+          }
+        },
+        "required": [
+          "precheckId",
+          "version",
+          "jobId",
+          "status"
+        ]
+      },
+      "HandoffPrecheckResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HandoffPrecheckDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "AnswerHandoffPrecheckItemRequestDto": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "enum": [
+              "NO_ISSUE",
+              "INCLUDE_HANDOFF",
+              "UNVERIFIED",
+              "NOT_APPLICABLE"
+            ],
+            "type": "string"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "answer",
+          "version"
+        ]
+      },
+      "AnsweredHandoffPrecheckItemDataDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "answer": {
+            "enum": [
+              "NO_ISSUE",
+              "INCLUDE_HANDOFF",
+              "UNVERIFIED",
+              "NOT_APPLICABLE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "itemId",
+          "answer",
+          "version"
+        ]
+      },
+      "AnsweredHandoffPrecheckItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnsweredHandoffPrecheckItemDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "HandoffDraftListItemDto": {
+        "type": "object",
+        "properties": {
+          "handoffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "FINALIZED"
+            ],
+            "type": "string"
+          },
+          "patientCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "taskCount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "handoffId",
+          "status",
+          "patientCount",
+          "taskCount",
+          "updatedAt"
+        ]
+      },
+      "HandoffDraftListDataDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffDraftListItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HandoffDraftListPageMetaDto": {
+        "type": "object",
+        "properties": {
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "nextCursor"
+        ]
+      },
+      "HandoffDraftListMetaDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "page": {
+            "$ref": "#/components/schemas/HandoffDraftListPageMetaDto"
+          }
+        },
+        "required": [
+          "requestId",
+          "page"
+        ]
+      },
+      "HandoffDraftListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HandoffDraftListDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/HandoffDraftListMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "HandoffGenerationJobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "retryable": {
+            "type": "boolean",
+            "nullable": true
+          }
+        },
+        "required": [
+          "jobId",
+          "status"
+        ]
+      },
+      "HandoffDraftClinicalSectionsDto": {
+        "type": "object",
+        "properties": {
+          "patientStatus": {
+            "type": "string"
+          },
+          "pain": {
+            "type": "string"
+          },
+          "treatment": {
+            "type": "string"
+          },
+          "diet": {
+            "type": "string"
+          },
+          "activity": {
+            "type": "string"
+          },
+          "observation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "patientStatus",
+          "pain",
+          "treatment",
+          "diet",
+          "activity",
+          "observation"
+        ]
+      },
+      "HandoffDraftCitationDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "enum": [
+              "TIMELINE_EVENT",
+              "TASK"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceReference": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "excerptKind": {
+            "enum": [
+              "SUMMARY",
+              "TASK_TITLE"
+            ],
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string",
+            "enum": [
+              "PATIENT_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "ACTIVITY",
+              "OBSERVATION"
+            ]
+          },
+          "wasModified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sourceType",
+          "sourceId",
+          "sourceReference",
+          "excerptKind",
+          "excerpt",
+          "section",
+          "wasModified"
+        ]
+      },
+      "HandoffDraftPatientDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/HandoffDraftClinicalSectionsDto"
+          },
+          "aiOriginalSections": {
+            "$ref": "#/components/schemas/HandoffDraftClinicalSectionsDto"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffDraftCitationDto"
+            }
+          },
+          "unverified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "patientId",
+          "sections",
+          "aiOriginalSections",
+          "citations",
+          "unverified"
+        ]
+      },
+      "HandoffDraftTaskDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "effectivePriority": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "NORMAL"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "taskId",
+          "title",
+          "effectivePriority",
+          "version"
+        ]
+      },
+      "HandoffDraftWarningDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "CRITICAL",
+              "RECOMMENDED"
+            ]
+          },
+          "answer": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "isIncludedInAiInput": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "itemId",
+          "severity",
+          "message",
+          "isIncludedInAiInput"
+        ]
+      },
+      "HandoffDraftDetailDataDto": {
+        "type": "object",
+        "properties": {
+          "handoffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "GENERATING",
+              "DRAFT",
+              "FINALIZED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "senderActorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receiverActorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "generationJob": {
+            "$ref": "#/components/schemas/HandoffGenerationJobDto"
+          },
+          "templateId": {
+            "type": "string",
+            "enum": [
+              "NURSING_HANDOFF_V1"
+            ]
+          },
+          "includeUnverified": {
+            "type": "boolean"
+          },
+          "patients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffDraftPatientDto"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffDraftTaskDto"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffDraftWarningDto"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "handoffId",
+          "status",
+          "version",
+          "date",
+          "senderActorId",
+          "receiverActorId",
+          "generationJob",
+          "updatedAt"
+        ]
+      },
+      "HandoffDraftDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HandoffDraftDetailDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "CreateHandoffDraftRequestDto": {
+        "type": "object",
+        "properties": {
+          "precheckId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "enum": [
+              "NURSING_HANDOFF_V1"
+            ],
+            "example": "NURSING_HANDOFF_V1"
+          },
+          "includeUnverified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "precheckId",
+          "templateId",
+          "includeUnverified"
+        ]
+      },
+      "CreatedHandoffDraftDataDto": {
+        "type": "object",
+        "properties": {
+          "handoffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "GENERATING"
+            ]
+          }
+        },
+        "required": [
+          "handoffId",
+          "status"
+        ]
+      },
+      "CreatedHandoffDraftResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedHandoffDraftDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "UpdateHandoffClinicalSectionsRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientStatus": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "pain": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "treatment": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "diet": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "activity": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "observation": {
+            "type": "string",
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "patientStatus",
+          "pain",
+          "treatment",
+          "diet",
+          "activity",
+          "observation"
+        ]
+      },
+      "UpdateHandoffPatientRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sections": {
+            "$ref": "#/components/schemas/UpdateHandoffClinicalSectionsRequestDto"
+          }
+        },
+        "required": [
+          "patientId",
+          "sections"
+        ]
+      },
+      "UpdateHandoffDraftRequestDto": {
+        "type": "object",
+        "properties": {
+          "patients": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateHandoffPatientRequestDto"
+            }
+          },
+          "taskIds": {
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "patients",
+          "taskIds",
+          "version"
+        ]
+      },
+      "UpdatedHandoffDraftDataDto": {
+        "type": "object",
+        "properties": {
+          "handoffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "handoffId",
+          "status",
+          "version",
+          "updatedAt"
+        ]
+      },
+      "UpdatedHandoffDraftResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UpdatedHandoffDraftDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "FinalizeHandoffRequestDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "unverifiedHandling": {
+            "enum": [
+              "RESOLVED",
+              "KEEP_WITH_WARNING"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "unverifiedHandling"
+        ]
+      },
+      "FinalizedHandoffDataDto": {
+        "type": "object",
+        "properties": {
+          "handoffId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "FINALIZED"
+            ]
+          },
+          "finalizedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "handoffId",
+          "status",
+          "finalizedAt",
+          "version"
+        ]
+      },
+      "FinalizedHandoffResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FinalizedHandoffDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "CreateHandoffAcknowledgementRequestDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "QUESTIONED",
+              "ACKNOWLEDGED"
+            ],
+            "type": "string"
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "HandoffAcknowledgementDataDto": {
+        "type": "object",
+        "properties": {
+          "acknowledgementId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUESTIONED",
+              "ACKNOWLEDGED"
+            ],
+            "type": "string"
+          },
+          "acknowledgedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "acknowledgementId",
+          "status",
+          "acknowledgedAt"
+        ]
+      },
+      "HandoffAcknowledgementResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HandoffAcknowledgementDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "HandoffHistoryMetadataDto": {
+        "type": "object",
+        "properties": {
+          "generationSequence": {
+            "type": "number",
+            "minimum": 1
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "unverifiedHandling": {
+            "enum": [
+              "RESOLVED",
+              "KEEP_WITH_WARNING"
+            ],
+            "type": "string"
+          },
+          "warningItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "status": {
+            "enum": [
+              "QUESTIONED",
+              "ACKNOWLEDGED"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "HandoffHistoryEventDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "enum": [
+              "CREATED",
+              "GENERATION_RETRIED",
+              "DRAFT_GENERATED",
+              "DRAFT_UPDATED",
+              "FINALIZED",
+              "VIEWED",
+              "QUESTIONED",
+              "ACKNOWLEDGED"
+            ],
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/HandoffHistoryMetadataDto"
+          }
+        },
+        "required": [
+          "eventId",
+          "type",
+          "actorId",
+          "occurredAt",
+          "metadata"
+        ]
+      },
+      "HandoffHistoryDataDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HandoffHistoryEventDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HandoffHistoryPageMetaDto": {
+        "type": "object",
+        "properties": {
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "nextCursor"
+        ]
+      },
+      "HandoffHistoryMetaDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "page": {
+            "$ref": "#/components/schemas/HandoffHistoryPageMetaDto"
+          }
+        },
+        "required": [
+          "requestId",
+          "page"
+        ]
+      },
+      "HandoffHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HandoffHistoryDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/HandoffHistoryMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       }
     }
   },

@@ -3,8 +3,10 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsOptional,
   Matches,
   IsString,
+  IsUUID,
   Max,
   Min,
   validateSync,
@@ -14,6 +16,8 @@ const LOCAL_DATABASE_URL =
   'postgresql://nurse_hand:nurse_hand@localhost:5432/nurse_hand';
 const NODE_ENVIRONMENTS = ['development', 'test', 'production'] as const;
 export const MAX_DEMO_SESSION_TTL_SECONDS = 7 * 60 * 60;
+export const DEFAULT_NO_LOGIN_MVP_DATASET_ID =
+  '00000000-0000-4000-8000-000000000101';
 
 export type NodeEnvironment = (typeof NODE_ENVIRONMENTS)[number];
 
@@ -44,6 +48,14 @@ export class EnvironmentVariables {
   @IsString()
   @Matches(/^\//)
   FILE_STORAGE_ROOT!: string;
+
+  @Transform(({ value }) => parseBoolean(value))
+  @IsBoolean()
+  NO_LOGIN_MVP_CONTEXT!: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  NO_LOGIN_MVP_DATASET_ID?: string;
 }
 
 export function validateEnvironment(
@@ -66,6 +78,10 @@ export function validateEnvironment(
       DEMO_SESSION_TTL_SECONDS:
         rawEnvironment.DEMO_SESSION_TTL_SECONDS ?? MAX_DEMO_SESSION_TTL_SECONDS,
       FILE_STORAGE_ROOT: rawEnvironment.FILE_STORAGE_ROOT ?? '/data/uploads',
+      NO_LOGIN_MVP_CONTEXT: rawEnvironment.NO_LOGIN_MVP_CONTEXT ?? false,
+      NO_LOGIN_MVP_DATASET_ID:
+        rawEnvironment.NO_LOGIN_MVP_DATASET_ID ??
+        DEFAULT_NO_LOGIN_MVP_DATASET_ID,
     },
     { enableImplicitConversion: false },
   );
