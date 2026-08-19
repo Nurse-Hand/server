@@ -21,6 +21,7 @@ model AiJob {
   dataset             DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   membership          WardMembership    @relation("AiJobMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
   idempotencyRecord   IdempotencyRecord @relation("IdempotencyJob", fields: [datasetId, idempotencyRecordId, actorId, wardId, operation], references: [datasetId, id, actorId, wardId, operation], onDelete: Restrict, map: "AiJob_idempotency_scope_fkey")
+  scheduleOcrJob      ScheduleOcrJob?
 
   @@unique(name: "ai_job_dataset_id", [datasetId, id])
   @@unique(name: "ai_job_dataset_scope_operation", [datasetId, id, actorId, wardId, operation])

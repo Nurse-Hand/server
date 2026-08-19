@@ -37,3 +37,18 @@ enum IdempotencyStatus {
   PROCESSING
   COMPLETED
 }
+
+enum ScheduleDuty {
+  DAY
+  EVENING
+  NIGHT
+  OFF
+}
+
+enum ScheduleOcrToken {
+  D
+  E
+  N
+  OFF
+  UNKNOWN
+}

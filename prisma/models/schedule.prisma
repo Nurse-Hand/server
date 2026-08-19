@@ -1,0 +1,89 @@
+model ScheduleOcrJob {
+  aiJobId         String            @id @db.Uuid
+  datasetId       String            @db.Uuid
+  actorId         String            @db.Uuid
+  wardId          String            @db.Uuid
+  yearMonth       String            @db.Char(7)
+  templateId      String            @db.VarChar(64)
+  rowIndex        Int
+  fileHash        String            @db.Char(64)
+  storageUri      String?           @db.VarChar(500)
+  imageWidth      Int
+  imageHeight     Int
+  resultExpiresAt DateTime?         @db.Timestamptz(3)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+  aiJob           AiJob             @relation(fields: [aiJobId], references: [id], onDelete: Cascade)
+  dataset         DemoDataset       @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership      WardMembership    @relation("ScheduleOcrMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  cells           ScheduleOcrCell[]
+  schedules       MonthlySchedule[] @relation("ScheduleSourceJob")
+
+  @@unique(name: "schedule_ocr_scope_id", [datasetId, aiJobId, actorId, wardId])
+  @@index([datasetId, actorId, wardId, yearMonth, createdAt(sort: Desc)])
+  @@index([storageUri, createdAt])
+  @@index([resultExpiresAt])
+}
+
+model ScheduleOcrCell {
+  id          String           @id @default(uuid()) @db.Uuid
+  aiJobId     String           @db.Uuid
+  dutyDate    DateTime         @db.Date
+  token       ScheduleOcrToken
+  confidence  Decimal          @db.Decimal(5, 4)
+  needsReview Boolean
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  job         ScheduleOcrJob   @relation(fields: [aiJobId], references: [aiJobId], onDelete: Cascade)
+
+  @@unique([aiJobId, dutyDate])
+  @@index([aiJobId, dutyDate])
+}
+
+model MonthlySchedule {
+  id           String                 @id @default(uuid()) @db.Uuid
+  datasetId    String                 @db.Uuid
+  actorId      String                 @db.Uuid
+  wardId       String                 @db.Uuid
+  yearMonth    String                 @db.Char(7)
+  sourceJobId  String?                @db.Uuid
+  version      Int                    @default(1)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
+  dataset      DemoDataset            @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership   WardMembership         @relation("MonthlyScheduleMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  sourceJob    ScheduleOcrJob?        @relation("ScheduleSourceJob", fields: [sourceJobId], references: [aiJobId], onDelete: SetNull)
+  entries      MonthlyScheduleEntry[]
+  saveRequests ScheduleSaveRequest[]
+
+  @@unique(name: "monthly_schedule_scope_month", [datasetId, actorId, wardId, yearMonth])
+  @@unique(name: "monthly_schedule_scope_id", [datasetId, id, actorId, wardId])
+}
+
+model MonthlyScheduleEntry {
+  id         String          @id @default(uuid()) @db.Uuid
+  scheduleId String          @db.Uuid
+  dutyDate   DateTime        @db.Date
+  duty       ScheduleDuty
+  schedule   MonthlySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, dutyDate])
+  @@index([scheduleId, dutyDate])
+}
+
+model ScheduleSaveRequest {
+  id             String          @id @default(uuid()) @db.Uuid
+  datasetId      String          @db.Uuid
+  actorId        String          @db.Uuid
+  wardId         String          @db.Uuid
+  yearMonth      String          @db.Char(7)
+  idempotencyKey String          @db.VarChar(128)
+  requestHash    String          @db.Char(64)
+  scheduleId     String          @db.Uuid
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  dataset        DemoDataset     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership     WardMembership  @relation("ScheduleSaveMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  schedule       MonthlySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique(name: "schedule_save_scope_key", [datasetId, actorId, yearMonth, idempotencyKey])
+  @@index([scheduleId])
+}
