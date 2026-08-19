@@ -14,6 +14,7 @@ import { parseTaskPrioritySuggestionResponse } from './task-priority-suggestion-
 
 const PRIORITIZE_PATH = '/internal/v1/tasks/prioritize';
 const DEFAULT_TIMEOUT_MILLISECONDS = 15_000;
+const MAX_RESPONSE_BODY_BYTES = 256 * 1024;
 
 @Injectable()
 export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestionGateway {
@@ -57,7 +58,7 @@ export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestion
 
       let body: unknown;
       try {
-        body = JSON.parse(await response.text()) as unknown;
+        body = JSON.parse(await readBoundedBody(response)) as unknown;
       } catch (error: unknown) {
         if (controller.signal.aborted || isAbortError(error)) {
           throw new TaskAiTimeoutError();
@@ -111,6 +112,44 @@ export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestion
     }
 
     return { url, token, timeoutMilliseconds };
+  }
+}
+
+async function readBoundedBody(response: Response): Promise<string> {
+  const contentLength = response.headers.get('content-length');
+  if (contentLength !== null) {
+    const parsedContentLength = Number(contentLength);
+    if (
+      !Number.isInteger(parsedContentLength) ||
+      parsedContentLength < 0 ||
+      parsedContentLength > MAX_RESPONSE_BODY_BYTES
+    ) {
+      throw new TaskAiResponseInvalidError();
+    }
+  }
+
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let body = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BODY_BYTES) {
+        await reader.cancel();
+        throw new TaskAiResponseInvalidError();
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return body + decoder.decode();
+  } finally {
+    reader.releaseLock();
   }
 }
 

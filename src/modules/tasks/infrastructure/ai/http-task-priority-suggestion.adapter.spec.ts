@@ -98,6 +98,28 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
     );
   });
 
+  it('Content-Length가 256 KiB를 초과하면 body를 읽기 전에 거부한다', async () => {
+    const response = new Response('{}', { status: 201 });
+    response.headers.set('Content-Length', String(256 * 1024 + 1));
+    jest.spyOn(global, 'fetch').mockResolvedValue(response);
+
+    await expect(adapter().prioritize(input())).rejects.toBeInstanceOf(
+      TaskAiResponseInvalidError,
+    );
+  });
+
+  it('streaming body가 256 KiB를 초과하면 읽기를 중단하고 거부한다', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response('x'.repeat(256 * 1024 + 1), { status: 201 }),
+      );
+
+    await expect(adapter().prioritize(input())).rejects.toBeInstanceOf(
+      TaskAiResponseInvalidError,
+    );
+  });
+
   it('필수 구성이 없으면 fetch 전에 503 error로 거부한다', async () => {
     const fetchMock = jest.spyOn(global, 'fetch');
     await expect(
