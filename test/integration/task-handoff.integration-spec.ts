@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/infrastructure/database/prisma.service';
+import { AiJobService } from '../../src/modules/ai-jobs/application/ai-job.service';
 import { DemoSessionContextResolver } from '../../src/modules/demo/application/demo-session-context.resolver';
 import { DemoSessionService } from '../../src/modules/demo/application/demo-session.service';
 import type { DemoSessionContext } from '../../src/modules/demo/application/demo-session-context';
@@ -12,6 +13,14 @@ import { HandoffFinalizationService } from '../../src/modules/handoffs/applicati
 import { HandoffPrechecksService } from '../../src/modules/handoffs/application/handoff-prechecks.service';
 import { TaskHandoffJobDispatcher } from '../../src/modules/job-execution/task-handoff-job.dispatcher';
 import { TaskService } from '../../src/modules/tasks/application/task.service';
+import {
+  TASK_REPOSITORY,
+  type TaskRepository,
+} from '../../src/modules/tasks/application/ports/task.repository';
+import {
+  TASK_APPLY_OPERATION,
+  TASK_EXTRACTION_OPERATION,
+} from '../../src/modules/tasks/domain/task.types';
 
 describe('Task and Handoff PostgreSQL integration', () => {
   let app: INestApplication;
@@ -209,6 +218,57 @@ describe('Task and Handoff PostgreSQL integration', () => {
         where: { datasetId: context.datasetId, handoffId: handoff.id },
       }),
     ).toBe(1);
+    const finalSnapshot = await prisma.handoffFinalSnapshot.findFirstOrThrow({
+      where: { datasetId: context.datasetId, handoffId: handoff.id },
+    });
+    await expect(
+      prisma.handoffFinalSnapshot.update({
+        where: { id: finalSnapshot.id },
+        data: { snapshotHash: 'f'.repeat(64) },
+      }),
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.handoffFinalSnapshot.delete({
+        where: { id: finalSnapshot.id },
+      }),
+    ).rejects.toBeDefined();
+    const duplicateRecord = await prisma.idempotencyRecord.create({
+      data: {
+        ...context,
+        operation: 'handoffs.finalize',
+        idempotencyKey: `snapshot-regeneration-${randomUUID()}`,
+        requestHash: 'a'.repeat(64),
+      },
+    });
+    await expect(
+      prisma.$executeRaw`
+        INSERT INTO "HandoffFinalSnapshot" (
+          "id", "datasetId", "wardId", "handoffId", "senderActorId",
+          "receiverActorId", "finalizedByActorId", "operation", "resolution",
+          "sourceDraftVersion", "precheckVersion", "templateKey",
+          "includeUnverified", "idempotencyRecordId", "requestHash",
+          "snapshotPayload", "snapshotHash", "version", "finalizedAt", "createdAt"
+        )
+        SELECT
+          ${randomUUID()}::uuid, "datasetId", "wardId", "handoffId",
+          "senderActorId", "receiverActorId", "finalizedByActorId", "operation",
+          "resolution", "sourceDraftVersion", "precheckVersion", "templateKey",
+          "includeUnverified", ${duplicateRecord.id}::uuid, "requestHash",
+          "snapshotPayload", "snapshotHash", "version", "finalizedAt", NOW()
+        FROM "HandoffFinalSnapshot"
+        WHERE "id" = ${finalSnapshot.id}::uuid
+      `,
+    ).rejects.toBeDefined();
+    await expect(
+      prisma.handoffFinalSnapshot.findUniqueOrThrow({
+        where: { id: finalSnapshot.id },
+      }),
+    ).resolves.toEqual(finalSnapshot);
+    expect(
+      await prisma.handoffFinalSnapshot.count({
+        where: { datasetId: context.datasetId, handoffId: handoff.id },
+      }),
+    ).toBe(1);
 
     const activity = app.get(HandoffActivityService);
     await Promise.all([
@@ -251,6 +311,333 @@ describe('Task and Handoff PostgreSQL integration', () => {
         where: { datasetId: context.datasetId, patientId: foreignPatient.id },
       }),
     ).toBe(0);
+  });
+
+  it('Task create는 동시 same-key를 한 row로 수렴하고 replay와 hash conflict를 구분한다', async () => {
+    const patient = await findActivePatient(prisma, context);
+    const taskService = app.get(TaskService);
+    const idempotencyKey = `task-create-${randomUUID()}`;
+    const command = {
+      patientId: patient.id,
+      title: 'Synthetic concurrent task',
+      dueAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+
+    const concurrent = await Promise.all([
+      taskService.create(context, idempotencyKey, randomUUID(), command),
+      taskService.create(context, idempotencyKey, randomUUID(), command),
+    ]);
+    expect(new Set(concurrent.map(({ task }) => task.id)).size).toBe(1);
+    expect(concurrent.map(({ isReplay }) => isReplay).sort()).toEqual([
+      false,
+      true,
+    ]);
+
+    const replay = await taskService.create(
+      context,
+      idempotencyKey,
+      randomUUID(),
+      command,
+    );
+    expect(replay).toMatchObject({
+      task: { id: concurrent[0]?.task.id },
+      isReplay: true,
+    });
+    await expect(
+      taskService.create(context, idempotencyKey, randomUUID(), {
+        ...command,
+        title: 'Synthetic hash conflict',
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
+    expect(
+      await prisma.task.count({
+        where: {
+          datasetId: context.datasetId,
+          title: command.title,
+        },
+      }),
+    ).toBe(1);
+  });
+
+  it('Task stale PATCH는 version conflict이고 저장된 최신 row를 되돌리지 않는다', async () => {
+    const patient = await findActivePatient(prisma, context);
+    const taskService = app.get(TaskService);
+    const created = await taskService.create(
+      context,
+      `stale-task-${randomUUID()}`,
+      randomUUID(),
+      {
+        patientId: patient.id,
+        title: 'Synthetic stale target',
+        dueAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+    );
+    const updated = await taskService.update(context, created.task.id, {
+      version: created.task.version,
+      title: 'Synthetic latest title',
+    });
+
+    await expect(
+      taskService.update(context, created.task.id, {
+        version: created.task.version,
+        title: 'Synthetic stale overwrite',
+      }),
+    ).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
+    await expect(
+      prisma.task.findUniqueOrThrow({ where: { id: created.task.id } }),
+    ).resolves.toMatchObject({
+      title: updated.title,
+      version: updated.version,
+    });
+  });
+
+  it('Task patient assignment, ward, actor scope 밖 resource는 동일한 404로 숨긴다', async () => {
+    const patient = await findActivePatient(prisma, context);
+    const unassigned = await prisma.patient.create({
+      data: {
+        datasetId: context.datasetId,
+        logicalKey: `unassigned-${randomUUID()}`,
+        wardId: context.wardId,
+        displayName: 'Synthetic unassigned patient',
+        roomLabel: 'S-404',
+      },
+    });
+    const taskService = app.get(TaskService);
+    const dueAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const attempts = [
+      {
+        context,
+        patientId: unassigned.id,
+        key: `unassigned-${randomUUID()}`,
+      },
+      {
+        context: receiverContext,
+        patientId: patient.id,
+        key: `wrong-actor-${randomUUID()}`,
+      },
+      {
+        context: { ...context, wardId: randomUUID() },
+        patientId: patient.id,
+        key: `wrong-ward-${randomUUID()}`,
+      },
+    ];
+
+    for (const attempt of attempts) {
+      await expect(
+        taskService.create(attempt.context, attempt.key, randomUUID(), {
+          patientId: attempt.patientId,
+          title: 'Synthetic forbidden scope task',
+          dueAt,
+        }),
+      ).rejects.toMatchObject({ code: 'TASK_NOT_FOUND', kind: 'NOT_FOUND' });
+    }
+    expect(
+      await prisma.task.count({
+        where: {
+          datasetId: context.datasetId,
+          title: 'Synthetic forbidden scope task',
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it('Task candidate 동시 apply는 한 번만 반영하고 실패 transaction은 예약부터 rollback한다', async () => {
+    const taskService = app.get(TaskService);
+    const concurrentFixture = await publishSyntheticExtraction(
+      app,
+      prisma,
+      dispatcher,
+      context,
+    );
+    const concurrentResults = await Promise.allSettled([
+      taskService.applyCandidates(
+        context,
+        concurrentFixture.jobId,
+        `apply-a-${randomUUID()}`,
+        {
+          items: [
+            { candidateId: concurrentFixture.candidateId, selected: true },
+          ],
+        },
+      ),
+      taskService.applyCandidates(
+        context,
+        concurrentFixture.jobId,
+        `apply-b-${randomUUID()}`,
+        {
+          items: [
+            { candidateId: concurrentFixture.candidateId, selected: true },
+          ],
+        },
+      ),
+    ]);
+    expect(
+      concurrentResults.filter(({ status }) => status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      concurrentResults.filter(({ status }) => status === 'rejected'),
+    ).toHaveLength(1);
+    const appliedCandidate =
+      await prisma.taskExtractionCandidate.findUniqueOrThrow({
+        where: { id: concurrentFixture.candidateId },
+      });
+    expect(appliedCandidate.appliedTaskId).not.toBeNull();
+    expect(
+      await prisma.taskApplyReceipt.count({
+        where: {
+          datasetId: context.datasetId,
+          jobId: concurrentFixture.jobId,
+        },
+      }),
+    ).toBe(1);
+
+    const rollbackFixture = await publishSyntheticExtraction(
+      app,
+      prisma,
+      dispatcher,
+      context,
+    );
+    await prisma.taskExtractionCandidate.update({
+      where: { id: rollbackFixture.candidateId },
+      data: {
+        title: 'SYNTHETIC_FORCE_ROLLBACK',
+        duplicateTaskId: null,
+      },
+    });
+    const rollbackKey = `apply-rollback-${randomUUID()}`;
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "reject_synthetic_task_apply"()
+      RETURNS TRIGGER
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        IF NEW."title" = 'SYNTHETIC_FORCE_ROLLBACK' THEN
+          RAISE EXCEPTION 'synthetic task apply rollback';
+        END IF;
+        RETURN NEW;
+      END;
+      $$;
+      CREATE TRIGGER "Task_synthetic_apply_rollback"
+      BEFORE INSERT ON "Task"
+      FOR EACH ROW
+      EXECUTE FUNCTION "reject_synthetic_task_apply"();
+    `);
+    try {
+      await expect(
+        taskService.applyCandidates(
+          context,
+          rollbackFixture.jobId,
+          rollbackKey,
+          {
+            items: [
+              {
+                candidateId: rollbackFixture.candidateId,
+                selected: true,
+                title: 'SYNTHETIC_FORCE_ROLLBACK',
+              },
+            ],
+          },
+        ),
+      ).rejects.toBeDefined();
+    } finally {
+      await prisma.$executeRawUnsafe(`
+        DROP TRIGGER IF EXISTS "Task_synthetic_apply_rollback" ON "Task";
+        DROP FUNCTION IF EXISTS "reject_synthetic_task_apply"();
+      `);
+    }
+    await expect(
+      prisma.taskExtractionCandidate.findUniqueOrThrow({
+        where: { id: rollbackFixture.candidateId },
+      }),
+    ).resolves.toMatchObject({ appliedAt: null, appliedTaskId: null });
+    expect(
+      await prisma.idempotencyRecord.count({
+        where: {
+          datasetId: context.datasetId,
+          operation: TASK_APPLY_OPERATION,
+          idempotencyKey: rollbackKey,
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.taskApplyReceipt.count({
+        where: {
+          datasetId: context.datasetId,
+          jobId: rollbackFixture.jobId,
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it('Task feature publish는 만료 lease의 stale worker 결과를 전부 rollback한다', async () => {
+    const fixture = await reserveSyntheticExtraction(app, prisma, context);
+    const claim = await app.get(AiJobService).claimNext({
+      datasetId: context.datasetId,
+      wardId: context.wardId,
+      operation: TASK_EXTRACTION_OPERATION,
+      leaseMilliseconds: 60_000,
+    });
+    expect(claim?.jobId).toBe(fixture.jobId);
+    if (!claim) throw new Error('Task extraction claim이 없습니다.');
+
+    const repository = app.get<TaskRepository>(TASK_REPOSITORY);
+    const workItem = await repository.findExtractionWorkItem(
+      context.datasetId,
+      fixture.jobId,
+    );
+    const evidence = workItem.evidence[0];
+    if (!evidence) throw new Error('Task extraction evidence가 없습니다.');
+    const expiredAt = new Date(Date.now() - 60_000);
+    await prisma.aiJob.update({
+      where: { id: fixture.jobId },
+      data: {
+        claimedAt: new Date(expiredAt.getTime() - 60_000),
+        leaseExpiresAt: expiredAt,
+      },
+    });
+    await expect(
+      repository.completeExtraction({
+        claim: {
+          jobId: claim.jobId,
+          datasetId: claim.datasetId,
+          actorId: claim.actorId,
+          wardId: claim.wardId,
+          leaseVersion: claim.leaseVersion,
+        },
+        candidates: [
+          {
+            candidateKey: `stale-${randomUUID()}`,
+            patientId: evidence.patientId,
+            title: 'Synthetic stale publish',
+            description: null,
+            dueAt: null,
+            workDate: evidence.workDate,
+            suggestedPriority: 'NORMAL',
+            reasons: ['Synthetic stale lease regression'],
+            confidence: 'HIGH',
+            evidenceSourceIds: [evidence.sourceId],
+          },
+        ],
+        now: new Date(),
+      }),
+    ).rejects.toMatchObject({ code: 'AI_JOB_CLAIM_LOST' });
+    expect(
+      await prisma.taskExtractionCandidate.count({
+        where: { datasetId: context.datasetId, jobId: fixture.jobId },
+      }),
+    ).toBe(0);
+    await expect(
+      prisma.aiJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+    ).resolves.toMatchObject({
+      status: 'PROCESSING',
+      leaseVersion: claim.leaseVersion,
+      resultReference: null,
+    });
+
+    await expect(dispatcher.runOnce()).resolves.toBe(true);
+    await expect(
+      prisma.aiJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+    ).resolves.toMatchObject({ status: 'SUCCEEDED' });
   });
 
   it('polymorphic Task evidence는 source shape와 source별 중복을 DB에서 거부한다', async () => {
@@ -342,6 +729,10 @@ describe('Task and Handoff PostgreSQL integration', () => {
         recordIds: [firstSegment.id],
       },
     );
+    await dispatcher.runOnce();
+    await expect(
+      prisma.aiJob.findUniqueOrThrow({ where: { id: reservation.jobId } }),
+    ).resolves.toMatchObject({ status: 'SUCCEEDED' });
 
     await expect(
       prisma.taskEvidence.create({
@@ -515,6 +906,95 @@ describe('Task and Handoff PostgreSQL integration', () => {
       constraints.every(({ columns }) => columns.includes('datasetId')),
     ).toBe(true);
 
+    const requiredForeignKeys = await prisma.$queryRaw<
+      Array<{
+        constraintName: string;
+        sourceTable: string;
+        targetTable: string;
+        sourceColumns: string[];
+        targetColumns: string[];
+      }>
+    >`
+      SELECT
+        constraint_entry.conname::text AS "constraintName",
+        source_table.relname::text AS "sourceTable",
+        target_table.relname::text AS "targetTable",
+        array_agg(source_attribute.attname::text ORDER BY key_entry.ordinality) AS "sourceColumns",
+        array_agg(target_attribute.attname::text ORDER BY key_entry.ordinality) AS "targetColumns"
+      FROM pg_constraint AS constraint_entry
+      JOIN pg_class AS source_table
+        ON source_table.oid = constraint_entry.conrelid
+      JOIN pg_namespace AS source_namespace
+        ON source_namespace.oid = source_table.relnamespace
+      JOIN pg_class AS target_table
+        ON target_table.oid = constraint_entry.confrelid
+      CROSS JOIN LATERAL unnest(
+        constraint_entry.conkey,
+        constraint_entry.confkey
+      ) WITH ORDINALITY AS key_entry(source_number, target_number, ordinality)
+      JOIN pg_attribute AS source_attribute
+        ON source_attribute.attrelid = source_table.oid
+       AND source_attribute.attnum = key_entry.source_number
+      JOIN pg_attribute AS target_attribute
+        ON target_attribute.attrelid = target_table.oid
+       AND target_attribute.attnum = key_entry.target_number
+      WHERE source_namespace.nspname = current_schema()
+        AND constraint_entry.conname IN (
+          'Task_datasetId_actorId_wardId_fkey',
+          'Task_datasetId_patientId_wardId_fkey',
+          'TaskExtractionJob_datasetId_id_actorId_wardId_operation_fkey',
+          'Handoff_datasetId_senderActorId_wardId_fkey',
+          'Handoff_datasetId_receiverActorId_wardId_fkey',
+          'HandoffFinalSnapshot_datasetId_handoffId_fkey'
+        )
+      GROUP BY constraint_entry.conname, source_table.relname, target_table.relname
+    `;
+    const foreignKeyByName = Object.fromEntries(
+      requiredForeignKeys.map((foreignKey) => [
+        foreignKey.constraintName,
+        foreignKey,
+      ]),
+    );
+    expect(foreignKeyByName).toMatchObject({
+      Task_datasetId_actorId_wardId_fkey: {
+        sourceTable: 'Task',
+        targetTable: 'WardMembership',
+        sourceColumns: ['datasetId', 'actorId', 'wardId'],
+        targetColumns: ['datasetId', 'nurseId', 'wardId'],
+      },
+      Task_datasetId_patientId_wardId_fkey: {
+        sourceTable: 'Task',
+        targetTable: 'Patient',
+        sourceColumns: ['datasetId', 'patientId', 'wardId'],
+        targetColumns: ['datasetId', 'id', 'wardId'],
+      },
+      TaskExtractionJob_datasetId_id_actorId_wardId_operation_fkey: {
+        sourceTable: 'TaskExtractionJob',
+        targetTable: 'AiJob',
+        sourceColumns: ['datasetId', 'id', 'actorId', 'wardId', 'operation'],
+        targetColumns: ['datasetId', 'id', 'actorId', 'wardId', 'operation'],
+      },
+      Handoff_datasetId_senderActorId_wardId_fkey: {
+        sourceTable: 'Handoff',
+        targetTable: 'WardMembership',
+        sourceColumns: ['datasetId', 'senderActorId', 'wardId'],
+        targetColumns: ['datasetId', 'nurseId', 'wardId'],
+      },
+      Handoff_datasetId_receiverActorId_wardId_fkey: {
+        sourceTable: 'Handoff',
+        targetTable: 'WardMembership',
+        sourceColumns: ['datasetId', 'receiverActorId', 'wardId'],
+        targetColumns: ['datasetId', 'nurseId', 'wardId'],
+      },
+      HandoffFinalSnapshot_datasetId_handoffId_fkey: {
+        sourceTable: 'HandoffFinalSnapshot',
+        targetTable: 'Handoff',
+        sourceColumns: ['datasetId', 'handoffId'],
+        targetColumns: ['datasetId', 'id'],
+      },
+    });
+    expect(Object.keys(foreignKeyByName)).toHaveLength(6);
+
     const evidenceChecks = await prisma.$queryRaw<
       Array<{ constraint_name: string; definition: string }>
     >`
@@ -597,4 +1077,83 @@ function seoulDate(value: Date): string {
     month: '2-digit',
     day: '2-digit',
   }).format(value);
+}
+
+function findActivePatient(prisma: PrismaService, context: DemoSessionContext) {
+  const now = new Date();
+  return prisma.patient.findFirstOrThrow({
+    where: {
+      datasetId: context.datasetId,
+      wardId: context.wardId,
+      patientAssignments: {
+        some: {
+          nurseId: context.actorId,
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+        },
+      },
+    },
+    orderBy: { id: 'asc' },
+  });
+}
+
+async function reserveSyntheticExtraction(
+  app: INestApplication,
+  prisma: PrismaService,
+  context: DemoSessionContext,
+): Promise<{ jobId: string; segmentId: string }> {
+  const patient = await findActivePatient(prisma, context);
+  const now = new Date();
+  const roundingSession = await prisma.roundingSession.create({
+    data: {
+      datasetId: context.datasetId,
+      actorId: context.actorId,
+      wardId: context.wardId,
+      status: 'COMPLETED',
+      startedAt: new Date(now.getTime() - 60_000),
+      completedAt: now,
+    },
+  });
+  const segment = await prisma.roundingPatientSegment.create({
+    data: {
+      datasetId: context.datasetId,
+      roundingSessionId: roundingSession.id,
+      patientId: patient.id,
+      wardId: context.wardId,
+      sequence: 1,
+      startedAt: new Date(now.getTime() - 60_000),
+      endedAt: now,
+      note: 'Synthetic integration segment',
+    },
+  });
+  const reservation = await app
+    .get(TaskService)
+    .reserveExtraction(
+      context,
+      `synthetic-extraction-${randomUUID()}`,
+      randomUUID(),
+      { roundingSessionId: roundingSession.id, recordIds: [segment.id] },
+    );
+  return { jobId: reservation.jobId, segmentId: segment.id };
+}
+
+async function publishSyntheticExtraction(
+  app: INestApplication,
+  prisma: PrismaService,
+  dispatcher: TaskHandoffJobDispatcher,
+  context: DemoSessionContext,
+): Promise<{ jobId: string; candidateId: string }> {
+  const fixture = await reserveSyntheticExtraction(app, prisma, context);
+  await dispatcher.runOnce();
+  const job = await prisma.aiJob.findUniqueOrThrow({
+    where: { id: fixture.jobId },
+  });
+  if (job.status !== 'SUCCEEDED') {
+    throw new Error('Task extraction publish가 완료되지 않았습니다.');
+  }
+  const candidate = await prisma.taskExtractionCandidate.findFirstOrThrow({
+    where: { datasetId: context.datasetId, jobId: fixture.jobId },
+    orderBy: { id: 'asc' },
+  });
+  return { jobId: fixture.jobId, candidateId: candidate.id };
 }

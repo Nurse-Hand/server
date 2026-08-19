@@ -1251,3 +1251,19 @@ ALTER TABLE "TaskApplyReceipt" ADD CONSTRAINT "TaskApplyReceipt_datasetId_jobId_
 
 -- AddForeignKey
 ALTER TABLE "TaskApplyReceipt" ADD CONSTRAINT "TaskApplyReceipt_datasetId_idempotencyRecordId_actorId_war_fkey" FOREIGN KEY ("datasetId", "idempotencyRecordId", "actorId", "wardId", "operation") REFERENCES "IdempotencyRecord"("datasetId", "id", "actorId", "wardId", "operation") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Finalized handoff snapshots are append-once records. Reject all direct mutation paths.
+CREATE FUNCTION "reject_handoff_final_snapshot_mutation"()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'finalized Handoff snapshot rows are immutable'
+    USING ERRCODE = '55000';
+END;
+$$;
+
+CREATE TRIGGER "HandoffFinalSnapshot_mutation_guard"
+BEFORE UPDATE OR DELETE ON "HandoffFinalSnapshot"
+FOR EACH ROW
+EXECUTE FUNCTION "reject_handoff_final_snapshot_mutation"();
