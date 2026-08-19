@@ -1,0 +1,31 @@
+services:
+  api:
+    image: ${NURSE_HAND_SERVER_IMAGE:?NURSE_HAND_SERVER_IMAGE is required}
+    container_name: nurse-hand-server
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - "${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}:${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}"
+    command: >
+      sh -c "npx prisma migrate deploy &&
+      node dist/src/main.js"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
