@@ -139,6 +139,27 @@ describe('Files (e2e)', () => {
     ).resolves.toEqual(fileBuffer);
   });
 
+  it.each(['audio/x-m4a', 'audio/m4a', 'video/mp4'])(
+    'POST /api/v1/files/audio는 모바일 m4a MIME alias %s를 저장한다',
+    async (contentType) => {
+      const fileBuffer = Buffer.from(`synthetic-${contentType}-bytes`);
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/files/audio')
+        .attach('file', fileBuffer, {
+          contentType,
+          filename: 'quick-note.m4a',
+        })
+        .expect(201);
+
+      expect(response.body.data).toMatchObject({
+        kind: 'AUDIO',
+        mimeType: 'audio/mp4',
+        originalName: 'quick-note.m4a',
+        sizeBytes: fileBuffer.length,
+      });
+    },
+  );
+
   it('POST /api/v1/files/photos는 photos 디렉터리에 파일을 저장한다', async () => {
     const fileBuffer = Buffer.from('synthetic-photo-bytes');
     const response = await request(app.getHttpServer())
