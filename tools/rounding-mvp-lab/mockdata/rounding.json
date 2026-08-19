@@ -1,0 +1,77 @@
+{
+  "scenarioKey": "SYNTHETIC_MEDICAL_DAY_SHIFT",
+  "roundingDate": "2026-08-19",
+  "sessionTemplate": {
+    "sessionLabel": "7A 데이 라운딩 MVP Lab",
+    "wardId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d61",
+    "wardLabel": "7A 내과 병동",
+    "plannedVisitCount": 6,
+    "apiPaths": {
+      "health": "/api/v1/health",
+      "demoSessions": "/api/v1/demo-sessions",
+      "startSession": "/api/v1/rounding-sessions",
+      "createRecord": "/api/v1/rounding-sessions/{sessionId}/patient-segments",
+      "completeSession": "/api/v1/rounding-sessions/{sessionId}/complete",
+      "audioAnalyze": "/api/v1/rounding-sessions/{sessionId}/audio-chunks",
+      "tasksExtract": "/api/v1/task-extraction-jobs",
+      "handoffPrecheck": "/api/v1/handoff-prechecks",
+      "handoffDraft": "/api/v1/handoffs"
+    }
+  },
+  "visitPlan": [
+    {
+      "visitId": "visit-r1-p101",
+      "roundNumber": 1,
+      "roundLabel": "1차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+      "audioAssetId": "audio-r1-p101",
+      "summaryHint": "통증 및 배액 체크",
+      "expectedNextAction": "기록 저장 후 다음 환자 이동"
+    },
+    {
+      "visitId": "visit-r1-p102",
+      "roundNumber": 1,
+      "roundLabel": "1차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+      "audioAssetId": "audio-r1-p102",
+      "summaryHint": "혈당과 식사량 확인",
+      "expectedNextAction": "혈당 follow-up task 후보 확인"
+    },
+    {
+      "visitId": "visit-r1-p103",
+      "roundNumber": 1,
+      "roundLabel": "1차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+      "audioAssetId": "audio-r1-p103",
+      "summaryHint": "산소와 활동 tolerance 확인",
+      "expectedNextAction": "보행 후 SpO2 evidence 검토"
+    },
+    {
+      "visitId": "visit-r2-p101",
+      "roundNumber": 2,
+      "roundLabel": "2차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+      "audioAssetId": "audio-r2-p101",
+      "summaryHint": "배액 추적 재확인",
+      "expectedNextAction": "인수인계용 수치 반영"
+    },
+    {
+      "visitId": "visit-r2-p102",
+      "roundNumber": 2,
+      "roundLabel": "2차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+      "audioAssetId": "audio-r2-p102",
+      "summaryHint": "저혈당 위험 재평가",
+      "expectedNextAction": "혈당 follow-up 완료 여부 반영"
+    },
+    {
+      "visitId": "visit-r2-p103",
+      "roundNumber": 2,
+      "roundLabel": "2차 라운딩",
+      "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+      "audioAssetId": "audio-r2-p103",
+      "summaryHint": "보행 후 산소 감량 판단",
+      "expectedNextAction": "세션 종료 후 handoff draft 생성"
+    }
+  ]
+}
