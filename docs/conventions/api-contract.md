@@ -13,6 +13,8 @@ API 계약은 대상별로 작성 원본을 하나만 둔다.
 
 Notion과 export는 요구사항의 배경과 화면 흐름을 확인하는 참고 자료다. 요청 필드, 응답 필드, 상태 코드가 충돌하면 구현 전에 위 작성 원본과 범위 문서를 갱신해 하나의 계약으로 수렴한다.
 
+저장 Port를 구현했다는 이유만으로 범용 공개 upload endpoint를 임의로 추가하지 않는다. 기존 domain endpoint와 별도 공개 API가 필요하면 `docs/decisions/mvp-scope.md`의 지원 API 표와 resource 소유권을 먼저 갱신하고, 해당 Controller·DTO에서 OpenAPI를 생성한다.
+
 ## 2. 공개 API 생성 흐름
 
 공개 API는 NestJS 코드에서 OpenAPI를 생성한다.
@@ -64,7 +66,11 @@ Node Adapter 요청·응답 runtime validation
 | `POST` | `/internal/v1/tasks/prioritize` | AI 우선순위 제안과 근거 변환 |
 | `POST` | `/internal/v1/tasks/extract` | 업무 후보와 근거 변환 |
 | `POST` | `/internal/v1/handoffs/precheck` | 누락 검증 질문과 근거 변환 |
-| `POST` | `/internal/v1/handoffs/generate` | SBAR 초안과 citation 변환 |
+| `POST` | `/internal/v1/handoffs/generate` | 6개 임상 section 초안과 citation 변환 |
+
+업무 우선순위 응답은 `suggestedPriority`, 근거와 `confidence`를 제안하며 숫자형 score를 계약에 추가하지 않는다. 인수인계 생성 응답은 `NURSING_HANDOFF_V1`의 `PATIENT_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION` section을 사용한다.
+
+인수인계 공개 citation은 source 식별자와 함께 nullable `occurredAt`, `excerptKind`, `excerpt`를 제공한다. Timeline citation은 event 발생 시각을 사용하고 `TASK_TITLE`은 `occurredAt=null`이며 업무 마감은 linked task의 `dueAt`으로 제공한다. `excerptKind`는 `UTTERANCE`, `SUMMARY`, `TASK_TITLE` 중 하나이며 실제 발화가 아닌 summary를 원문으로 표현하지 않는다. 오디오 URL은 이 계약에 포함하지 않는다.
 
 ## 4. 공개 응답 형식
 
