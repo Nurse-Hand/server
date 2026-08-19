@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: "${NURSE_HAND_SERVER_IMAGE:?NURSE_HAND_SERVER_IMAGE is required}"
 : "${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME is required}"
 : "${DOCKERHUB_TOKEN:?DOCKERHUB_TOKEN is required}"
 
@@ -17,8 +18,12 @@ fi
 printf '%s' "${DOCKERHUB_TOKEN}" \
   | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
 
-docker compose --env-file .env -f docker-compose.prod.yml pull
-docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
+docker pull "${NURSE_HAND_SERVER_IMAGE}"
+NURSE_HAND_SERVER_IMAGE="${NURSE_HAND_SERVER_IMAGE}" \
+  docker compose --env-file .env -f docker-compose.prod.yml pull
+NURSE_HAND_SERVER_IMAGE="${NURSE_HAND_SERVER_IMAGE}" \
+  docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans
 
 docker image prune -f --filter "until=168h" >/dev/null
-docker compose --env-file .env -f docker-compose.prod.yml ps
+NURSE_HAND_SERVER_IMAGE="${NURSE_HAND_SERVER_IMAGE}" \
+  docker compose --env-file .env -f docker-compose.prod.yml ps
