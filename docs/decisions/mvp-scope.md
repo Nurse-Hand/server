@@ -34,6 +34,7 @@ Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라�
 | `POST` | `/api/v1/files/audio` | 빠른 기록 등 단일 오디오 파일 저장 | 장시간 라운딩의 `audio-chunks` API를 대체하지 않음 |
 | `POST` | `/api/v1/files/photos` | 사진 파일 저장 | 파일 ID를 실제 라운딩·빠른 기록 resource에 연결해야 함 |
 | `POST` | `/api/v1/quick-notes` | 활성 라운딩 밖에서 환자를 선택해 빠른 기록 생성 | 세션 안의 `/rounding-sessions/{sessionId}/records`를 대체하지 않음 |
+| `POST` | `/api/v1/task-priority-suggestions` | 수동 업무의 명시적 AI 우선순위 참고 제안 batch 생성 | Notion 업무 API 6개와 내부 `/internal/v1/tasks/prioritize`를 대체하지 않음 |
 
 지원 파일은 demo session scope를 검증하고, 연결되지 않은 orphan의 정리 정책을 파일 저장 Issue에서 고정해야 한다. 파일 업로드 성공만으로 라운딩 기록이나 빠른 기록이 생성된 것으로 취급하지 않는다.
 
@@ -95,6 +96,8 @@ Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라�
 | 26 | `GET` | `/api/v1/task-extraction-jobs/{jobId}` | 업무 추출 결과 조회 | P0 | Node.js | 구현 |
 | 27 | `PATCH` | `/api/v1/tasks/{taskId}` | 업무 수정·상태 변경 | P0 | Node.js | 구현 |
 | 28 | `POST` | `/api/v1/task-extraction-jobs/{jobId}/apply` | 추출 업무 선택 반영 | P0 | Node.js | 구현 |
+
+위 6개는 Notion 43개 전수표의 업무 API다. 명시적 AI 제안 batch용 `POST /api/v1/task-priority-suggestions`는 2.1의 서버 지원 API로 별도 관리하므로 43개 합계와 업무 6개 개수에는 포함하지 않는다.
 
 ### 3.6 인수인계 — 10개, Node.js 전부 구현
 
