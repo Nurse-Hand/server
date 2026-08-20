@@ -32,4 +32,4 @@ CREATE INDEX "TimelineEventHistory_datasetId_timelineEventId_editedAt_id_idx" ON
 
 -- AddForeignKey
 ALTER TABLE "TimelineEventHistory" ADD CONSTRAINT "TimelineEventHistory_datasetId_fkey" FOREIGN KEY ("datasetId") REFERENCES "DemoDataset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "TimelineEventHistory" ADD CONSTRAINT "TimelineEventHistory_timelineEventId_fkey" FOREIGN KEY ("timelineEventId") REFERENCES "TimelineEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TimelineEventHistory" ADD CONSTRAINT "TimelineEventHistory_datasetId_timelineEventId_fkey" FOREIGN KEY ("datasetId", "timelineEventId") REFERENCES "TimelineEvent"("datasetId", "id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -155,7 +155,7 @@ model TimelineEventHistory {
   nextConfirmationStatus     TimelineEventConfirmationStatus
   createdAt                  DateTime                        @default(now()) @db.Timestamptz(3)
   dataset                    DemoDataset                     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  timelineEvent              TimelineEvent                   @relation(fields: [timelineEventId], references: [id], onDelete: Cascade)
+  timelineEvent              TimelineEvent                   @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Cascade)
 
   @@unique(name: "timeline_event_history_dataset_id", [datasetId, id])
   @@index([datasetId, timelineEventId, editedAt(sort: Desc), id(sort: Desc)])
