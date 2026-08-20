@@ -85,6 +85,7 @@ model Patient {
   patientAssignments PatientAssignment[]      @relation("AssignmentPatient")
   timelineEvents     TimelineEvent[]          @relation("TimelineEventPatient")
   roundingSegments   RoundingPatientSegment[] @relation("RoundingSegmentPatient")
+  quickNotes         QuickNote[]              @relation("QuickNotePatient")
 
   @@unique(name: "patient_dataset_id", [datasetId, id])
   @@unique(name: "patient_dataset_logical_key", [datasetId, logicalKey])

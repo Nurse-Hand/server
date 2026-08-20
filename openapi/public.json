@@ -722,6 +722,134 @@
         ]
       }
     },
+    "/api/v1/quick-notes": {
+      "post": {
+        "operationId": "QuickNotesController_create",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuickNoteRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickNoteResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "환자 선택 기반 빠른 기록 저장",
+        "tags": [
+          "QuickNotes"
+        ]
+      }
+    },
     "/api/v1/rounding-sessions": {
       "post": {
         "operationId": "RoundingSessionsController_start",
@@ -5203,6 +5331,269 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PatientTimelineDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "CreateQuickNoteRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noteType": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000,
+            "example": "보호자가 식사량 감소를 걱정한다고 메모했습니다."
+          },
+          "audioFileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "photoFileIds": {
+            "uniqueItems": true,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "occurredAt": {
+            "type": "string",
+            "example": "2026-08-20T10:14:00+09:00",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "patientId",
+          "noteType",
+          "occurredAt"
+        ]
+      },
+      "QuickNoteAttachmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "AUDIO",
+              "PHOTO"
+            ],
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "originalName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mimeType",
+          "originalName",
+          "sizeBytes",
+          "checksum",
+          "createdAt"
+        ]
+      },
+      "QuickNoteStructuredFactsDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceChannels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "TEXT",
+                "AUDIO",
+                "PHOTO"
+              ]
+            }
+          },
+          "audioFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "photoFileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "text",
+          "occurredAt",
+          "sourceChannels",
+          "audioFileId",
+          "photoFileIds"
+        ]
+      },
+      "QuickNoteDataDto": {
+        "type": "object",
+        "properties": {
+          "quickNoteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "noteType": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
+          "topic": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
+          "handoffSection": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "QUICK_NOTE"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "audioFile": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QuickNoteAttachmentDto"
+              }
+            ]
+          },
+          "photoFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuickNoteAttachmentDto"
+            }
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceStatus": {
+            "enum": [
+              "PENDING",
+              "CONVERTED"
+            ],
+            "type": "string"
+          },
+          "structuredFacts": {
+            "$ref": "#/components/schemas/QuickNoteStructuredFactsDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "quickNoteId",
+          "patientId",
+          "noteType",
+          "topic",
+          "handoffSection",
+          "sourceType",
+          "text",
+          "occurredAt",
+          "audioFile",
+          "photoFiles",
+          "keywords",
+          "evidenceStatus",
+          "structuredFacts",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "QuickNoteResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QuickNoteDataDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ApiMetaDto"
