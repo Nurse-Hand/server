@@ -41,6 +41,9 @@ services:
       NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
       NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
       FILE_STORAGE_ROOT: /data/nurse-hand/uploads
+      AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
+      AI_INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      AI_PRIORITY_TIMEOUT_MS: ${AI_PRIORITY_TIMEOUT_MS:-15000}
     volumes:
       - '${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}:/data/nurse-hand/uploads'
     command: >
