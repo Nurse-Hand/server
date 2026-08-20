@@ -15,6 +15,7 @@ import { HttpTaskExtractionAiAdapter } from './infrastructure/ai/http-task-extra
 import { HttpTaskPriorityAiAdapter } from './infrastructure/ai/http-task-priority-ai.adapter';
 import { DeterministicTaskExtractionAiAdapter } from './infrastructure/deterministic-task-extraction-ai.adapter';
 import { DeterministicTaskExtractionEvidenceAdapter } from './infrastructure/deterministic-task-extraction-evidence.adapter';
+import { DeterministicTaskPriorityAiAdapter } from './infrastructure/deterministic-task-priority-ai.adapter';
 import { HttpTaskPrioritySuggestionAdapter } from './infrastructure/ai/http-task-priority-suggestion.adapter';
 import { PrismaTaskExtractionEvidenceAdapter } from './infrastructure/prisma-task-extraction-evidence.adapter';
 import { PrismaTaskRepository } from './infrastructure/prisma-task.repository';
@@ -31,6 +32,7 @@ import { TasksController } from './presentation/tasks.controller';
     PrismaTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionAiAdapter,
+    DeterministicTaskPriorityAiAdapter,
     HttpTaskExtractionAiAdapter,
     HttpTaskPriorityAiAdapter,
     HttpTaskPrioritySuggestionAdapter,
@@ -60,7 +62,19 @@ import { TasksController } from './presentation/tasks.controller';
     },
     {
       provide: TASK_PRIORITY_AI_GATEWAY,
-      useExisting: HttpTaskPriorityAiAdapter,
+      inject: [
+        ConfigService,
+        HttpTaskPriorityAiAdapter,
+        DeterministicTaskPriorityAiAdapter,
+      ],
+      useFactory: (
+        configService: ConfigService,
+        httpAdapter: HttpTaskPriorityAiAdapter,
+        fallbackAdapter: DeterministicTaskPriorityAiAdapter,
+      ) =>
+        shouldUseTaskPriorityFallback(configService)
+          ? fallbackAdapter
+          : httpAdapter,
     },
     {
       provide: TASK_PRIORITY_SUGGESTION_GATEWAY,
@@ -75,5 +89,12 @@ function hasTaskAiConfiguration(configService: ConfigService): boolean {
   return Boolean(
     configService.get<string>('AI_BASE_URL')?.trim() &&
     configService.get<string>('AI_INTERNAL_API_TOKEN')?.trim(),
+  );
+}
+
+function shouldUseTaskPriorityFallback(configService: ConfigService): boolean {
+  return (
+    configService.get<string>('NODE_ENV') === 'test' &&
+    !hasTaskAiConfiguration(configService)
   );
 }
