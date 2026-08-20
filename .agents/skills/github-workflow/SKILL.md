@@ -74,9 +74,29 @@ Refs: #<issue>
 - 제목은 `[<Type>/#<issue>]: <한국어 결과>` 형식을 사용합니다.
 - `.github/pull_request_template.md`의 각 항목을 실제 diff와 검증 결과로 채웁니다.
 - Issue를 완전히 해결하면 `Closes #<issue>`, 일부만 다루면 `Refs #<issue>`를 사용합니다.
-- Ready 전환과 merge는 사용자 또는 리뷰어의 명시적 승인을 기다립니다.
+- Ready 전환 뒤 작성자 외 리뷰어의 명시적 승인을 기다립니다.
 
-## 7. 완료 보고
+## 7. Ready와 병합 게이트
+
+병합 직전에 다음 순서를 지킵니다.
+
+1. PR 작성자, 현재 `headRefOid`, base, Draft 여부, mergeability, reviews, status checks를 조회합니다.
+2. 작성자 외 `APPROVED` 리뷰가 있는지 확인합니다.
+3. 승인 뒤 head SHA가 바뀌었다면 병합하지 않고 재리뷰를 요청합니다.
+4. 현재 head의 `verify`와 `postgres-integration`이 모두 성공했는지 확인합니다.
+5. 선행 PR과 파일 교집합, migration, 생성 OpenAPI 순서를 확인합니다.
+6. 한 PR만 병합하고 `origin/dev`를 fetch한 뒤 다음 PR을 다시 검토합니다.
+
+```bash
+gh pr view <number> \
+  --json author,isDraft,headRefOid,baseRefName,mergeable,mergeStateStatus,reviews,statusCheckRollup
+git fetch origin
+git rev-parse origin/dev
+```
+
+현재 비공개 저장소 플랜에서 ruleset 또는 branch protection API가 `403`이면 수동 게이트를 사용합니다. 승인 없는 self-merge나 이전 head의 CI 결과를 정상으로 간주하지 않습니다.
+
+## 8. 완료 보고
 
 다음을 짧게 보고합니다.
 
@@ -84,4 +104,3 @@ Refs: #<issue>
 2. 변경 파일과 실제 동작
 3. 실행한 검증 명령과 결과
 4. 남은 위험과 실행하지 못한 검증
-
