@@ -77,11 +77,7 @@ export class RoundingRecordService {
         wardId: context.wardId,
         workDate,
       },
-      orderBy: [
-        { startedAt: 'desc' },
-        { createdAt: 'desc' },
-        { id: 'desc' },
-      ],
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: roundingRecordSelect,
     });
 
