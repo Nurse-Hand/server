@@ -13,8 +13,6 @@ const NO_LOGIN_MVP_SCENARIO_KEY = 'SYNTHETIC_MEDICAL_DAY_SHIFT';
 
 @Injectable()
 export class NoLoginMvpContextResolver {
-  private contextPromise?: Promise<DemoSessionContext>;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly seeder: DemoScenarioSeeder,
@@ -23,8 +21,7 @@ export class NoLoginMvpContextResolver {
   ) {}
 
   resolve(): Promise<DemoSessionContext> {
-    this.contextPromise ??= this.seedContext();
-    return this.contextPromise;
+    return this.seedContext();
   }
 
   private async seedContext(): Promise<DemoSessionContext> {
