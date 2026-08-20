@@ -5432,6 +5432,53 @@
           "createdAt"
         ]
       },
+      "QuickNoteStructuredFactsDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceChannels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "TEXT",
+                "AUDIO",
+                "PHOTO"
+              ]
+            }
+          },
+          "audioFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "photoFileIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "summary",
+          "text",
+          "occurredAt",
+          "sourceChannels",
+          "audioFileId",
+          "photoFileIds"
+        ]
+      },
       "QuickNoteDataDto": {
         "type": "object",
         "properties": {
@@ -5455,6 +5502,21 @@
             ],
             "type": "string"
           },
+          "topic": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
+          "handoffSection": {
+            "type": "string"
+          },
           "sourceType": {
             "type": "string",
             "enum": [
@@ -5468,19 +5530,6 @@
           "occurredAt": {
             "type": "string",
             "format": "date-time"
-          },
-          "evidenceStatus": {
-            "enum": [
-              "PENDING",
-              "CONVERTED"
-            ],
-            "type": "string"
-          },
-          "keywordCandidates": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           },
           "audioFile": {
             "nullable": true,
@@ -5497,6 +5546,22 @@
               "$ref": "#/components/schemas/QuickNoteAttachmentDto"
             }
           },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceStatus": {
+            "enum": [
+              "PENDING",
+              "CONVERTED"
+            ],
+            "type": "string"
+          },
+          "structuredFacts": {
+            "$ref": "#/components/schemas/QuickNoteStructuredFactsDto"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -5510,13 +5575,16 @@
           "quickNoteId",
           "patientId",
           "noteType",
+          "topic",
+          "handoffSection",
           "sourceType",
           "text",
           "occurredAt",
-          "evidenceStatus",
-          "keywordCandidates",
           "audioFile",
           "photoFiles",
+          "keywords",
+          "evidenceStatus",
+          "structuredFacts",
           "createdAt",
           "updatedAt"
         ]
