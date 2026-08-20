@@ -104,9 +104,35 @@ describe('Task priority suggestions PostgreSQL integration', () => {
     expect(
       document.paths['/api/v1/task-priority-suggestions']?.post,
     ).toBeDefined();
-    const patchSchema =
+    const patchRequestBody =
       document.paths['/api/v1/tasks/{taskId}']?.patch?.requestBody;
-    expect(JSON.stringify(patchSchema)).toContain('prioritySuggestionId');
+    expect(patchRequestBody).toBeDefined();
+    if (!patchRequestBody || '$ref' in patchRequestBody) {
+      throw new Error('PATCH requestBody를 확인할 수 없습니다.');
+    }
+
+    const patchSchema = patchRequestBody.content['application/json']?.schema;
+    expect(patchSchema).toBeDefined();
+    if (!patchSchema || !('$ref' in patchSchema)) {
+      throw new Error('PATCH request schema의 local $ref가 없습니다.');
+    }
+
+    const schemaPrefix = '#/components/schemas/';
+    expect(patchSchema.$ref.startsWith(schemaPrefix)).toBe(true);
+    const componentName = patchSchema.$ref.slice(schemaPrefix.length);
+    const componentSchema = document.components?.schemas?.[componentName];
+    expect(componentSchema).toBeDefined();
+    if (!componentSchema || '$ref' in componentSchema) {
+      throw new Error('PATCH request schema component를 확인할 수 없습니다.');
+    }
+
+    expect(componentSchema.properties?.prioritySuggestionId).toMatchObject({
+      type: 'string',
+      format: 'uuid',
+    });
+    expect(componentSchema.required ?? []).not.toContain(
+      'prioritySuggestionId',
+    );
   });
 
   it('성공 snapshot을 저장하고 같은 key·snapshot 및 requestId 재사용을 안전하게 처리한다', async () => {
