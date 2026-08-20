@@ -5,8 +5,8 @@
 ## 배포 불변 조건
 
 - CD는 `workflow_dispatch`로만 시작하며 실행 commit은 현재 `origin/main`과 정확히 같아야 합니다.
-- 같은 commit에서 `verify`와 PostgreSQL integration이 모두 성공한 뒤에만 full Git SHA tag image를 push합니다.
-- `latest` tag는 배포 입력이나 rollback 근거로 사용하지 않습니다.
+- 같은 commit에서 `verify`와 PostgreSQL integration이 모두 성공한 뒤에만 full Git SHA trace tag image를 push합니다.
+- 실제 pull과 교체에는 build 결과의 `repository@sha256:...` digest를 사용합니다. `latest`나 덮어쓸 수 있는 tag는 배포 입력 또는 rollback 근거로 사용하지 않습니다.
 - GitHub `production` Environment와 workflow concurrency를 사용하며 진행 중 실행을 취소하지 않습니다.
 - 원격 서버에서는 `flock`과 마지막 성공 `GITHUB_RUN_ID`를 함께 검사합니다.
 - image pull과 one-shot `prisma migrate deploy`가 성공할 때까지 현재 API container를 유지합니다.
@@ -84,8 +84,8 @@ INTERNAL_API_TOKEN=
 
 1. 현재 main exact SHA와 실행 ref를 검사합니다.
 2. 같은 SHA로 정적 검증·unit·E2E·PostgreSQL integration을 실행합니다.
-3. `${repository}:${full_sha}` 한 개만 build/push합니다.
-4. production Environment 승인을 거친 뒤 SSH key와 known_hosts를 검증합니다.
+3. `${repository}:${full_sha}` trace tag 한 개를 build/push하고 build digest를 배포 대상으로 기록합니다.
+4. production Environment 승인을 거친 뒤 현재 main exact SHA를 다시 검사하고 SSH key와 known_hosts를 검증합니다.
 5. 해당 commit의 compose와 deploy scripts를 SHA/run별 release directory로 복사합니다.
 6. 서버 lock과 last run ID를 검사합니다.
 7. 현재 container image ID에 run별 rollback tag를 붙입니다.

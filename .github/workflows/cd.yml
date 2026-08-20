@@ -54,6 +54,7 @@ jobs:
     timeout-minutes: 25
     outputs:
       image: ${{ steps.image.outputs.image }}
+      image_tag: ${{ steps.image.outputs.image_tag }}
 
     steps:
       - name: Checkout verified commit
@@ -69,6 +70,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push immutable image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -81,8 +83,17 @@ jobs:
       - name: Export immutable image reference
         id: image
         env:
-          SERVER_IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-        run: echo "image=${SERVER_IMAGE}" >> "${GITHUB_OUTPUT}"
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_REPOSITORY: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Build output did not provide a valid image digest." >&2
+            exit 1
+          fi
+          echo "image=${IMAGE_REPOSITORY}@${IMAGE_DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
 
   deploy:
     needs: build-image
@@ -93,12 +104,35 @@ jobs:
     steps:
       - name: Checkout deployment bundle
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revalidate current main before deployment
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Production deployment only accepts refs/heads/main." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          main_sha="$(git rev-parse origin/main)"
+          checkout_sha="$(git rev-parse HEAD)"
+
+          if [[ "${TARGET_SHA}" != "${checkout_sha}" || "${TARGET_SHA}" != "${main_sha}" ]]; then
+            echo "Deployment target is no longer the current origin/main commit." >&2
+            exit 1
+          fi
 
       - name: Validate production deployment inputs
         env:
           DEPLOY_ROOT: ${{ vars.GABIA_DEPLOY_ROOT || '/data/nurse-hand' }}
           EXTERNAL_BASE_URL: ${{ vars.NURSE_HAND_EXTERNAL_BASE_URL || 'https://api.nursehand.com' }}
           SERVER_IMAGE: ${{ needs.build-image.outputs.image }}
+          SERVER_IMAGE_TAG: ${{ needs.build-image.outputs.image_tag }}
           SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
           SSH_KNOWN_HOSTS: ${{ secrets.GABIA_SSH_KNOWN_HOSTS }}
           SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
@@ -111,6 +145,7 @@ jobs:
             DEPLOY_ROOT
             EXTERNAL_BASE_URL
             SERVER_IMAGE
+            SERVER_IMAGE_TAG
             SSH_HOST
             SSH_KNOWN_HOSTS
             SSH_PORT
@@ -148,8 +183,12 @@ jobs:
             echo "EXTERNAL_BASE_URL must be an HTTPS origin without a path." >&2
             exit 1
           fi
-          if [[ "${SERVER_IMAGE}" != *":${GITHUB_SHA}" ]]; then
-            echo "SERVER_IMAGE must use the immutable Git commit tag." >&2
+          if [[ ! "${SERVER_IMAGE}" =~ ^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "SERVER_IMAGE must use a valid registry digest reference." >&2
+            exit 1
+          fi
+          if [[ "${SERVER_IMAGE_TAG}" != *":${GITHUB_SHA}" ]]; then
+            echo "SERVER_IMAGE_TAG must preserve the Git commit trace tag." >&2
             exit 1
           fi
 

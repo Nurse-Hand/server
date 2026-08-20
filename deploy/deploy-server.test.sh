@@ -6,7 +6,7 @@ DEPLOY_SCRIPT="${SCRIPT_DIR}/deploy-server.sh"
 TEST_TMP_ROOT="$(mktemp -d)"
 DEPLOY_SHA="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 OLD_SHA="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-NEW_IMAGE="example.invalid/nurse-hand-server:${DEPLOY_SHA}"
+NEW_IMAGE="example.invalid/nurse-hand-server@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 OLD_IMAGE="example.invalid/nurse-hand-server:${OLD_SHA}"
 
 cleanup() {

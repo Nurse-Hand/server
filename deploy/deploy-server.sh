@@ -39,11 +39,8 @@ validate_inputs() {
   if [[ ! "${DEPLOY_RUN_ID}" =~ ^[1-9][0-9]*$ ]]; then
     fail "DEPLOY_RUN_ID must be a positive integer"
   fi
-  if [[ "${NURSE_HAND_SERVER_IMAGE}" != *":${DEPLOY_SHA}" ]]; then
-    fail "NURSE_HAND_SERVER_IMAGE must use DEPLOY_SHA as its tag"
-  fi
-  if [[ ! "${NURSE_HAND_SERVER_IMAGE}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; then
-    fail "NURSE_HAND_SERVER_IMAGE contains unsupported characters"
+  if [[ ! "${NURSE_HAND_SERVER_IMAGE}" =~ ^[A-Za-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
+    fail "NURSE_HAND_SERVER_IMAGE must use an immutable registry digest"
   fi
   if [[ "${DEPLOY_ROOT}" == "/" || "${DEPLOY_ROOT}" == *".."* || ! "${DEPLOY_ROOT}" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
     fail "DEPLOY_ROOT must be a narrow absolute path"
