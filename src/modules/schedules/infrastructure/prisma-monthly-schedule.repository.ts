@@ -30,6 +30,7 @@ import {
 const MONTHLY_SCHEDULE_SAVE_OPERATION = 'monthly-schedules.put';
 
 type DatabaseClient = Prisma.TransactionClient | PrismaService;
+type ActiveScheduleDuty = Exclude<ScheduleDuty, 'OFF'>;
 
 type IdempotencyRow = {
   id: string;
@@ -135,6 +136,7 @@ export class PrismaMonthlyScheduleRepository implements MonthlyScheduleRepositor
             })),
           });
         }
+        await ensureDemoShiftData(transaction, input.context, input.entries);
 
         const schedule = await this.readStoredSchedule(
           transaction,
@@ -423,28 +425,41 @@ function deserializeMonthlySchedule(
     throw new IdempotencyInvariantViolationError();
   }
 
-  const rawEntries: ScheduleEntryInput[] = [];
+  const rawEntries: (ScheduleEntryInput & { shiftId?: string | null })[] = [];
   for (const entry of value.entries) {
     if (
       !isJsonObject(entry) ||
       typeof entry.date !== 'string' ||
       typeof entry.duty !== 'string' ||
-      !SCHEDULE_DUTIES.includes(entry.duty as ScheduleDuty)
+      !SCHEDULE_DUTIES.includes(entry.duty as ScheduleDuty) ||
+      !isValidSnapshotShiftId(entry.shiftId)
     ) {
       throw new IdempotencyInvariantViolationError();
     }
+    const shiftId = typeof entry.shiftId === 'string' ? entry.shiftId : null;
     rawEntries.push({
       date: entry.date,
       duty: entry.duty as ScheduleDuty,
+      shiftId,
     });
   }
 
-  let entries: ScheduleEntryInput[];
+  let normalizedEntries: ScheduleEntryInput[];
   try {
-    entries = normalizeScheduleEntries(value.yearMonth, rawEntries);
+    normalizedEntries = normalizeScheduleEntries(value.yearMonth, rawEntries);
   } catch {
     throw new IdempotencyInvariantViolationError();
   }
+  const shiftIdsByEntry = new Map(
+    rawEntries.map((entry) => [`${entry.date}:${entry.duty}`, entry.shiftId]),
+  );
+  const entries = normalizedEntries.map((entry) => ({
+    ...entry,
+    shiftId:
+      entry.duty === 'OFF'
+        ? null
+        : (shiftIdsByEntry.get(`${entry.date}:${entry.duty}`) ?? null),
+  }));
   const totals = countDuties(entries);
   const storedTotals = value.totals;
   if (SCHEDULE_DUTIES.some((duty) => storedTotals[duty] !== totals[duty])) {
@@ -457,6 +472,180 @@ function deserializeMonthlySchedule(
     entries,
     totals,
   };
+}
+
+function isValidSnapshotShiftId(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
+async function ensureDemoShiftData(
+  client: Prisma.TransactionClient,
+  context: DemoSessionContext,
+  entries: readonly ScheduleEntryInput[],
+): Promise<void> {
+  if (!shouldEnsureDemoShiftData()) return;
+
+  const activeEntries = entries.filter(
+    (entry): entry is ScheduleEntryInput & { duty: ActiveScheduleDuty } =>
+      entry.duty !== 'OFF',
+  );
+  if (activeEntries.length === 0) return;
+
+  const patients = await client.patient.findMany({
+    where: {
+      datasetId: context.datasetId,
+      wardId: context.wardId,
+    },
+    orderBy: [{ roomLabel: 'asc' }, { id: 'asc' }],
+    select: { id: true },
+  });
+  const receiverMembership = await client.wardMembership.findFirst({
+    where: {
+      datasetId: context.datasetId,
+      wardId: context.wardId,
+      role: 'RECEIVER',
+      nurseId: { not: context.actorId },
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { nurseId: true },
+  });
+
+  for (const entry of activeEntries) {
+    const senderWindow = shiftWindow(entry.date, entry.duty);
+    const senderShift = await findOrCreateMockShift(client, {
+      context,
+      nurseId: context.actorId,
+      duty: entry.duty,
+      date: entry.date,
+      startsAt: senderWindow.startsAt,
+      endsAt: senderWindow.endsAt,
+      roleKey: 'sender',
+    });
+
+    for (const patient of patients) {
+      const assignmentLogicalKey = `mas:${senderShift.id.slice(0, 12)}:${patient.id.slice(0, 12)}`;
+      await client.patientAssignment.upsert({
+        where: {
+          assignment_dataset_logical_key: {
+            datasetId: context.datasetId,
+            logicalKey: assignmentLogicalKey,
+          },
+        },
+        create: {
+          datasetId: context.datasetId,
+          logicalKey: assignmentLogicalKey,
+          patientId: patient.id,
+          nurseId: context.actorId,
+          wardId: context.wardId,
+          nurseShiftId: senderShift.id,
+          startsAt: senderWindow.startsAt,
+          endsAt: senderWindow.endsAt,
+        },
+        update: {
+          startsAt: senderWindow.startsAt,
+          endsAt: senderWindow.endsAt,
+        },
+      });
+    }
+
+    if (receiverMembership !== null) {
+      const receiverDuty = nextHandoffDuty(entry.duty);
+      const receiverWindow = shiftWindow(entry.date, receiverDuty);
+      await findOrCreateMockShift(client, {
+        context,
+        nurseId: receiverMembership.nurseId,
+        duty: receiverDuty,
+        date: entry.date,
+        startsAt: receiverWindow.startsAt,
+        endsAt: receiverWindow.endsAt,
+        roleKey: 'receiver',
+      });
+    }
+  }
+}
+
+async function findOrCreateMockShift(
+  client: Prisma.TransactionClient,
+  input: {
+    context: DemoSessionContext;
+    nurseId: string;
+    duty: ActiveScheduleDuty;
+    date: string;
+    startsAt: Date;
+    endsAt: Date;
+    roleKey: 'sender' | 'receiver';
+  },
+): Promise<{ id: string }> {
+  const range = seoulDateRange(input.date);
+  const existing = await client.nurseShift.findFirst({
+    where: {
+      datasetId: input.context.datasetId,
+      nurseId: input.nurseId,
+      wardId: input.context.wardId,
+      duty: input.duty,
+      startsAt: { gte: range.from, lt: range.to },
+    },
+    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+    select: { id: true },
+  });
+  if (existing !== null) return existing;
+
+  const compactDate = input.date.replaceAll('-', '');
+  const logicalKey = `msh:${input.roleKey[0]}:${input.nurseId.slice(0, 12)}:${compactDate}:${input.duty[0]}`;
+  return client.nurseShift.upsert({
+    where: {
+      shift_dataset_logical_key: {
+        datasetId: input.context.datasetId,
+        logicalKey,
+      },
+    },
+    create: {
+      datasetId: input.context.datasetId,
+      logicalKey,
+      nurseId: input.nurseId,
+      wardId: input.context.wardId,
+      duty: input.duty,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    },
+    update: {
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    },
+    select: { id: true },
+  });
+}
+
+function shouldEnsureDemoShiftData(): boolean {
+  return (
+    process.env.DEMO_MODE === 'true' ||
+    process.env.NO_LOGIN_MVP_CONTEXT === 'true'
+  );
+}
+
+function shiftWindow(
+  date: string,
+  duty: ActiveScheduleDuty,
+): { startsAt: Date; endsAt: Date } {
+  const range = seoulDateRange(date);
+  const hour = 60 * 60 * 1000;
+  const offsets: Record<ActiveScheduleDuty, { start: number; end: number }> = {
+    DAY: { start: 8, end: 16 },
+    EVENING: { start: 16, end: 22 },
+    NIGHT: { start: 22, end: 32 },
+  };
+  const offset = offsets[duty];
+
+  return {
+    startsAt: new Date(range.from.getTime() + offset.start * hour),
+    endsAt: new Date(range.from.getTime() + offset.end * hour),
+  };
+}
+
+function nextHandoffDuty(duty: ActiveScheduleDuty): ActiveScheduleDuty {
+  if (duty === 'DAY') return 'EVENING';
+  if (duty === 'EVENING') return 'NIGHT';
+  return 'DAY';
 }
 
 function isJsonObject(value: unknown): value is Prisma.JsonObject {
