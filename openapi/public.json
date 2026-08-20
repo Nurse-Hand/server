@@ -4578,7 +4578,7 @@
             }
           }
         },
-        "summary": "인수인계 6개 임상 섹션 초안 생성 작업 접수",
+        "summary": "인수인계 7개 임상 섹션 초안 생성 작업 접수",
         "tags": [
           "Handoffs"
         ]
@@ -8768,7 +8768,13 @@
       "HandoffDraftClinicalSectionsDto": {
         "type": "object",
         "properties": {
-          "patientStatus": {
+          "vitalSigns": {
+            "type": "string"
+          },
+          "respiration": {
+            "type": "string"
+          },
+          "mentalStatus": {
             "type": "string"
           },
           "pain": {
@@ -8780,19 +8786,17 @@
           "diet": {
             "type": "string"
           },
-          "activity": {
-            "type": "string"
-          },
           "observation": {
             "type": "string"
           }
         },
         "required": [
-          "patientStatus",
+          "vitalSigns",
+          "respiration",
+          "mentalStatus",
           "pain",
           "treatment",
           "diet",
-          "activity",
           "observation"
         ]
       },
@@ -8831,11 +8835,12 @@
           "section": {
             "type": "string",
             "enum": [
-              "PATIENT_STATUS",
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
               "PAIN",
               "TREATMENT",
               "DIET",
-              "ACTIVITY",
               "OBSERVATION"
             ]
           },
@@ -9109,7 +9114,15 @@
       "UpdateHandoffClinicalSectionsRequestDto": {
         "type": "object",
         "properties": {
-          "patientStatus": {
+          "vitalSigns": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "respiration": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "mentalStatus": {
             "type": "string",
             "maxLength": 10000
           },
@@ -9125,21 +9138,18 @@
             "type": "string",
             "maxLength": 10000
           },
-          "activity": {
-            "type": "string",
-            "maxLength": 10000
-          },
           "observation": {
             "type": "string",
             "maxLength": 10000
           }
         },
         "required": [
-          "patientStatus",
+          "vitalSigns",
+          "respiration",
+          "mentalStatus",
           "pain",
           "treatment",
           "diet",
-          "activity",
           "observation"
         ]
       },

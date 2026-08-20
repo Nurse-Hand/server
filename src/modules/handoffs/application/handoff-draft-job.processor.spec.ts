@@ -28,7 +28,7 @@ class FixedClock extends Clock {
 }
 
 describe('HandoffDraftJobProcessor', () => {
-  it('6개 임상 section과 snapshot citation excerpt를 fenced publish한다', async () => {
+  it('7개 임상 section과 snapshot citation excerpt를 fenced publish한다', async () => {
     const jobs = createJobs();
     const repository = createRepository(true);
     const processor = createProcessor(
@@ -41,15 +41,16 @@ describe('HandoffDraftJobProcessor', () => {
       processor.processNext({ datasetId: DATASET_ID, wardId: WARD_ID }),
     ).resolves.toEqual({ jobId: JOB_ID, status: 'SUCCEEDED' });
     const published = repository.publishResult.mock.calls[0]![0].result;
-    expect(published.patients[0].sections).toHaveLength(6);
+    expect(published.patients[0].sections).toHaveLength(7);
     expect(
       published.patients[0].sections.map(({ section }) => section),
     ).toEqual([
-      'PATIENT_STATUS',
+      'VITAL_SIGNS',
+      'RESPIRATION',
+      'MENTAL_STATUS',
       'PAIN',
       'TREATMENT',
       'DIET',
-      'ACTIVITY',
       'OBSERVATION',
     ]);
     expect(

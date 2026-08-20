@@ -102,7 +102,7 @@ export class HandoffDraftsController {
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOperation({ summary: '인수인계 6개 임상 섹션 초안 생성 작업 접수' })
+  @ApiOperation({ summary: '인수인계 7개 임상 섹션 초안 생성 작업 접수' })
   @ApiHeader({
     name: 'X-Idempotency-Key',
     required: true,

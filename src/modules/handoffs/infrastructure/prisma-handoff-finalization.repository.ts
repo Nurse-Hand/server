@@ -397,7 +397,7 @@ function createFinalSnapshot(
     senderActorId: handoff.senderActorId,
     receiverActorId: handoff.receiverActorId,
     patients: handoff.draftPatients.map((patient) => {
-      assertSixSections(patient.sections.map(({ section }) => section));
+      assertClinicalSections(patient.sections.map(({ section }) => section));
       return {
         patientId: patient.patientId,
         sections: patient.sections.map((section) => ({
@@ -542,7 +542,7 @@ function decodeWarningMessage(value: string): string {
   return value;
 }
 
-function assertSixSections(
+function assertClinicalSections(
   sections: readonly (typeof HANDOFF_CLINICAL_SECTIONS)[number][],
 ): void {
   const found = new Set(sections);

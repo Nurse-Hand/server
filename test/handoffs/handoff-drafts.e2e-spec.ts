@@ -117,18 +117,19 @@ describe('Handoff draft public API (e2e)', () => {
     expect(response.body.data).not.toHaveProperty('patients');
   });
 
-  it('GET DRAFT는 6 section과 SUMMARY excerpt citation을 반환한다', async () => {
+  it('GET DRAFT는 7 section과 SUMMARY excerpt citation을 반환한다', async () => {
     const response = await request(app.getHttpServer())
       .get(`/api/v1/handoffs/${HANDOFF_ID}`)
       .set('X-Demo-Session-Id', SESSION_ID)
       .expect(200);
     expect(response.body.data.patients[0]).toMatchObject({
       sections: {
-        patientStatus: 'PATIENT_STATUS 현재본',
+        vitalSigns: 'VITAL_SIGNS 현재본',
+        respiration: 'RESPIRATION 현재본',
+        mentalStatus: 'MENTAL_STATUS 현재본',
         pain: 'PAIN 현재본',
         treatment: 'TREATMENT 현재본',
         diet: 'DIET 현재본',
-        activity: 'ACTIVITY 현재본',
         observation: 'OBSERVATION 현재본',
       },
       citations: [
@@ -139,7 +140,7 @@ describe('Handoff draft public API (e2e)', () => {
           occurredAt: NOW.toISOString(),
           excerptKind: 'SUMMARY',
           excerpt: '체온 상승 관찰',
-          section: 'PATIENT_STATUS',
+          section: 'VITAL_SIGNS',
         }),
       ],
     });
@@ -156,11 +157,12 @@ describe('Handoff draft public API (e2e)', () => {
           {
             patientId: PATIENT_ID,
             sections: {
-              patientStatus: '환자 상태',
+              vitalSigns: '활력징후',
+              respiration: '호흡',
+              mentalStatus: '의식상태',
               pain: '통증',
               treatment: '치료',
               diet: '식이',
-              activity: '활동',
               observation: '관찰',
             },
           },
@@ -221,11 +223,12 @@ function createService() {
 
 function draftDetail() {
   const sections = [
-    'PATIENT_STATUS',
+    'VITAL_SIGNS',
+    'RESPIRATION',
+    'MENTAL_STATUS',
     'PAIN',
     'TREATMENT',
     'DIET',
-    'ACTIVITY',
     'OBSERVATION',
   ].map((section) => ({
     section,
@@ -233,7 +236,7 @@ function draftDetail() {
     currentContent: `${section} 현재본`,
     isModified: true,
     citations:
-      section === 'PATIENT_STATUS'
+      section === 'VITAL_SIGNS'
         ? [
             {
               sourceType: 'TIMELINE_EVENT',

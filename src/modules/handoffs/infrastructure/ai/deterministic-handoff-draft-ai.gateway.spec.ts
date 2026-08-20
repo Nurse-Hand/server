@@ -10,18 +10,19 @@ const ITEM_ID = '00000000-0000-4000-8000-000000000501';
 const FOREIGN_ID = '00000000-0000-4000-8000-000000000999';
 
 describe('DeterministicHandoffDraftAiGateway', () => {
-  it('NURSING_HANDOFF_V1 6개 section과 UNVERIFIED warning을 결정론적으로 생성한다', async () => {
+  it('NURSING_HANDOFF_V1 7개 section과 UNVERIFIED warning을 결정론적으로 생성한다', async () => {
     const gateway = new DeterministicHandoffDraftAiGateway();
     const first = await gateway.generate(input(true));
     const second = await gateway.generate(input(true));
 
     expect(first).toEqual(second);
     expect(first.patients[0].sections.map(({ section }) => section)).toEqual([
-      'PATIENT_STATUS',
+      'VITAL_SIGNS',
+      'RESPIRATION',
+      'MENTAL_STATUS',
       'PAIN',
       'TREATMENT',
       'DIET',
-      'ACTIVITY',
       'OBSERVATION',
     ]);
     expect(first.warnings).toEqual([
@@ -126,11 +127,12 @@ function rawResponse() {
       {
         patientId: PATIENT_ID,
         sections: [
-          'PATIENT_STATUS',
+          'VITAL_SIGNS',
+          'RESPIRATION',
+          'MENTAL_STATUS',
           'PAIN',
           'TREATMENT',
           'DIET',
-          'ACTIVITY',
           'OBSERVATION',
         ].map((section) => ({
           section,

@@ -72,7 +72,9 @@ import { TasksController } from './presentation/tasks.controller';
         httpAdapter: HttpTaskPriorityAiAdapter,
         fallbackAdapter: DeterministicTaskPriorityAiAdapter,
       ) =>
-        hasTaskAiConfiguration(configService) ? httpAdapter : fallbackAdapter,
+        shouldUseTaskPriorityFallback(configService)
+          ? fallbackAdapter
+          : httpAdapter,
     },
     {
       provide: TASK_PRIORITY_SUGGESTION_GATEWAY,
@@ -87,5 +89,12 @@ function hasTaskAiConfiguration(configService: ConfigService): boolean {
   return Boolean(
     configService.get<string>('AI_BASE_URL')?.trim() &&
     configService.get<string>('AI_INTERNAL_API_TOKEN')?.trim(),
+  );
+}
+
+function shouldUseTaskPriorityFallback(configService: ConfigService): boolean {
+  return (
+    configService.get<string>('NODE_ENV') === 'test' &&
+    !hasTaskAiConfiguration(configService)
   );
 }

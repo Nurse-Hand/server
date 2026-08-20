@@ -28,11 +28,12 @@ enum HandoffTaskPriority {
 }
 
 enum HandoffClinicalSection {
-  PATIENT_STATUS
+  VITAL_SIGNS
+  RESPIRATION
+  MENTAL_STATUS
   PAIN
   TREATMENT
   DIET
-  ACTIVITY
   OBSERVATION
 }
 
