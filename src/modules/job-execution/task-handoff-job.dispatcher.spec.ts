@@ -78,6 +78,24 @@ describe('TaskHandoffJobDispatcher', () => {
     expect(handoffDraft.processNext.mock.calls).toEqual([[SCOPE_A], [SCOPE_B]]);
   });
 
+  it('빈 poll도 DB 조회 성공 직후 progress를 한 번 기록한다', async () => {
+    const onProgress = jest.fn().mockResolvedValue(undefined);
+    findMany.mockResolvedValueOnce([]);
+
+    await expect(dispatcher.runOnce(onProgress)).resolves.toBe(true);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(onProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('실행 scope가 있으면 DB poll과 각 scope 완료 후 progress를 기록한다', async () => {
+    const onProgress = jest.fn().mockResolvedValue(undefined);
+
+    await expect(dispatcher.runOnce(onProgress)).resolves.toBe(true);
+
+    expect(onProgress).toHaveBeenCalledTimes(3);
+  });
+
   it('한 processor 예외가 다음 operation을 막거나 민감정보를 기록하지 않는다', async () => {
     const marker = 'SYNTHETIC_PATIENT_SUMMARY_1234';
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
@@ -126,16 +144,55 @@ describe('TaskHandoffJobDispatcher', () => {
 
     const dispatch = dispatcher.runOnce();
     let shutdownCompleted = false;
-    const shutdown = dispatcher.shutdown().then(() => {
+    const shutdown = dispatcher.shutdown(1_000).then((result) => {
       shutdownCompleted = true;
+      return result;
     });
     await Promise.resolve();
     expect(shutdownCompleted).toBe(false);
 
     release?.();
     await dispatch;
-    await shutdown;
+    await expect(shutdown).resolves.toBe('DRAINED');
     expect(shutdownCompleted).toBe(true);
+    await expect(dispatcher.runOnce()).resolves.toBe(false);
+  });
+
+  it('shutdown 이후에는 진행 중 operation만 마치고 새 operation과 scope를 시작하지 않는다', async () => {
+    let release: (() => void) | undefined;
+    taskExtraction.processNext.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ status: 'IDLE' });
+        }),
+    );
+
+    const dispatch = dispatcher.runOnce();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(taskExtraction.processNext).toHaveBeenCalledWith(SCOPE_A);
+
+    const shutdown = dispatcher.shutdown(1_000);
+    release?.();
+
+    await expect(dispatch).resolves.toBe(true);
+    await expect(shutdown).resolves.toBe('DRAINED');
+    expect(taskExtraction.processNext).toHaveBeenCalledTimes(1);
+    expect(handoffPrecheck.processNext).not.toHaveBeenCalled();
+    expect(handoffDraft.processNext).not.toHaveBeenCalled();
+  });
+
+  it('진행 중 operation이 끝나지 않아도 제한 시간 뒤 drain을 종료한다', async () => {
+    taskExtraction.processNext.mockImplementationOnce(
+      () => new Promise(() => undefined),
+    );
+
+    void dispatcher.runOnce();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(taskExtraction.processNext).toHaveBeenCalledWith(SCOPE_A);
+
+    await expect(dispatcher.shutdown(5)).resolves.toBe('TIMED_OUT');
     await expect(dispatcher.runOnce()).resolves.toBe(false);
   });
 
@@ -149,10 +206,10 @@ describe('TaskHandoffJobDispatcher', () => {
     });
 
     const dispatch = dispatcher.runOnce();
-    const shutdown = dispatcher.shutdown();
+    const shutdown = dispatcher.shutdown(1_000);
 
     await expect(dispatch).rejects.toBeDefined();
-    await expect(shutdown).resolves.toBeUndefined();
+    await expect(shutdown).resolves.toBe('DRAINED');
     expect(logger).toHaveBeenCalledWith({
       event: 'dispatch_drain_failed',
       errorType: 'UnknownError',

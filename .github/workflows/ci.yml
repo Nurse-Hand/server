@@ -2,6 +2,8 @@ name: CI
 
 on:
   workflow_call:
+  pull_request:
+    branches: [main, dev]
   push:
     branches: [dev]
 
@@ -31,6 +33,9 @@ jobs:
 
       - name: Verify deterministic deployment failures
         run: bash deploy/deploy-server.test.sh
+
+      - name: Verify safe deployment contract
+        run: node deploy/safe-deployment-contract.test.mjs
 
   postgres-integration:
     runs-on: ubuntu-latest

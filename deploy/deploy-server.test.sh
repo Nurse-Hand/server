@@ -40,7 +40,8 @@ create_scenario() {
 
   mkdir -p "${root}/bin" "${root}/deploy-root/deploy-state"
   printf 'synthetic=true\n' > "${root}/deploy-root/.env"
-  printf '%s\n' "${OLD_IMAGE}" > "${root}/active-image"
+  printf '%s\n' "${OLD_IMAGE}" > "${root}/api-active-image"
+  printf '%s\n' "${OLD_IMAGE}" > "${root}/worker-active-image"
   : > "${root}/commands.log"
 
   cat > "${root}/bin/docker" <<'FAKE_DOCKER'
@@ -49,24 +50,45 @@ set -Eeuo pipefail
 echo "docker $*" >> "${FAKE_COMMAND_LOG}"
 
 if [[ "$1" == "inspect" ]]; then
+  container_name="$4"
+  active_image_file="${FAKE_API_ACTIVE_IMAGE_FILE}"
+  if [[ "${container_name}" == 'nurse-hand-worker' ]]; then
+    active_image_file="${FAKE_WORKER_ACTIVE_IMAGE_FILE}"
+  fi
   case "$3" in
     '{{.Image}}')
       echo 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
       ;;
     '{{.Config.Image}}')
-      cat "${FAKE_ACTIVE_IMAGE_FILE}"
+      cat "${active_image_file}"
       ;;
     *)
-      active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
+      active_image="$(cat "${active_image_file}")"
       active_phase='baseline'
       if [[ "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
         active_phase='replacement'
       elif [[ "${active_image}" == nurse-hand-server-local:rollback-* ]]; then
         active_phase='rollback'
       fi
-      if [[ "${FAKE_SCENARIO}" == "baseline-container-health-fail" && "${active_phase}" == 'baseline' ]]; then
+      if [[ "${FAKE_SCENARIO}" == "baseline-api-health-fail" \
+        && "${container_name}" == 'nurse-hand-server' \
+        && "${active_phase}" == 'baseline' ]]; then
         echo 'unhealthy'
-      elif [[ "${FAKE_SCENARIO}" == "container-health-fail" && "${active_phase}" == 'replacement' ]]; then
+      elif [[ "${FAKE_SCENARIO}" == "baseline-worker-health-fail" \
+        && "${container_name}" == 'nurse-hand-worker' \
+        && "${active_phase}" == 'baseline' ]]; then
+        echo 'unhealthy'
+      elif [[ "${FAKE_SCENARIO}" == "baseline-worker-running" \
+        && "${container_name}" == 'nurse-hand-worker' \
+        && "${active_phase}" == 'baseline' ]]; then
+        echo 'running'
+      elif [[ "${FAKE_SCENARIO}" == "api-health-fail" \
+        && "${container_name}" == 'nurse-hand-server' \
+        && "${active_phase}" == 'replacement' ]]; then
+        echo 'unhealthy'
+      elif [[ "${FAKE_SCENARIO}" == "worker-health-fail" \
+        && "${container_name}" == 'nurse-hand-worker' \
+        && "${active_phase}" == 'replacement' ]]; then
         echo 'unhealthy'
       else
         echo 'healthy'
@@ -112,12 +134,33 @@ case "${action:-}" in
     [[ "${FAKE_SCENARIO}" != "migration-fail" ]]
     ;;
   up)
-    printf '%s\n' "${NURSE_HAND_SERVER_IMAGE}" > "${FAKE_ACTIVE_IMAGE_FILE}"
+    for argument in "$@"; do
+      case "${argument}" in
+        api)
+          printf '%s\n' "${NURSE_HAND_SERVER_IMAGE}" > "${FAKE_API_ACTIVE_IMAGE_FILE}"
+          ;;
+        worker)
+          printf '%s\n' "${NURSE_HAND_SERVER_IMAGE}" > "${FAKE_WORKER_ACTIVE_IMAGE_FILE}"
+          ;;
+      esac
+    done
     ;;
   exec)
     cat >/dev/null
-    active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
-    if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+    active_image="$(cat "${FAKE_API_ACTIVE_IMAGE_FILE}")"
+    if [[ "$*" == *"--input-type=module"* \
+      && "${FAKE_SCENARIO}" == "storage-fail" \
+      && "${active_image}" == "${FAKE_NEW_IMAGE}" ]]; then
+      exit 1
+    fi
+    if [[ "$*" == *"--input-type=module"* \
+      && "${FAKE_SCENARIO}" == "baseline-storage-fail" \
+      && "${active_image}" != "${FAKE_NEW_IMAGE}" ]]; then
+      exit 1
+    fi
+    if [[ "${FAKE_SCENARIO}" == "external-body-invalid" \
+      && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" \
+      && "$*" == *"health-envelope"* ]]; then
       exit 1
     fi
     ;;
@@ -131,7 +174,26 @@ FAKE_DOCKER
 #!/usr/bin/env bash
 set -Eeuo pipefail
 echo "curl $*" >> "${FAKE_COMMAND_LOG}"
-active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
+output_path=''
+url=''
+while (($# > 0)); do
+  case "$1" in
+    --header|--max-filesize|--max-time|--output|--proto|--write-out)
+      if [[ "$1" == '--output' ]]; then
+        output_path="$2"
+      fi
+      shift 2
+      ;;
+    --fail|--show-error|--silent|--tlsv1.2)
+      shift
+      ;;
+    *)
+      url="$1"
+      shift
+      ;;
+  esac
+done
+active_image="$(cat "${FAKE_API_ACTIVE_IMAGE_FILE}")"
 active_phase='baseline'
 if [[ "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
   active_phase='replacement'
@@ -144,6 +206,22 @@ fi
 if [[ "${FAKE_SCENARIO}" == "external-health-fail" && "${active_phase}" == 'replacement' ]]; then
   exit 1
 fi
+if [[ -z "${output_path}" ]]; then
+  exit 92
+fi
+if [[ "${FAKE_SCENARIO}" == "external-redirect" && "${active_phase}" == 'replacement' ]]; then
+  printf '{"data":{"status":"ok","timestamp":"2026-08-20T00:00:00.000Z"},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+  printf '302'
+  exit 0
+fi
+if [[ "${FAKE_SCENARIO}" == "external-body-invalid" && "${active_phase}" == 'replacement' ]]; then
+  printf '{}' > "${output_path}"
+elif [[ "${url}" == */api/v1/health ]]; then
+  printf '{"data":{"status":"ok","timestamp":"2026-08-20T00:00:00.000Z"},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+else
+  printf '{"data":{"items":[]},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+fi
+printf '200'
 FAKE_CURL
 
   cat > "${root}/bin/sleep" <<'FAKE_SLEEP'
@@ -159,14 +237,17 @@ run_deploy() {
   local root="$1"
   local scenario="$2"
   local run_id="${3:-101}"
+  local deploy_root="${4:-${root}/deploy-root}"
 
   PATH="${root}/bin:${PATH}" \
-    FAKE_ACTIVE_IMAGE_FILE="${root}/active-image" \
+    FAKE_API_ACTIVE_IMAGE_FILE="${root}/api-active-image" \
+    FAKE_WORKER_ACTIVE_IMAGE_FILE="${root}/worker-active-image" \
     FAKE_COMMAND_LOG="${root}/commands.log" \
+    FAKE_NEW_IMAGE="${NEW_IMAGE}" \
     FAKE_SCENARIO="${scenario}" \
     DEPLOY_HEALTHCHECK_ATTEMPTS=2 \
     DEPLOY_HEALTHCHECK_INTERVAL_SECONDS=0 \
-    DEPLOY_ROOT="${root}/deploy-root" \
+    DEPLOY_ROOT="${deploy_root}" \
     DEPLOY_RUN_ID="${run_id}" \
     DEPLOY_SHA="${DEPLOY_SHA}" \
     EXTERNAL_BASE_URL="https://api.example.invalid" \
@@ -182,10 +263,15 @@ test_successful_order_and_state() {
   local pull_line migration_line replace_line
   pull_line="$(grep -nF "docker pull ${NEW_IMAGE}" "${root}/commands.log" | cut -d: -f1)"
   migration_line="$(grep -nF ' run --rm --no-deps --entrypoint npx api prisma migrate deploy' "${root}/commands.log" | cut -d: -f1)"
-  replace_line="$(grep -nF ' up -d --no-deps api' "${root}/commands.log" | head -n1 | cut -d: -f1)"
+  replace_line="$(grep -nF ' up -d --no-deps api worker' "${root}/commands.log" | head -n1 | cut -d: -f1)"
   [[ "${pull_line}" -lt "${migration_line}" && "${migration_line}" -lt "${replace_line}" ]] \
     || fail_test 'pull, migration, and replacement order is invalid'
   [[ "$(cat "${root}/deploy-root/deploy-state/current")" == "101|${DEPLOY_SHA}|${NEW_IMAGE}|${OLD_IMAGE}" ]]
+  [[ "$(cat "${root}/api-active-image")" == "${NEW_IMAGE}" ]]
+  [[ "$(cat "${root}/worker-active-image")" == "${NEW_IMAGE}" ]]
+  assert_not_contains "${root}/commands.log" '--location'
+  assert_contains "${root}/commands.log" '--max-filesize 1048576'
+  assert_contains "${root}/commands.log" '--write-out %{http_code}'
 }
 
 test_failure_before_replacement() {
@@ -195,14 +281,15 @@ test_failure_before_replacement() {
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"
     fi
-    assert_not_contains "${root}/commands.log" ' up -d --no-deps api'
-    [[ "$(cat "${root}/active-image")" == "${OLD_IMAGE}" ]]
+    assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
+    [[ "$(cat "${root}/api-active-image")" == "${OLD_IMAGE}" ]]
+    [[ "$(cat "${root}/worker-active-image")" == "${OLD_IMAGE}" ]]
   done
 }
 
 test_unhealthy_baseline_stops_before_mutation() {
   local scenario root
-  for scenario in baseline-container-health-fail baseline-external-health-fail; do
+  for scenario in baseline-api-health-fail baseline-worker-health-fail baseline-worker-running baseline-external-health-fail baseline-storage-fail; do
     root="$(create_scenario "${scenario}")"
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"
@@ -210,24 +297,70 @@ test_unhealthy_baseline_stops_before_mutation() {
     assert_not_contains "${root}/commands.log" 'docker image tag'
     assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
     assert_not_contains "${root}/commands.log" ' run --rm --no-deps --entrypoint npx api prisma migrate deploy'
-    assert_not_contains "${root}/commands.log" ' up -d --no-deps api'
-    [[ "$(cat "${root}/active-image")" == "${OLD_IMAGE}" ]]
+    assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
+    [[ "$(cat "${root}/api-active-image")" == "${OLD_IMAGE}" ]]
+    [[ "$(cat "${root}/worker-active-image")" == "${OLD_IMAGE}" ]]
     [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
   done
 }
 
+test_mismatched_server_images_stop_before_mutation() {
+  local root
+  root="$(create_scenario mismatched-server-images)"
+  printf '%s\n' 'example.invalid/nurse-hand-server:other' > "${root}/worker-active-image"
+
+  if run_deploy "${root}" mismatched-server-images; then
+    fail_test 'mismatched API and worker images unexpectedly deployed'
+  fi
+  assert_not_contains "${root}/commands.log" 'docker image tag'
+  assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
+  assert_not_contains "${root}/commands.log" ' run --rm --no-deps --entrypoint npx api prisma migrate deploy'
+  assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
+  [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
+}
+
+test_missing_worker_stops_before_mutation() {
+  local root
+  root="$(create_scenario missing-worker)"
+  rm -- "${root}/worker-active-image"
+
+  if run_deploy "${root}" missing-worker; then
+    fail_test 'deployment without an existing worker unexpectedly succeeded'
+  fi
+  assert_not_contains "${root}/commands.log" 'docker image tag'
+  assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
+  assert_not_contains "${root}/commands.log" ' run --rm --no-deps --entrypoint npx api prisma migrate deploy'
+  assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
+  [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
+}
+
 test_readiness_failures_rollback() {
   local scenario root
-  for scenario in container-health-fail storage-fail external-health-fail; do
+  for scenario in api-health-fail worker-health-fail storage-fail external-health-fail external-redirect external-body-invalid; do
     root="$(create_scenario "${scenario}")"
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"
     fi
-    if [[ "$(grep -cF ' up -d --no-deps api' "${root}/commands.log")" -lt 2 ]]; then
-      fail_test "${scenario} did not replace and then restore the API"
+    if [[ "$(grep -cF ' up -d --no-deps api worker' "${root}/commands.log")" -lt 2 ]]; then
+      fail_test "${scenario} did not replace and then restore the API and worker"
     fi
-    [[ "$(cat "${root}/active-image")" == nurse-hand-server-local:rollback-* ]]
+    [[ "$(cat "${root}/api-active-image")" == nurse-hand-server-local:rollback-* ]]
+    [[ "$(cat "${root}/worker-active-image")" == nurse-hand-server-local:rollback-* ]]
     [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
+  done
+}
+
+test_root_equivalent_deploy_roots_are_rejected() {
+  local index=0 invalid_root root
+  for invalid_root in / // /. /./ /data/./nurse-hand /data//nurse-hand /data/nurse-hand/; do
+    root="$(create_scenario "invalid-root-${index}")"
+    index=$((index + 1))
+    if run_deploy "${root}" invalid-root 101 "${invalid_root}"; then
+      fail_test "root-equivalent DEPLOY_ROOT unexpectedly succeeded: ${invalid_root}"
+    fi
+    assert_not_contains "${root}/commands.log" 'docker image tag'
+    assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
+    assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
   done
 }
 
@@ -265,8 +398,11 @@ fi
 
 test_successful_order_and_state
 test_unhealthy_baseline_stops_before_mutation
+test_mismatched_server_images_stop_before_mutation
+test_missing_worker_stops_before_mutation
 test_failure_before_replacement
 test_readiness_failures_rollback
+test_root_equivalent_deploy_roots_are_rejected
 test_stale_run_is_rejected
 test_server_lock_rejects_overlap
 

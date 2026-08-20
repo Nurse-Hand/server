@@ -63,8 +63,9 @@ services:
     image: ${NURSE_HAND_SERVER_IMAGE:-kimgt2828/nursehand-server:tagname}
     container_name: nurse-hand-worker
     restart: unless-stopped
+    stop_grace_period: 30s
     env_file:
-      - path: .env
+      - path: ${NURSE_HAND_ENV_FILE:-.env}
         required: false
     depends_on:
       db:
@@ -78,25 +79,27 @@ services:
       DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-25200}
       NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
       NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
-      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}
+      FILE_STORAGE_ROOT: /data/nurse-hand/uploads
       AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
       AI_INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       AI_PRIORITY_TIMEOUT_MS: ${AI_PRIORITY_TIMEOUT_MS:-15000}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
     volumes:
-      - '${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}:${FILE_STORAGE_ROOT:-/data/nurse-hand/uploads}'
-    command: >
-      sh -c "npx prisma migrate deploy &&
-      node dist/src/worker-main.js"
+      - '${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}:/data/nurse-hand/uploads'
+    command: ['node', 'dist/src/worker-main.js']
     healthcheck:
-      disable: true
+      test: ['CMD', 'node', 'dist/src/worker-healthcheck.js']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   ai:
     image: ${NURSE_HAND_AI_IMAGE:-jadest03/nurse-hand-ai:latest}
     container_name: nurse-hand-ai
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: ${NURSE_HAND_ENV_FILE:-.env}
         required: false
     environment:
       PORT: 8000
