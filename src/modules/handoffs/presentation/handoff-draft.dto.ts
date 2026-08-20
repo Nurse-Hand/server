@@ -16,6 +16,7 @@ import {
   MaxLength,
   Min,
   ValidateBy,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -29,6 +30,7 @@ import {
   HANDOFF_EVIDENCE_EXCERPT_KINDS,
   HANDOFF_EVIDENCE_TYPES,
   HANDOFF_ROOT_STATUSES,
+  HANDOFF_TARGET_DUTIES,
   HANDOFF_TEMPLATE_IDS,
   MAX_HANDOFF_CURSOR_LENGTH,
   MAX_HANDOFF_PAGE_LIMIT,
@@ -41,6 +43,7 @@ import {
   type HandoffEvidenceExcerptKind,
   type HandoffEvidenceType,
   type HandoffRootStatus,
+  type HandoffTargetDuty,
   type HandoffTemplateId,
 } from './handoff-draft-presentation.constants';
 
@@ -98,9 +101,52 @@ export class ListHandoffDraftsQueryDto {
 }
 
 export class CreateHandoffDraftRequestDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      '기존 사전검증 결과로 초안을 생성할 때 사용합니다. MVP 초안 우선 흐름에서는 생략하고 shiftId/date/targetDuty를 전달합니다.',
+  })
+  @IsOptional()
   @IsUUID()
-  precheckId!: string;
+  precheckId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'precheckId 없이 초안을 먼저 생성할 때 사용할 현재 근무 ID',
+  })
+  @ValidateIf((body: CreateHandoffDraftRequestDto) => !body.precheckId)
+  @IsUUID()
+  shiftId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date',
+    example: '2026-08-13',
+    description: 'precheckId 없이 초안을 먼저 생성할 때 사용할 인수인계 날짜',
+  })
+  @ValidateIf((body: CreateHandoffDraftRequestDto) => !body.precheckId)
+  @ValidateBy({
+    name: 'isHandoffDate',
+    validator: {
+      validate(value: unknown): boolean {
+        if (typeof value !== 'string') return false;
+        try {
+          seoulDateRange(value);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    },
+  })
+  date?: string;
+
+  @ApiPropertyOptional({
+    enum: HANDOFF_TARGET_DUTIES,
+    description: 'precheckId 없이 초안을 먼저 생성할 때 받을 듀티',
+  })
+  @ValidateIf((body: CreateHandoffDraftRequestDto) => !body.precheckId)
+  @IsIn(HANDOFF_TARGET_DUTIES)
+  targetDuty?: HandoffTargetDuty;
 
   @ApiProperty({ enum: HANDOFF_TEMPLATE_IDS, example: 'NURSING_HANDOFF_V1' })
   @IsIn(HANDOFF_TEMPLATE_IDS)

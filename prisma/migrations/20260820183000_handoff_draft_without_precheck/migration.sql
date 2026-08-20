@@ -1,0 +1,2 @@
+ALTER TABLE "Handoff" ALTER COLUMN "precheckId" DROP NOT NULL;
+ALTER TABLE "Handoff" ALTER COLUMN "precheckVersion" DROP NOT NULL;

@@ -240,8 +240,8 @@ model Handoff {
   handoffDate                DateTime                        @db.Date
   targetDuty                 ShiftDuty
   status                     HandoffStatus                   @default(GENERATING)
-  precheckId                 String                          @db.Uuid
-  precheckVersion            Int
+  precheckId                 String?                         @db.Uuid
+  precheckVersion            Int?
   templateKey                String                          @db.VarChar(64)
   includeUnverified          Boolean
   frozenInputPayload         Json
@@ -250,7 +250,7 @@ model Handoff {
   finalizedAt                DateTime?                       @db.Timestamptz(3)
   createdAt                  DateTime                        @default(now()) @db.Timestamptz(3)
   updatedAt                  DateTime                        @updatedAt @db.Timestamptz(3)
-  precheck                   HandoffPrecheck                 @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Restrict)
+  precheck                   HandoffPrecheck?                @relation(fields: [datasetId, precheckId], references: [datasetId, id], onDelete: Restrict)
   generationAttempts         HandoffGenerationAttempt[]
   frozenPrecheckItems        HandoffFrozenPrecheckItem[]
   draftPatients              HandoffDraftPatient[]
