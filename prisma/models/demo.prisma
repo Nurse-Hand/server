@@ -15,6 +15,7 @@ model DemoDataset {
   roundingRecords    RoundingRecord[]
   roundingAudioChunks RoundingAudioChunk[]
   storedFiles        StoredFile[]
+  quickNotes         QuickNote[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
   monthlySchedules   MonthlySchedule[]

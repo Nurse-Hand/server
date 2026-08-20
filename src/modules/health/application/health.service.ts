@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  DATABASE_READINESS_PROBE,
+  type DatabaseReadinessProbe,
+} from './database-readiness.probe';
 
 export type HealthResult = {
   status: 'ok';
@@ -7,7 +11,14 @@ export type HealthResult = {
 
 @Injectable()
 export class HealthService {
-  getHealth(): HealthResult {
+  constructor(
+    @Inject(DATABASE_READINESS_PROBE)
+    private readonly databaseReadiness: DatabaseReadinessProbe,
+  ) {}
+
+  async getHealth(): Promise<HealthResult> {
+    await this.databaseReadiness.check();
+
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),

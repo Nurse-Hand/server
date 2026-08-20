@@ -47,6 +47,7 @@ export const TASK_PRIORITY_AI_PRIORITIES = [
 ] as const;
 export type TaskPriorityAiPriority =
   (typeof TASK_PRIORITY_AI_PRIORITIES)[number];
+export type TaskPriorityAiInput = TaskPriorityAiPriority | 'LOW';
 
 export const TASK_PRIORITY_SUGGESTION_OPERATION = 'tasks.priority-suggestions';
 export const TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION = 'tasks-prioritize-v1';

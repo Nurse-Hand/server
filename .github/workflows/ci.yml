@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
     branches: [main, dev]
   push:
@@ -29,6 +30,9 @@ jobs:
 
       - name: Verify
         run: npm run verify
+
+      - name: Verify deterministic deployment failures
+        run: bash deploy/deploy-server.test.sh
 
   postgres-integration:
     runs-on: ubuntu-latest
