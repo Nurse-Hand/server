@@ -8,8 +8,9 @@ import type {
   HandoffTemplateId,
 } from '../domain/handoff.constants';
 import type {
-  HandoffPrecheckEvidence,
   HandoffPrecheckSourceSnapshot,
+  ResolvedHandoffPrecheckScope,
+  HandoffPrecheckEvidence,
 } from './handoff-precheck.models';
 
 export type HandoffDraftContext = DemoSessionContext;
@@ -92,7 +93,12 @@ export type HandoffDraftListResult = {
 
 export type CreateHandoffDraftCommand = {
   context: HandoffDraftContext;
-  precheckId: string;
+  precheckId?: string;
+  shiftId?: string;
+  targetDuty?: 'DAY' | 'EVENING' | 'NIGHT';
+  date?: string;
+  scope?: ResolvedHandoffPrecheckScope;
+  snapshot?: HandoffPrecheckSourceSnapshot;
   templateId: HandoffTemplateId;
   includeUnverified: boolean;
   idempotencyKey: string;

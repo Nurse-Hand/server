@@ -1,5 +1,6 @@
 import { Clock } from '../../../common/time/clock';
 import type { TaskQueryPort } from '../../tasks/application/ports/task-query.port';
+import type { TimelineReader } from '../../timeline/application/ports/timeline-reader';
 import type { HandoffDraftDetail } from './handoff-draft.models';
 import { HandoffDraftsService } from './handoff-drafts.service';
 import type { HandoffDraftRepository } from './ports/handoff-draft.repository';
@@ -15,6 +16,9 @@ const HANDOFF_ID = '00000000-0000-4000-8000-000000000601';
 const JOB_ID = '00000000-0000-4000-8000-000000000701';
 const ITEM_ID = '00000000-0000-4000-8000-000000000801';
 const TASK_ID = '00000000-0000-4000-8000-000000000901';
+const SHIFT_ID = '00000000-0000-4000-8000-000000000a01';
+const RECEIVER_SHIFT_ID = '00000000-0000-4000-8000-000000000a02';
+const TIMELINE_EVENT_ID = '00000000-0000-4000-8000-000000000b01';
 const REQUEST_ID = '10000000-0000-4000-8000-000000000101';
 const NOW = new Date('2026-08-18T02:00:00.000Z');
 const CONTEXT = { datasetId: DATASET_ID, actorId: ACTOR_ID, wardId: WARD_ID };
@@ -101,6 +105,78 @@ describe('HandoffDraftsService', () => {
     );
   });
 
+  it('precheckId 없이 근무 범위 snapshot으로 초안 생성을 예약한다', async () => {
+    const repository = createRepository();
+    const prechecks = createPrechecks();
+    const tasks = createTasks();
+    const timeline = createTimeline();
+    prechecks.resolveShiftScope.mockResolvedValueOnce({
+      senderShiftId: SHIFT_ID,
+      senderStartsAt: new Date('2026-08-18T00:00:00.000Z'),
+      senderEndsAt: new Date('2026-08-18T08:00:00.000Z'),
+      receiverShiftId: RECEIVER_SHIFT_ID,
+      receiverActorId: RECEIVER_ID,
+      receiverStartsAt: new Date('2026-08-18T08:00:00.000Z'),
+      patientIds: [PATIENT_ID],
+    });
+    timeline.readMany.mockResolvedValueOnce([
+      {
+        id: TIMELINE_EVENT_ID,
+        patientId: PATIENT_ID,
+        occurredAt: NOW,
+        type: 'OBSERVATION',
+        source: 'AI_AUDIO',
+        summary: '기침 증가',
+        version: 1,
+        sourceReference: 'rounding:evidence:1',
+      },
+    ]);
+    tasks.findIncompleteByPatients.mockResolvedValueOnce([
+      draftDetail().draft!.tasks[0],
+    ]);
+
+    await createService(repository, prechecks, tasks, timeline).create(
+      CONTEXT,
+      {
+        shiftId: SHIFT_ID,
+        targetDuty: 'DAY',
+        date: '2026-08-18',
+        templateId: 'NURSING_HANDOFF_V1',
+        includeUnverified: false,
+      },
+      'generate-key',
+      REQUEST_ID,
+    );
+
+    expect(prechecks.get).not.toHaveBeenCalled();
+    expect(prechecks.resolveShiftScope).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: CONTEXT,
+        shiftId: SHIFT_ID,
+        targetDuty: 'DAY',
+        date: '2026-08-18',
+      }),
+    );
+    expect(repository.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: CONTEXT,
+        shiftId: SHIFT_ID,
+        targetDuty: 'DAY',
+        date: '2026-08-18',
+        templateId: 'NURSING_HANDOFF_V1',
+        snapshot: expect.objectContaining({
+          patients: [
+            expect.objectContaining({
+              patientId: PATIENT_ID,
+              timelineEvents: [expect.objectContaining({ id: TIMELINE_EVENT_ID })],
+            }),
+          ],
+          tasks: [expect.objectContaining({ id: TASK_ID })],
+        }),
+      }),
+    );
+  });
+
   it('수정 시 기존 연결 task는 보존하고 새 task만 TaskQueryPort로 검증한다', async () => {
     const repository = createRepository();
     repository.get.mockResolvedValueOnce(draftDetail());
@@ -145,11 +221,13 @@ function createService(
   repository = createRepository(),
   prechecks = createPrechecks(),
   tasks = createTasks(),
+  timeline = createTimeline(),
 ) {
   return new HandoffDraftsService(
     repository,
     prechecks,
     tasks,
+    timeline,
     new FixedClock(),
   );
 }
@@ -189,6 +267,13 @@ function createPrechecks(): jest.Mocked<HandoffPrecheckRepository> {
 
 function createTasks(): jest.Mocked<TaskQueryPort> {
   return { findIncompleteByPatients: jest.fn().mockResolvedValue([]) };
+}
+
+function createTimeline(): jest.Mocked<TimelineReader> {
+  return {
+    read: jest.fn(),
+    readMany: jest.fn().mockResolvedValue([]),
+  };
 }
 
 function precheckDetail(answer: 'NO_ISSUE' | null) {

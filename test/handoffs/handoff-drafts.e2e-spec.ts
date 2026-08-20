@@ -18,6 +18,7 @@ const PRECHECK_ID = '00000000-0000-4000-8000-000000000501';
 const HANDOFF_ID = '00000000-0000-4000-8000-000000000601';
 const JOB_ID = '00000000-0000-4000-8000-000000000701';
 const EVENT_ID = '00000000-0000-4000-8000-000000000801';
+const SHIFT_ID = '00000000-0000-4000-8000-000000000a01';
 const NOW = new Date('2026-08-18T02:00:00.000Z');
 const SESSION_ID = 'handoff-draft-session';
 
@@ -71,6 +72,35 @@ describe('Handoff draft public API (e2e)', () => {
       handoffId: HANDOFF_ID,
       status: 'GENERATING',
     });
+  });
+
+  it('POST /handoffs는 사전검증 없이 shift/date/targetDuty로 초안 생성을 접수한다', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/handoffs')
+      .set('X-Demo-Session-Id', SESSION_ID)
+      .set('X-Idempotency-Key', 'generate-key-direct')
+      .send({
+        shiftId: SHIFT_ID,
+        targetDuty: 'DAY',
+        date: '2026-08-18',
+        templateId: 'NURSING_HANDOFF_V1',
+        includeUnverified: false,
+      })
+      .expect(202);
+    expect(response.body.data).toEqual({
+      handoffId: HANDOFF_ID,
+      status: 'GENERATING',
+    });
+    expect(service.create).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        shiftId: SHIFT_ID,
+        targetDuty: 'DAY',
+        date: '2026-08-18',
+      }),
+      'generate-key-direct',
+      expect.any(String),
+    );
   });
 
   it('GET /handoffs는 meta.page cursor와 GENERATING 없는 projection을 반환한다', async () => {

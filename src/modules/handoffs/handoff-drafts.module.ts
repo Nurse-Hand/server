@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { TasksModule } from '../tasks/tasks.module';
+import { TimelineModule } from '../timeline/timeline.module';
 import { HandoffDraftJobProcessor } from './application/handoff-draft-job.processor';
 import { HandoffDraftsService } from './application/handoff-drafts.service';
 import { HANDOFF_DRAFT_AI_GATEWAY } from './application/ports/handoff-draft-ai.gateway';
@@ -12,7 +13,7 @@ import { PrismaHandoffPrecheckRepository } from './infrastructure/prisma-handoff
 import { HandoffDraftsController } from './presentation/handoff-drafts.controller';
 
 @Module({
-  imports: [AiJobsModule, TasksModule],
+  imports: [AiJobsModule, TasksModule, TimelineModule],
   controllers: [HandoffDraftsController],
   providers: [
     HandoffDraftsService,
