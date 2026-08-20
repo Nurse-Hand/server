@@ -101,8 +101,10 @@ function readScore(value: unknown): number {
   return value;
 }
 
-function readAiPriority(value: unknown): 'CRITICAL' | 'LOW' {
-  if (value !== 'CRITICAL' && value !== 'LOW') invalidResponse();
+function readAiPriority(value: unknown): 'CRITICAL' | 'HIGH' | 'NORMAL' {
+  if (value !== 'CRITICAL' && value !== 'HIGH' && value !== 'NORMAL') {
+    invalidResponse();
+  }
   return value;
 }
 

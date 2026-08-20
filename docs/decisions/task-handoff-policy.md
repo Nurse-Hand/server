@@ -36,7 +36,7 @@ AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 �
 
 모든 Task는 병동 기준 업무일인 `workDate`를 가진다. 직접 생성은 필수 미래 `dueAt`의 `Asia/Seoul` 날짜에서 파생한다. 추출 업무는 `dueAt`이 있으면 그 local date, 없으면 근거 라운딩의 근무일을 사용한다. PATCH로 `dueAt`을 추가하거나 변경하면 `workDate`도 같은 local date로 재계산하며, `dueAt`을 null로 되돌리는 변경은 허용하지 않는다. 목록의 필수 `date`는 `workDate`를 조회한다.
 
-직접 생성의 `patientId`, `description`, `priorityOverride`는 nullable이다. `priorityOverride`는 `confirmedPriority`로 매핑하고 null 또는 생략은 미확정으로 처리한다.
+직접 생성의 `patientId`, `locationLabel`, `description`, `priorityOverride`는 nullable이다. `priorityOverride`는 `confirmedPriority`로 매핑하고 null 또는 생략은 미확정으로 처리한다. 환자 관련 업무는 `scopeType=PATIENT`와 non-null `patientId`, 병동 운영 업무는 `scopeType=WARD`와 `patientId=null`로 저장한다. `isCarryOver`, `dependencyTaskIds`, `priorityMeta`는 AI 우선순위 참고 제안의 판단 재료로 저장하지만, Node.js의 기본 `rulePriority`는 계속 `dueAt` 중심의 재현 가능한 규칙값으로 계산한다.
 
 Rounding 구현 전에는 `TaskExtractionEvidencePort`와 deterministic Mock으로 근거 조회와 orchestration을 완성한다. 실제 Rounding repository 또는 Prisma model을 Task 모듈이 직접 참조하지 않으며, Rounding 구현 후 같은 Port의 Adapter를 통합 작업에서 연결한다.
 
@@ -68,14 +68,14 @@ Python FastAPI에서 생성한 OpenAPI artifact가 제공되기 전에는 실제
 
 인수인계 초안은 다음 6개 section을 환자별로 모두 가진다.
 
-| Section | 의미 |
-|---|---|
-| `PATIENT_STATUS` | 활력징후, 호흡, 의식 상태 등 환자 상태 |
-| `PAIN` | 통증과 변화 |
-| `TREATMENT` | 투약을 포함한 처치 |
-| `DIET` | 식이와 섭취 |
-| `ACTIVITY` | 활동, 이동과 안전 관련 수행 |
-| `OBSERVATION` | 보호자 문의, 낙상 위험 등 관찰·특이사항 |
+| Section          | 의미                                    |
+| ---------------- | --------------------------------------- |
+| `PATIENT_STATUS` | 활력징후, 호흡, 의식 상태 등 환자 상태  |
+| `PAIN`           | 통증과 변화                             |
+| `TREATMENT`      | 투약을 포함한 처치                      |
+| `DIET`           | 식이와 섭취                             |
+| `ACTIVITY`       | 활동, 이동과 안전 관련 수행             |
+| `OBSERVATION`    | 보호자 문의, 낙상 위험 등 관찰·특이사항 |
 
 Evidence의 세부 `topic`과 인수인계 표시 `section`은 서로 다른 축이다. 세부 검색 topic은 `VITAL_SIGNS`, `RESPIRATION`, `MENTAL_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION`을 사용할 수 있고, 앞의 세 topic은 `PATIENT_STATUS`로 묶는다. 나머지는 같은 이름의 section으로 매핑한다. 이 매핑은 검색 분류이며 원문 내용을 바꾸지 않는다.
 

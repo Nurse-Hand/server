@@ -58,9 +58,15 @@ export class TaskPrioritySuggestionService {
         date: command.date,
         tasks: snapshot.map((task) => ({
           taskId: task.taskId,
+          scopeType: task.scopeType,
           patientId: task.patientId,
+          locationLabel: task.locationLabel,
           title: task.title,
+          description: task.description,
           dueAt: task.dueAt?.toISOString() ?? null,
+          isCarryOver: task.isCarryOver,
+          dependencyTaskIds: [...task.dependencyTaskIds],
+          priorityMeta: task.priorityMeta,
           version: task.version,
         })),
       },
@@ -78,20 +84,12 @@ export class TaskPrioritySuggestionService {
     if (reservation.state === 'SUCCEEDED') return reservation.result;
     if (reservation.state === 'FAILED') throwFailure(reservation.failure);
 
-    const skippedTaskIds = snapshot
-      .filter(({ patientId }) => patientId === null)
-      .map(({ taskId }) => taskId);
-    const evaluableTasks = snapshot.filter(
-      (task): task is typeof task & { patientId: string } =>
-        task.patientId !== null,
-    );
-
-    if (evaluableTasks.length === 0) {
+    if (snapshot.length === 0) {
       return this.repository.completeSuccess({
         context,
         batchId: reservation.batchId,
         suggestions: [],
-        skippedTaskIds,
+        skippedTaskIds: [],
         evaluatedAt: this.clock.now(),
       });
     }
@@ -100,17 +98,22 @@ export class TaskPrioritySuggestionService {
     try {
       const aiResult = await this.gateway.prioritize({
         requestId,
-        tasks: evaluableTasks.map((task) => ({
+        tasks: snapshot.map((task) => ({
           taskId: task.taskId,
+          scopeType: task.scopeType,
           patientId: task.patientId,
+          locationLabel: task.locationLabel,
           title: task.title,
+          description: task.description,
           dueAt: task.dueAt?.toISOString() ?? null,
-          carriedOver: false,
+          isCarryOver: task.isCarryOver,
+          dependencyTaskIds: [...task.dependencyTaskIds],
+          priorityMeta: task.priorityMeta,
         })),
         now: now.toISOString(),
       });
       const versionByTaskId = new Map(
-        evaluableTasks.map(({ taskId, version }) => [taskId, version]),
+        snapshot.map(({ taskId, version }) => [taskId, version]),
       );
       suggestions = aiResult.suggestions.map((suggestion) => {
         const taskVersion = versionByTaskId.get(suggestion.taskId);
@@ -132,7 +135,7 @@ export class TaskPrioritySuggestionService {
       context,
       batchId: reservation.batchId,
       suggestions: suggestions.sort(compareTaskPrioritySuggestions),
-      skippedTaskIds,
+      skippedTaskIds: [],
       evaluatedAt: this.clock.now(),
     });
   }

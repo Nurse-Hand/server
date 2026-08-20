@@ -15,6 +15,11 @@ enum TaskPriority {
   NORMAL
 }
 
+enum TaskScopeType {
+  PATIENT
+  WARD
+}
+
 enum TaskAiConfidence {
   HIGH
   MEDIUM
@@ -43,13 +48,18 @@ model Task {
   datasetId           String              @db.Uuid
   actorId             String              @db.Uuid
   wardId              String              @db.Uuid
+  scopeType           TaskScopeType       @default(PATIENT)
   patientId           String?             @db.Uuid
+  locationLabel       String?             @db.VarChar(100)
   title               String              @db.VarChar(200)
   description         String?             @db.VarChar(1000)
   dueAt               DateTime?           @db.Timestamptz(3)
   workDate            DateTime            @db.Date
   status              TaskStatus          @default(TODO)
   source              TaskSource
+  isCarryOver         Boolean             @default(false)
+  dependencyTaskIds   String[]            @default([])
+  priorityMeta        Json                @default("{}")
   aiSuggestedPriority TaskPriority?
   aiReasons           String[]
   aiConfidence        TaskAiConfidence?

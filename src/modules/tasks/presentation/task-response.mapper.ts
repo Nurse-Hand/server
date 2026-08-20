@@ -24,13 +24,18 @@ const FALLBACK_EXTRACTION_FAILURE_CODE = 'TASK_EXTRACTION_FAILED';
 export function toTaskDataDto(task: TaskView): TaskDataDto {
   return {
     taskId: task.id,
+    scopeType: task.scopeType,
     patientId: task.patientId,
+    locationLabel: task.locationLabel,
     title: task.title,
     description: task.description,
     dueAt: toNullableDateTime(task.dueAt),
     workDate: toDateOnly(task.workDate),
     status: task.status,
     source: task.source,
+    isCarryOver: task.isCarryOver,
+    dependencyTaskIds: [...task.dependencyTaskIds],
+    priorityMeta: { ...task.priorityMeta },
     aiSuggestion: toTaskAiSuggestionDto(task),
     rulePriority: task.rulePriority,
     confirmedPriority: task.confirmedPriority,

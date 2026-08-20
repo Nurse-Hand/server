@@ -54,12 +54,36 @@ describe('TaskPrioritySuggestionService', () => {
     );
   });
 
-  it('수동 미완료 snapshot을 고정하고 환자 있는 업무만 AI에 전달한다', async () => {
-    const skippedTaskId = '00000000-0000-4000-8000-000000000602';
+  it('수동 미완료 snapshot을 고정하고 환자 업무와 병동 업무를 모두 AI에 전달한다', async () => {
+    const wardTaskId = '00000000-0000-4000-8000-000000000602';
     repository.findSnapshot.mockResolvedValue([
-      snapshotTask({ taskId: skippedTaskId, patientId: null }),
+      snapshotTask({
+        taskId: wardTaskId,
+        scopeType: 'WARD',
+        patientId: null,
+        locationLabel: '물품 창고',
+        title: '아세톤 재고 확인',
+        isCarryOver: true,
+      }),
       snapshotTask(),
     ]);
+    gateway.prioritize.mockResolvedValue({
+      requestId: REQUEST_ID,
+      suggestions: [
+        {
+          taskId: TASK_ID,
+          aiScore: 9,
+          aiSuggestedPriority: 'CRITICAL',
+          reasons: ['즉시 확인 필요'],
+        },
+        {
+          taskId: wardTaskId,
+          aiScore: 7,
+          aiSuggestedPriority: 'HIGH',
+          reasons: ['이월된 병동 운영 업무'],
+        },
+      ],
+    });
 
     await service.createBatch(CONTEXT, 'priority-key', REQUEST_ID, {
       date: '2026-08-19',
@@ -78,7 +102,14 @@ describe('TaskPrioritySuggestionService', () => {
         requestId: REQUEST_ID,
         inputSnapshot: [
           snapshotTask(),
-          snapshotTask({ taskId: skippedTaskId, patientId: null }),
+          snapshotTask({
+            taskId: wardTaskId,
+            scopeType: 'WARD',
+            patientId: null,
+            locationLabel: '물품 창고',
+            title: '아세톤 재고 확인',
+            isCarryOver: true,
+          }),
         ],
       }),
     );
@@ -87,10 +118,37 @@ describe('TaskPrioritySuggestionService', () => {
       tasks: [
         {
           taskId: TASK_ID,
+          scopeType: 'PATIENT',
           patientId: PATIENT_ID,
+          locationLabel: null,
           title: '통증 재평가',
+          description: null,
           dueAt: '2026-08-19T01:00:00.000Z',
-          carriedOver: false,
+          isCarryOver: false,
+          dependencyTaskIds: [],
+          priorityMeta: {
+            patientStatusUrgency: null,
+            timeSensitivity: null,
+            taskCriticality: null,
+            isBlocking: false,
+          },
+        },
+        {
+          taskId: wardTaskId,
+          scopeType: 'WARD',
+          patientId: null,
+          locationLabel: '물품 창고',
+          title: '아세톤 재고 확인',
+          description: null,
+          dueAt: '2026-08-19T01:00:00.000Z',
+          isCarryOver: true,
+          dependencyTaskIds: [],
+          priorityMeta: {
+            patientStatusUrgency: null,
+            timeSensitivity: null,
+            taskCriticality: null,
+            isBlocking: false,
+          },
         },
       ],
       now: NOW.toISOString(),
@@ -106,16 +164,21 @@ describe('TaskPrioritySuggestionService', () => {
           aiSuggestedPriority: 'CRITICAL',
           reasons: ['즉시 확인 필요'],
         },
+        {
+          taskId: wardTaskId,
+          taskVersion: 1,
+          aiScore: 7,
+          aiSuggestedPriority: 'HIGH',
+          reasons: ['이월된 병동 운영 업무'],
+        },
       ],
-      skippedTaskIds: [skippedTaskId],
+      skippedTaskIds: [],
       evaluatedAt: NOW,
     });
   });
 
-  it('평가할 환자 업무가 없으면 AI를 호출하지 않고 빈 성공을 저장한다', async () => {
-    repository.findSnapshot.mockResolvedValue([
-      snapshotTask({ patientId: null }),
-    ]);
+  it('평가할 업무가 없으면 AI를 호출하지 않고 빈 성공을 저장한다', async () => {
+    repository.findSnapshot.mockResolvedValue([]);
 
     await service.createBatch(CONTEXT, 'priority-key', REQUEST_ID, {
       date: '2026-08-19',
@@ -125,7 +188,7 @@ describe('TaskPrioritySuggestionService', () => {
     expect(repository.completeSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         suggestions: [],
-        skippedTaskIds: [TASK_ID],
+        skippedTaskIds: [],
       }),
     );
   });
@@ -197,17 +260,39 @@ function repositoryMock(): jest.Mocked<TaskPrioritySuggestionRepository> {
 function snapshotTask(
   overrides: Partial<{
     taskId: string;
+    scopeType: 'PATIENT' | 'WARD';
     patientId: string | null;
+    locationLabel: string | null;
     title: string;
+    description: string | null;
     dueAt: Date | null;
+    isCarryOver: boolean;
+    dependencyTaskIds: readonly string[];
+    priorityMeta: {
+      patientStatusUrgency: null;
+      timeSensitivity: null;
+      taskCriticality: null;
+      isBlocking: boolean;
+    };
     version: number;
   }> = {},
 ) {
   return {
     taskId: TASK_ID,
+    scopeType: 'PATIENT' as const,
     patientId: PATIENT_ID,
+    locationLabel: null,
     title: '통증 재평가',
+    description: null,
     dueAt: new Date('2026-08-19T01:00:00.000Z'),
+    isCarryOver: false,
+    dependencyTaskIds: [],
+    priorityMeta: {
+      patientStatusUrgency: null,
+      timeSensitivity: null,
+      taskCriticality: null,
+      isBlocking: false,
+    },
     version: 1,
     ...overrides,
   };
