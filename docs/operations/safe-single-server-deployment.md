@@ -127,6 +127,7 @@ npm run test:integration
 - PostgreSQL을 같은 compose에서 유지할지 외부 DB로 전환할지
 - Python AI service를 기본 기동할지 선택 profile로 분리할지
 - RAM 4GB에서 서비스별 memory/CPU 수치를 얼마로 둘지
+- host 디스크 용량과 보존 요구에 맞춘 Docker log `max-size`·`max-file` 값
 - 실제 key/token 생성·폐기·회전과 host `authorized_keys` 반영
 - host firewall 규칙과 TLS 인증서 최초 발급
 - backup 보존 주기와 실제 restore drill
