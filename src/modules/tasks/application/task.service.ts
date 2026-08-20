@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { createCanonicalRequestHash } from '../../../common/idempotency/canonical-request-hash';
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
+  TaskAiResponseInvalidError,
+  TaskAiTimeoutError,
+  TaskAiUnavailableError,
   TaskApplyInvalidError,
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
@@ -18,6 +22,7 @@ import {
   TASK_PRIORITY_SIGNAL_LEVELS,
   TASK_SCOPE_TYPES,
   TASK_STATUSES,
+  type TaskAiConfidence,
   type TaskListSort,
   type TaskPriority,
   type TaskPrioritySignalLevel,
@@ -34,6 +39,10 @@ import {
   type TaskExtractionEvidencePort,
   type TaskExtractionEvidenceSnapshot,
 } from './ports/task-extraction-evidence.port';
+import {
+  TASK_PRIORITY_AI_GATEWAY,
+  type TaskPriorityAiGateway,
+} from './ports/task-priority-ai.gateway';
 import {
   TASK_REPOSITORY,
   type ApplyTaskCandidateItem,
@@ -111,6 +120,8 @@ export class TaskService {
     private readonly repository: TaskRepository,
     @Inject(TASK_EXTRACTION_EVIDENCE_PORT)
     private readonly evidencePort: TaskExtractionEvidencePort,
+    @Inject(TASK_PRIORITY_AI_GATEWAY)
+    private readonly taskPriorityAiGateway: TaskPriorityAiGateway,
     private readonly clock: Clock,
   ) {}
 
@@ -194,27 +205,38 @@ export class TaskService {
       title,
     };
 
-    return this.repository.create({
-      context,
-      idempotencyKey,
-      requestHash: createCanonicalRequestHash({
-        path: {},
-        query: {},
-        body: normalizedBody,
-      }),
-      scopeType,
+    return this.resolveManualTaskAiSuggestion({
+      candidateKey: `manual-task:${idempotencyKey}`,
       patientId,
-      locationLabel,
       title,
       description,
       dueAt,
-      workDate: deriveSeoulWorkDate(dueAt),
-      isCarryOver,
-      dependencyTaskIds,
-      priorityMeta,
-      confirmedPriority,
-      now,
-    });
+    }).then((aiSuggestion) =>
+      this.repository.create({
+        context,
+        idempotencyKey,
+        requestHash: createCanonicalRequestHash({
+          path: {},
+          query: {},
+          body: normalizedBody,
+        }),
+        scopeType,
+        patientId,
+        locationLabel,
+        title,
+        description,
+        dueAt,
+        workDate: deriveSeoulWorkDate(dueAt),
+        isCarryOver,
+        dependencyTaskIds,
+        priorityMeta,
+        aiSuggestedPriority: aiSuggestion?.suggestedPriority ?? null,
+        aiReasons: aiSuggestion?.reasons ?? [],
+        aiConfidence: aiSuggestion?.confidence ?? null,
+        confirmedPriority,
+        now,
+      }),
+    );
   }
 
   async reserveExtraction(
@@ -486,6 +508,51 @@ export class TaskService {
       items: normalizedItems,
       now: this.clock.now(),
     });
+  }
+
+  private async resolveManualTaskAiSuggestion(input: {
+    candidateKey: string;
+    patientId: string | null;
+    title: string;
+    description: string | null;
+    dueAt: Date;
+  }): Promise<{
+    suggestedPriority: TaskPriority;
+    reasons: readonly string[];
+    confidence: TaskAiConfidence;
+  } | null> {
+    try {
+      const [suggestion] = await this.taskPriorityAiGateway.prioritize({
+        requestId: randomUUID(),
+        candidates: [
+          {
+            candidateKey: input.candidateKey,
+            patientId: input.patientId,
+            title: input.title,
+            description: input.description,
+            dueAt: input.dueAt,
+            evidenceSourceIds: [input.candidateKey],
+          },
+        ],
+      });
+
+      return suggestion
+        ? {
+            suggestedPriority: suggestion.suggestedPriority,
+            reasons: [...suggestion.reasons],
+            confidence: suggestion.confidence,
+          }
+        : null;
+    } catch (error: unknown) {
+      if (
+        error instanceof TaskAiUnavailableError ||
+        error instanceof TaskAiTimeoutError ||
+        error instanceof TaskAiResponseInvalidError
+      ) {
+        return null;
+      }
+      throw error;
+    }
   }
 }
 

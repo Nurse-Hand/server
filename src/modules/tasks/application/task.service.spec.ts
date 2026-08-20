@@ -14,6 +14,7 @@ import type {
   TaskExtractionEvidencePort,
   TaskExtractionEvidenceSnapshot,
 } from './ports/task-extraction-evidence.port';
+import type { TaskPriorityAiGateway } from './ports/task-priority-ai.gateway';
 import type { TaskRepository, TaskView } from './ports/task.repository';
 import { TaskService } from './task.service';
 
@@ -45,15 +46,22 @@ class FixedClock extends Clock {
 describe('TaskService', () => {
   let repository: jest.Mocked<TaskRepository>;
   let evidencePort: jest.Mocked<TaskExtractionEvidencePort>;
+  let priorityGateway: jest.Mocked<TaskPriorityAiGateway>;
   let service: TaskService;
 
   beforeEach(() => {
     repository = createRepositoryMock();
     evidencePort = { read: jest.fn() };
+    priorityGateway = { prioritize: jest.fn().mockResolvedValue([]) };
     evidencePort.read.mockResolvedValue(
       createEvidenceSnapshot([RECORD_ID_A, RECORD_ID_B]),
     );
-    service = new TaskService(repository, evidencePort, new FixedClock(NOW));
+    service = new TaskService(
+      repository,
+      evidencePort,
+      priorityGateway,
+      new FixedClock(NOW),
+    );
   });
 
   describe('list', () => {
@@ -134,9 +142,37 @@ describe('TaskService', () => {
           taskCriticality: null,
           isBlocking: false,
         },
+        aiSuggestedPriority: null,
+        aiReasons: [],
+        aiConfidence: null,
         confirmedPriority: 'HIGH',
         now: NOW,
       });
+    });
+
+    it('AI 우선순위 응답이 오면 직접 생성 업무에도 aiSuggestion 저장값을 함께 넘긴다', async () => {
+      priorityGateway.prioritize.mockResolvedValue([
+        {
+          candidateKey: 'manual-task:create-key',
+          suggestedPriority: 'HIGH',
+          reasons: ['dueAt이 가까움'],
+          confidence: 'MEDIUM',
+          evidenceSourceIds: ['manual-task:create-key'],
+        },
+      ]);
+
+      await service.create(CONTEXT, 'create-key', REQUEST_ID, {
+        title: '통증 재평가',
+        dueAt: '2026-08-19T15:00:00.000Z',
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aiSuggestedPriority: 'HIGH',
+          aiReasons: ['dueAt이 가까움'],
+          aiConfidence: 'MEDIUM',
+        }),
+      );
     });
 
     it('생략과 null 및 동등한 timestamp 표현을 같은 request hash로 정규화한다', async () => {

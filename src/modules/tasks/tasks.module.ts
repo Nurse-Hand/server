@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 import { TASK_EXTRACTION_AI_GATEWAY } from './application/ports/task-extraction-ai.gateway';
 import { TASK_EXTRACTION_EVIDENCE_PORT } from './application/ports/task-extraction-evidence.port';
@@ -10,10 +11,13 @@ import { TASK_REPOSITORY } from './application/ports/task.repository';
 import { TaskExtractionWorker } from './application/task-extraction.worker';
 import { TaskPrioritySuggestionService } from './application/task-priority-suggestion.service';
 import { TaskService } from './application/task.service';
+import { HttpTaskExtractionAiAdapter } from './infrastructure/ai/http-task-extraction-ai.adapter';
+import { HttpTaskPriorityAiAdapter } from './infrastructure/ai/http-task-priority-ai.adapter';
 import { DeterministicTaskExtractionAiAdapter } from './infrastructure/deterministic-task-extraction-ai.adapter';
 import { DeterministicTaskExtractionEvidenceAdapter } from './infrastructure/deterministic-task-extraction-evidence.adapter';
 import { DeterministicTaskPriorityAiAdapter } from './infrastructure/deterministic-task-priority-ai.adapter';
 import { HttpTaskPrioritySuggestionAdapter } from './infrastructure/ai/http-task-priority-suggestion.adapter';
+import { PrismaTaskExtractionEvidenceAdapter } from './infrastructure/prisma-task-extraction-evidence.adapter';
 import { PrismaTaskRepository } from './infrastructure/prisma-task.repository';
 import { TasksController } from './presentation/tasks.controller';
 
@@ -25,9 +29,12 @@ import { TasksController } from './presentation/tasks.controller';
     TaskPrioritySuggestionService,
     TaskExtractionWorker,
     PrismaTaskRepository,
+    PrismaTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionAiAdapter,
     DeterministicTaskPriorityAiAdapter,
+    HttpTaskExtractionAiAdapter,
+    HttpTaskPriorityAiAdapter,
     HttpTaskPrioritySuggestionAdapter,
     { provide: TASK_REPOSITORY, useExisting: PrismaTaskRepository },
     { provide: TASK_QUERY_PORT, useExisting: PrismaTaskRepository },
@@ -37,15 +44,35 @@ import { TasksController } from './presentation/tasks.controller';
     },
     {
       provide: TASK_EXTRACTION_EVIDENCE_PORT,
-      useExisting: DeterministicTaskExtractionEvidenceAdapter,
+      useExisting: PrismaTaskExtractionEvidenceAdapter,
     },
     {
       provide: TASK_EXTRACTION_AI_GATEWAY,
-      useExisting: DeterministicTaskExtractionAiAdapter,
+      inject: [
+        ConfigService,
+        HttpTaskExtractionAiAdapter,
+        DeterministicTaskExtractionAiAdapter,
+      ],
+      useFactory: (
+        configService: ConfigService,
+        httpAdapter: HttpTaskExtractionAiAdapter,
+        fallbackAdapter: DeterministicTaskExtractionAiAdapter,
+      ) =>
+        hasTaskAiConfiguration(configService) ? httpAdapter : fallbackAdapter,
     },
     {
       provide: TASK_PRIORITY_AI_GATEWAY,
-      useExisting: DeterministicTaskPriorityAiAdapter,
+      inject: [
+        ConfigService,
+        HttpTaskPriorityAiAdapter,
+        DeterministicTaskPriorityAiAdapter,
+      ],
+      useFactory: (
+        configService: ConfigService,
+        httpAdapter: HttpTaskPriorityAiAdapter,
+        fallbackAdapter: DeterministicTaskPriorityAiAdapter,
+      ) =>
+        hasTaskAiConfiguration(configService) ? httpAdapter : fallbackAdapter,
     },
     {
       provide: TASK_PRIORITY_SUGGESTION_GATEWAY,
@@ -55,3 +82,10 @@ import { TasksController } from './presentation/tasks.controller';
   exports: [TASK_QUERY_PORT, TaskExtractionWorker],
 })
 export class TasksModule {}
+
+function hasTaskAiConfiguration(configService: ConfigService): boolean {
+  return Boolean(
+    configService.get<string>('AI_BASE_URL')?.trim() &&
+    configService.get<string>('AI_INTERNAL_API_TOKEN')?.trim(),
+  );
+}

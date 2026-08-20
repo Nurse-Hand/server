@@ -76,6 +76,9 @@ export type CreateTaskInput = {
   isCarryOver: boolean;
   dependencyTaskIds: readonly string[];
   priorityMeta: TaskPriorityMeta;
+  aiSuggestedPriority: TaskPriority | null;
+  aiReasons: readonly string[];
+  aiConfidence: TaskAiConfidence | null;
   confirmedPriority: TaskPriority | null;
   now: Date;
 };

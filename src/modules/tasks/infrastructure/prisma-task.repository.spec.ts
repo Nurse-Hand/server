@@ -1025,6 +1025,9 @@ function createInput(): CreateTaskInput {
       isBlocking: false,
     },
     confirmedPriority: null,
+    aiSuggestedPriority: null,
+    aiReasons: [],
+    aiConfidence: null,
     now: NOW,
   };
 }
