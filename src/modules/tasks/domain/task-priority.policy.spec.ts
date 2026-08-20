@@ -58,6 +58,7 @@ describe('task priority policy', () => {
     expect(mapAiTaskPriority('CRITICAL')).toBe('CRITICAL');
     expect(mapAiTaskPriority('HIGH')).toBe('HIGH');
     expect(mapAiTaskPriority('NORMAL')).toBe('NORMAL');
+    expect(mapAiTaskPriority('LOW')).toBe('NORMAL');
   });
 
   it('같은 batch의 참고 제안만 score 내림차순과 taskId로 안정 정렬한다', () => {

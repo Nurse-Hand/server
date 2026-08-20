@@ -21,7 +21,7 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
             {
               taskId: TASK_ID,
               score: 7.5,
-              priority: 'HIGH',
+              priority: 'LOW',
               reasons: ['정규 라운딩 확인'],
             },
           ],
@@ -60,7 +60,7 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
       {
         taskId: TASK_ID,
         aiScore: 7.5,
-        aiSuggestedPriority: 'HIGH',
+        aiSuggestedPriority: 'NORMAL',
         reasons: ['정규 라운딩 확인'],
       },
     ]);

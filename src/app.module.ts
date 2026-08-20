@@ -15,6 +15,7 @@ import { FilesModule } from './modules/files/files.module';
 import { HandoffsModule } from './modules/handoffs/handoffs.module';
 import { HealthModule } from './modules/health/health.module';
 import { PatientsModule } from './modules/patients/patients.module';
+import { QuickNotesModule } from './modules/quick-notes/quick-notes.module';
 import { RoundingAnalysisModule } from './modules/rounding-analysis/rounding-analysis.module';
 import { RoundingModule } from './modules/rounding/rounding.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
@@ -35,6 +36,7 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     FilesModule,
     HealthModule,
     PatientsModule,
+    QuickNotesModule,
     RoundingModule,
     RoundingAnalysisModule,
     SchedulesModule,

@@ -1,23 +1,24 @@
 model DemoDataset {
-  id                     String                   @id @default(uuid()) @db.Uuid
-  kind                   DemoDatasetKind          @default(SYNTHETIC)
-  scenarioKey            String                   @db.VarChar(64)
-  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
-  sessions               DemoSession[]
-  nurses                 Nurse[]
-  wards                  Ward[]
-  wardMemberships        WardMembership[]
-  nurseShifts            NurseShift[]
-  patients               Patient[]
-  patientAssignments     PatientAssignment[]
-  timelineEvents         TimelineEvent[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  kind               DemoDatasetKind     @default(SYNTHETIC)
+  scenarioKey        String              @db.VarChar(64)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  sessions           DemoSession[]
+  nurses             Nurse[]
+  wards              Ward[]
+  wardMemberships    WardMembership[]
+  nurseShifts        NurseShift[]
+  patients           Patient[]
+  patientAssignments PatientAssignment[]
+  timelineEvents     TimelineEvent[]
   timelineEventHistories TimelineEventHistory[]
-  roundingSessions       RoundingSession[]
-  storedFiles            StoredFile[]
-  aiJobs                 AiJob[]
-  idempotencyRecords     IdempotencyRecord[]
-  monthlySchedules       MonthlySchedule[]
-  scheduleReceipts       MonthlyScheduleReceipt[]
+  roundingSessions   RoundingSession[]
+  storedFiles        StoredFile[]
+  quickNotes         QuickNote[]
+  aiJobs             AiJob[]
+  idempotencyRecords IdempotencyRecord[]
+  monthlySchedules   MonthlySchedule[]
+  scheduleReceipts   MonthlyScheduleReceipt[]
 }
 
 model DemoSession {
