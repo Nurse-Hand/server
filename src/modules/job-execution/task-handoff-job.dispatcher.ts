@@ -14,6 +14,7 @@ const OPERATIONS = [
 ] as const;
 
 type JobScope = { datasetId: string; wardId: string };
+export type WorkerDrainResult = 'DRAINED' | 'TIMED_OUT';
 
 @Injectable()
 export class TaskHandoffJobDispatcher {
@@ -29,16 +30,16 @@ export class TaskHandoffJobDispatcher {
     private readonly clock: Clock,
   ) {}
 
-  async shutdown(): Promise<void> {
-    this.isShuttingDown = true;
-    try {
-      await this.activeDispatch;
-    } catch {
-      this.logger.error({
-        event: 'dispatch_drain_failed',
-        errorType: 'UnknownError',
-      });
+  async shutdown(timeoutMilliseconds: number): Promise<WorkerDrainResult> {
+    if (!Number.isInteger(timeoutMilliseconds) || timeoutMilliseconds < 1) {
+      throw new Error('worker drain timeout must be a positive integer');
     }
+
+    this.isShuttingDown = true;
+    const activeDispatch = this.activeDispatch;
+    if (activeDispatch === undefined) return 'DRAINED';
+
+    return this.waitForActiveDispatch(activeDispatch, timeoutMilliseconds);
   }
 
   async runOnce(): Promise<boolean> {
@@ -60,6 +61,7 @@ export class TaskHandoffJobDispatcher {
   private async dispatch(): Promise<boolean> {
     const scopes = await this.findRunnableScopes();
     for (const scope of scopes) {
+      if (this.isShuttingDown) break;
       await this.processScope(scope);
     }
     return true;
@@ -84,15 +86,48 @@ export class TaskHandoffJobDispatcher {
   }
 
   private async processScope(scope: JobScope): Promise<void> {
+    if (this.isShuttingDown) return;
     await this.processOperation(TASK_EXTRACTION_OPERATION, () =>
       this.taskExtraction.processNext(scope),
     );
+    if (this.isShuttingDown) return;
     await this.processOperation(HANDOFF_JOB_OPERATIONS.PRECHECK, () =>
       this.handoffPrecheck.processNext(scope),
     );
+    if (this.isShuttingDown) return;
     await this.processOperation(HANDOFF_JOB_OPERATIONS.GENERATE, () =>
       this.handoffDraft.processNext(scope),
     );
+  }
+
+  private waitForActiveDispatch(
+    activeDispatch: Promise<boolean>,
+    timeoutMilliseconds: number,
+  ): Promise<WorkerDrainResult> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result: WorkerDrainResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      };
+      const timeout = setTimeout(
+        () => finish('TIMED_OUT'),
+        timeoutMilliseconds,
+      );
+
+      void activeDispatch.then(
+        () => finish('DRAINED'),
+        () => {
+          this.logger.error({
+            event: 'dispatch_drain_failed',
+            errorType: 'UnknownError',
+          });
+          finish('DRAINED');
+        },
+      );
+    });
   }
 
   private async processOperation(
