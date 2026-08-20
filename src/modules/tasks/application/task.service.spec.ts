@@ -4,6 +4,7 @@ import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import {
   TaskApplyInvalidError,
+  TaskAiUnavailableError,
   TaskCommandInvalidError,
   TaskDueAtInvalidError,
   TaskExtractionEvidenceEmptyError,
@@ -171,6 +172,25 @@ describe('TaskService', () => {
           aiSuggestedPriority: 'HIGH',
           aiReasons: ['dueAt이 가까움'],
           aiConfidence: 'MEDIUM',
+        }),
+      );
+    });
+
+    it('AI 우선순위 서버를 사용할 수 없으면 직접 생성 업무는 aiSuggestion 없이 저장한다', async () => {
+      priorityGateway.prioritize.mockRejectedValue(
+        new TaskAiUnavailableError(),
+      );
+
+      await service.create(CONTEXT, 'create-key', REQUEST_ID, {
+        title: '산소포화도 재측정',
+        dueAt: '2026-08-19T15:00:00.000Z',
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aiSuggestedPriority: null,
+          aiReasons: [],
+          aiConfidence: null,
         }),
       );
     });
