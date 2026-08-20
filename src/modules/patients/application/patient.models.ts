@@ -4,6 +4,7 @@ export type PatientReadModel = {
   patientId: string;
   displayName: string;
   roomLabel: string;
+  patientCode: string | null;
   statusLabel: string | null;
   department: string | null;
   admittedAt: Date | null;
@@ -12,3 +13,10 @@ export type PatientReadModel = {
 };
 
 export type PatientTimelineReadModel = TimelineEventReadModel;
+
+export type PatientTimelineReadResult = {
+  patient: PatientReadModel;
+  workDate: string | null;
+  daySummary: string | null;
+  items: readonly PatientTimelineReadModel[];
+};

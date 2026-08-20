@@ -6,11 +6,19 @@ import {
   TIMELINE_READER,
   type TimelineReader,
 } from '../../timeline/application/ports/timeline-reader';
-import { PatientNotFoundError } from '../domain/patient.errors';
+import {
+  PatientNotFoundError,
+  PatientTimelineQueryInvalidError,
+} from '../domain/patient.errors';
 import type {
   PatientReadModel,
+  PatientTimelineReadResult,
   PatientTimelineReadModel,
 } from './patient.models';
+
+const SEOUL_OFFSET = '+09:00';
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 @Injectable()
 export class PatientQueryService {
@@ -31,6 +39,11 @@ export class PatientQueryService {
         id: true,
         displayName: true,
         roomLabel: true,
+        patientCode: true,
+        statusLabel: true,
+        department: true,
+        admittedAt: true,
+        baselineSummary: true,
         createdAt: true,
       },
     });
@@ -52,6 +65,11 @@ export class PatientQueryService {
         id: true,
         displayName: true,
         roomLabel: true,
+        patientCode: true,
+        statusLabel: true,
+        department: true,
+        admittedAt: true,
+        baselineSummary: true,
         createdAt: true,
       },
     });
@@ -66,15 +84,34 @@ export class PatientQueryService {
   async readTimeline(input: {
     context: DemoSessionContext;
     patientId: string;
+    workDate?: string;
     from?: Date;
     to?: Date;
-  }): Promise<readonly PatientTimelineReadModel[]> {
-    return this.timelineReader.read({
+  }): Promise<PatientTimelineReadResult> {
+    const patient = await this.get({
       context: input.context,
       patientId: input.patientId,
-      ...(input.from === undefined ? {} : { from: input.from }),
-      ...(input.to === undefined ? {} : { to: input.to }),
     });
+    const range = input.workDate
+      ? seoulDateRangeInclusive(input.workDate)
+      : null;
+    const items = await this.timelineReader.read({
+      context: input.context,
+      patientId: input.patientId,
+      ...(range
+        ? { from: range.from, to: range.to }
+        : {
+            ...(input.from === undefined ? {} : { from: input.from }),
+            ...(input.to === undefined ? {} : { to: input.to }),
+          }),
+    });
+
+    return {
+      patient,
+      workDate: input.workDate ?? null,
+      daySummary: summarizeTimeline(items),
+      items,
+    };
   }
 
   private assignedPatientWhere(context: DemoSessionContext, now: Date) {
@@ -98,16 +135,64 @@ function mapPatient(patient: {
   id: string;
   displayName: string;
   roomLabel: string;
+  patientCode: string | null;
+  statusLabel: string | null;
+  department: string | null;
+  admittedAt: Date | null;
+  baselineSummary: string | null;
   createdAt: Date;
 }): PatientReadModel {
   return {
     patientId: patient.id,
     displayName: patient.displayName,
     roomLabel: patient.roomLabel,
-    statusLabel: null,
-    department: null,
-    admittedAt: null,
-    baselineSummary: null,
+    patientCode: patient.patientCode,
+    statusLabel: patient.statusLabel,
+    department: patient.department,
+    admittedAt: patient.admittedAt,
+    baselineSummary: patient.baselineSummary,
     createdAt: patient.createdAt,
   };
+}
+
+function seoulDateRangeInclusive(date: string): { from: Date; to: Date } {
+  const from = new Date(`${date}T00:00:00.000${SEOUL_OFFSET}`);
+
+  if (
+    !ISO_DATE_PATTERN.test(date) ||
+    Number.isNaN(from.getTime()) ||
+    toSeoulDate(from) !== date
+  ) {
+    throw new PatientTimelineQueryInvalidError(
+      'workDate는 YYYY-MM-DD 형식의 유효한 날짜여야 합니다.',
+    );
+  }
+
+  return {
+    from,
+    to: new Date(from.getTime() + DAY_IN_MILLISECONDS - 1),
+  };
+}
+
+function toSeoulDate(value: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value);
+}
+
+function summarizeTimeline(
+  items: readonly PatientTimelineReadModel[],
+): string | null {
+  if (items.length === 0) return null;
+
+  const ordered = [...items].sort(
+    (left, right) => right.occurredAt.getTime() - left.occurredAt.getTime(),
+  );
+  const important = ordered.filter((item) => item.important);
+  const sources = important.length > 0 ? important : ordered.slice(0, 2);
+
+  return sources.map((item) => item.summary).join(' / ');
 }

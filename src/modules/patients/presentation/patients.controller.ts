@@ -71,6 +71,7 @@ export class PatientsController {
       await this.patientQueryService.readTimeline({
         context,
         patientId,
+        ...(query.workDate === undefined ? {} : { workDate: query.workDate }),
         ...(query.from === undefined ? {} : { from: new Date(query.from) }),
         ...(query.to === undefined ? {} : { to: new Date(query.to) }),
       }),

@@ -610,6 +610,17 @@
             }
           },
           {
+            "name": "workDate",
+            "required": false,
+            "in": "query",
+            "description": "Asia/Seoul 기준 조회 날짜. 지정하면 from/to보다 우선합니다.",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-08-20",
+              "type": "string"
+            }
+          },
+          {
             "name": "from",
             "required": false,
             "in": "query",
@@ -5756,6 +5767,11 @@
             "type": "string",
             "example": "301호 1번 침상"
           },
+          "patientCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "P-301-01"
+          },
           "statusLabel": {
             "type": "string",
             "nullable": true
@@ -5782,6 +5798,7 @@
           "patientId",
           "displayName",
           "roomLabel",
+          "patientCode",
           "statusLabel",
           "department",
           "admittedAt",
@@ -5916,6 +5933,19 @@
       "PatientTimelineDataDto": {
         "type": "object",
         "properties": {
+          "patient": {
+            "$ref": "#/components/schemas/PatientDataDto"
+          },
+          "workDate": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-08-20"
+          },
+          "daySummary": {
+            "type": "string",
+            "nullable": true,
+            "example": "오늘 통증 NRS가 감소했고, 보행기 사용 가능 상태입니다."
+          },
           "items": {
             "type": "array",
             "items": {
@@ -5924,6 +5954,9 @@
           }
         },
         "required": [
+          "patient",
+          "workDate",
+          "daySummary",
           "items"
         ]
       },

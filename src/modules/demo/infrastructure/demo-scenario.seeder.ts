@@ -118,16 +118,30 @@ export class DemoScenarioSeeder {
       datasetId,
       ward.id,
       'patient-a',
-      'Synthetic Patient A',
-      'SYN-A',
+      '환자 A',
+      '301호 1번 침상',
+      {
+        patientCode: 'P-301-01',
+        statusLabel: '주의',
+        department: '정형외과',
+        admittedAt: new Date('2026-07-30T00:00:00.000+09:00'),
+        baselineSummary: '우측 대퇴골 골절 수술 후 통증 조절 및 보행 재활 중',
+      },
     );
     const patientB = await this.upsertPatient(
       transaction,
       datasetId,
       ward.id,
       'patient-b',
-      'Synthetic Patient B',
-      'SYN-B',
+      '환자 B',
+      '405호 2번 침상',
+      {
+        patientCode: 'P-405-02',
+        statusLabel: '주의',
+        department: '호흡기내과',
+        admittedAt: new Date('2026-08-02T00:00:00.000+09:00'),
+        baselineSummary: '폐렴 치료 후 산소포화도와 호흡곤란 여부 관찰 중',
+      },
     );
 
     await this.upsertAssignment(
@@ -161,7 +175,7 @@ export class DemoScenarioSeeder {
       'timeline-patient-a-observation',
       new Date(referenceTime.getTime() - 30 * 60 * 1000),
       'synthetic:observation:a',
-      'Synthetic observation A',
+      '오전 라운딩에서 보행기 사용 가능, 수술 부위 출혈 없음',
     );
     const eventB = await this.upsertTimelineEvent(
       transaction,
@@ -171,7 +185,7 @@ export class DemoScenarioSeeder {
       'timeline-patient-b-observation',
       new Date(referenceTime.getTime() - 15 * 60 * 1000),
       'synthetic:observation:b',
-      'Synthetic observation B',
+      '산소포화도 96% 유지, 기침 증상은 전일보다 감소',
     );
 
     return {
@@ -247,16 +261,24 @@ export class DemoScenarioSeeder {
     logicalKey: string,
     displayName: string,
     roomLabel: string,
+    profile: {
+      patientCode: string;
+      statusLabel: string;
+      department: string;
+      admittedAt: Date;
+      baselineSummary: string;
+    },
   ) {
     return transaction.patient.upsert({
       where: { patient_dataset_logical_key: { datasetId, logicalKey } },
-      update: { displayName, roomLabel },
+      update: { displayName, roomLabel, ...profile },
       create: {
         datasetId,
         logicalKey,
         wardId,
         displayName,
         roomLabel,
+        ...profile,
       },
     });
   }
