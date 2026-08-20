@@ -13,6 +13,8 @@ model DemoDataset {
   timelineEvents     TimelineEvent[]
   timelineEventHistories TimelineEventHistory[]
   roundingSessions   RoundingSession[]
+  roundingRecords    RoundingRecord[]
+  roundingAudioChunks RoundingAudioChunk[]
   storedFiles        StoredFile[]
   quickNotes         QuickNote[]
   aiJobs             AiJob[]

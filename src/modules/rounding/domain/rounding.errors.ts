@@ -33,6 +33,17 @@ export class RoundingSegmentPeriodInvalidError extends ApplicationError {
   }
 }
 
+export class RoundingRecordPeriodInvalidError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'ROUNDING_RECORD_PERIOD_INVALID',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '라운딩 기록 시간이 올바르지 않습니다.',
+    });
+    this.name = RoundingRecordPeriodInvalidError.name;
+  }
+}
+
 export class RoundingSessionCompletedAtInvalidError extends ApplicationError {
   constructor() {
     super({
@@ -52,5 +63,27 @@ export class RoundingPatientNotFoundError extends ApplicationError {
       publicMessage: '라운딩 대상 환자를 찾을 수 없습니다.',
     });
     this.name = RoundingPatientNotFoundError.name;
+  }
+}
+
+export class RoundingRecordPayloadRequiredError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'ROUNDING_RECORD_PAYLOAD_REQUIRED',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '빠른 기록에는 메모 또는 음성 파일이 필요합니다.',
+    });
+    this.name = RoundingRecordPayloadRequiredError.name;
+  }
+}
+
+export class RoundingAudioFileNotFoundError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'ROUNDING_AUDIO_FILE_NOT_FOUND',
+      kind: 'NOT_FOUND',
+      publicMessage: '연결할 음성 파일을 찾을 수 없습니다.',
+    });
+    this.name = RoundingAudioFileNotFoundError.name;
   }
 }

@@ -42,6 +42,8 @@ model WardMembership {
   demoSessions       DemoSession[]            @relation("DemoSessionMembership")
   nurseShifts        NurseShift[]             @relation("ShiftMembership")
   roundingSessions   RoundingSession[]        @relation("RoundingSessionMembership")
+  roundingRecords    RoundingRecord[]         @relation("RoundingRecordMembership")
+  roundingAudioChunks RoundingAudioChunk[]    @relation("RoundingAudioChunkMembership")
   aiJobs             AiJob[]                  @relation("AiJobMembership")
   idempotencyRecords IdempotencyRecord[]      @relation("IdempotencyMembership")
   monthlySchedules   MonthlySchedule[]        @relation("MonthlyScheduleMembership")
@@ -85,6 +87,7 @@ model Patient {
   patientAssignments PatientAssignment[]      @relation("AssignmentPatient")
   timelineEvents     TimelineEvent[]          @relation("TimelineEventPatient")
   roundingSegments   RoundingPatientSegment[] @relation("RoundingSegmentPatient")
+  roundingRecords    RoundingRecord[]         @relation("RoundingRecordPatient")
   quickNotes         QuickNote[]              @relation("QuickNotePatient")
 
   @@unique(name: "patient_dataset_id", [datasetId, id])

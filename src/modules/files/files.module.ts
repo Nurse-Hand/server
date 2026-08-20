@@ -18,5 +18,6 @@ import { FilesController } from './presentation/files.controller';
       useExisting: PrismaStoredFileRepository,
     },
   ],
+  exports: [FilesService],
 })
 export class FilesModule {}
