@@ -21,6 +21,7 @@ import {
 } from './http-handoff-input.mapper';
 
 const EMPTY_SECTION_CONTENT = '해당 항목에 반영할 근거가 없습니다.';
+const MAX_SECTION_CONTENT_LENGTH = 5000;
 
 @Injectable()
 export class HttpHandoffDraftAiGateway implements HandoffDraftAiGateway {
@@ -29,20 +30,31 @@ export class HttpHandoffDraftAiGateway implements HandoffDraftAiGateway {
   async generate(input: HandoffDraftAiInput): Promise<HandoffDraftAiResult> {
     const patients = await Promise.all(
       input.patients.map(async (patient) => {
+        const evidencePayloads = toHttpEvidencePayloads(patient);
         const generated = await this.client.generate({
           requestId: input.requestId,
           patientId: patient.patientId,
           roundingSessionId: roundingSessionIdForRequest(input.requestId),
-          evidences: toHttpEvidencePayloads(patient),
+          evidences: evidencePayloads,
           openTasks: toHttpGenerateOpenTasks(patient),
         });
         const resolveSources = createSourceReferenceResolver(patient);
+        const evidenceTopics = new Map(
+          evidencePayloads.map(({ evidenceId, topic }) => [evidenceId, topic]),
+        );
         const sectionsByTopic = new Map<
           HandoffClinicalSection,
           { content: string; citations: readonly HandoffAiSourceReference[] }
         >();
 
         for (const item of generated.items) {
+          if (
+            item.evidenceRefs.some(
+              ({ evidenceId }) => evidenceTopics.get(evidenceId) !== item.topic,
+            )
+          ) {
+            continue;
+          }
           const previous = sectionsByTopic.get(item.topic);
           const content = compactContent(item.title, item.summary);
           const citations = resolveSources({
@@ -56,6 +68,20 @@ export class HttpHandoffDraftAiGateway implements HandoffDraftAiGateway {
               ...(previous?.citations ?? []),
               ...citations,
             ]),
+          });
+        }
+
+        for (const section of HANDOFF_CLINICAL_SECTIONS) {
+          if (sectionsByTopic.has(section)) continue;
+          const sectionEvidence = evidencePayloads.filter(
+            ({ topic }) => topic === section,
+          );
+          if (sectionEvidence.length === 0) continue;
+          sectionsByTopic.set(section, {
+            content: evidenceFallbackContent(section, sectionEvidence),
+            citations: resolveSources({
+              evidenceIds: sectionEvidence.map(({ evidenceId }) => evidenceId),
+            }),
           });
         }
 
@@ -108,6 +134,20 @@ function compactContent(title: string, summary: string): string {
 
 function sanitizeText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function evidenceFallbackContent(
+  section: HandoffClinicalSection,
+  evidence: readonly { text: string }[],
+): string {
+  const summary = evidence
+    .map(({ text }) => sanitizeText(text))
+    .filter((text) => text.length > 0)
+    .join(' ');
+  if (summary.length === 0) return EMPTY_SECTION_CONTENT;
+  return `${handoffSectionOf(section)}: ${summary}`
+    .slice(0, MAX_SECTION_CONTENT_LENGTH)
+    .trimEnd();
 }
 
 function sectionFallbackContent(

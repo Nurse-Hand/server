@@ -6,6 +6,9 @@ import { HttpHandoffPrecheckAiGateway } from './http-handoff-precheck-ai.gateway
 const REQUEST_ID = '00000000-0000-4000-8000-000000000701';
 const PATIENT_ID = '00000000-0000-4000-8000-000000000401';
 const EVENT_ID = '00000000-0000-4000-8000-000000000501';
+const RESPIRATION_EVENT_ID = '00000000-0000-4000-8000-000000000502';
+const TREATMENT_EVENT_ID = '00000000-0000-4000-8000-000000000503';
+const GENERIC_OXYGEN_EVENT_ID = '00000000-0000-4000-8000-000000000504';
 const TASK_ID = '00000000-0000-4000-8000-000000000601';
 const ITEM_ID = '00000000-0000-4000-8000-000000000801';
 const NOW = new Date('2026-08-20T01:00:00.000Z');
@@ -99,6 +102,156 @@ describe('Http handoff AI gateways', () => {
         patientId: PATIENT_ID,
       }),
     ]);
+  });
+
+  it('근거 topic을 임상 의미로 분류하고 AI가 누락한 section을 원본 citation으로 결정론적으로 복구한다', async () => {
+    const incompleteGenerateResponse = {
+      draftId: 'handoff-draft-001',
+      patientId: PATIENT_ID,
+      roundingSessionId: REQUEST_ID,
+      items: [
+        {
+          topic: 'VITAL_SIGNS',
+          section: '활력징후',
+          title: '잘못 분류된 호흡 근거',
+          summary: '기침과 가래가 있어 호흡 상태 확인 필요',
+          requiresNurseConfirmation: false,
+          confidence: 0.7,
+          evidenceRefs: [
+            {
+              evidenceId: RESPIRATION_EVENT_ID,
+              displayQuote: '기침과 가래가 있고 호흡곤란 및 숨참 호소',
+              isPrimary: true,
+            },
+          ],
+        },
+      ],
+    };
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(incompleteGenerateResponse))
+      .mockResolvedValueOnce(jsonResponse(incompleteGenerateResponse));
+    const input = draftInput(
+      false,
+      patientInput(
+        [
+          timelineEvent(EVENT_ID, 'SpO2 94%, 혈압과 체온 재측정 필요'),
+          timelineEvent(
+            RESPIRATION_EVENT_ID,
+            '기침과 가래가 있고 호흡곤란 및 숨참 호소',
+          ),
+          timelineEvent(
+            TREATMENT_EVENT_ID,
+            '산소 투여 중이며 비강 캐뉼라 2L 유지',
+          ),
+          timelineEvent(
+            GENERIC_OXYGEN_EVENT_ID,
+            '산소 관련 상태 추가 확인 필요',
+          ),
+        ],
+        [],
+      ),
+    );
+    const gateway = draftGateway();
+
+    const first = await gateway.generate(input);
+    const second = await gateway.generate(input);
+
+    const requestBody = JSON.parse(
+      fetchMock.mock.calls[0]![1]!.body as string,
+    ) as {
+      evidences: Array<{
+        evidenceId: string;
+        topic: string;
+        handoffSection: string;
+      }>;
+    };
+    expect(
+      requestBody.evidences.map(({ evidenceId, topic, handoffSection }) => ({
+        evidenceId,
+        topic,
+        handoffSection,
+      })),
+    ).toEqual([
+      {
+        evidenceId: EVENT_ID,
+        topic: 'VITAL_SIGNS',
+        handoffSection: '활력징후',
+      },
+      {
+        evidenceId: RESPIRATION_EVENT_ID,
+        topic: 'RESPIRATION',
+        handoffSection: '호흡',
+      },
+      {
+        evidenceId: TREATMENT_EVENT_ID,
+        topic: 'TREATMENT',
+        handoffSection: '처치',
+      },
+      {
+        evidenceId: GENERIC_OXYGEN_EVENT_ID,
+        topic: 'OBSERVATION',
+        handoffSection: '관찰사항·특이사항',
+      },
+    ]);
+    expect(first.patients).toEqual(second.patients);
+    expect(first.patients[0].sections.map(({ section }) => section)).toEqual([
+      'VITAL_SIGNS',
+      'RESPIRATION',
+      'MENTAL_STATUS',
+      'PAIN',
+      'TREATMENT',
+      'DIET',
+      'OBSERVATION',
+    ]);
+    expect(first.patients[0].sections).toEqual(
+      expect.arrayContaining([
+        {
+          section: 'VITAL_SIGNS',
+          content: '활력징후: SpO2 94%, 혈압과 체온 재측정 필요',
+          citations: [
+            {
+              sourceType: 'TIMELINE_EVENT',
+              sourceId: EVENT_ID,
+              patientId: PATIENT_ID,
+            },
+          ],
+        },
+        {
+          section: 'RESPIRATION',
+          content: '호흡: 기침과 가래가 있고 호흡곤란 및 숨참 호소',
+          citations: [
+            {
+              sourceType: 'TIMELINE_EVENT',
+              sourceId: RESPIRATION_EVENT_ID,
+              patientId: PATIENT_ID,
+            },
+          ],
+        },
+        {
+          section: 'TREATMENT',
+          content: '처치: 산소 투여 중이며 비강 캐뉼라 2L 유지',
+          citations: [
+            {
+              sourceType: 'TIMELINE_EVENT',
+              sourceId: TREATMENT_EVENT_ID,
+              patientId: PATIENT_ID,
+            },
+          ],
+        },
+        {
+          section: 'OBSERVATION',
+          content: '관찰사항·특이사항: 산소 관련 상태 추가 확인 필요',
+          citations: [
+            {
+              sourceType: 'TIMELINE_EVENT',
+              sourceId: GENERIC_OXYGEN_EVENT_ID,
+              patientId: PATIENT_ID,
+            },
+          ],
+        },
+      ]),
+    );
   });
 
   it('precheck gateway가 generate 후 precheck를 호출하고 HIGH severity를 CRITICAL로 매핑한다', async () => {
@@ -233,12 +386,12 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
-function draftInput(includeUnverified: boolean) {
+function draftInput(includeUnverified: boolean, patient = patientInput()) {
   return {
     requestId: REQUEST_ID,
     templateId: 'NURSING_HANDOFF_V1' as const,
     includeUnverified,
-    patients: [patientInput()],
+    patients: [patient],
     precheckItems: includeUnverified
       ? [
           {
@@ -266,27 +419,42 @@ function precheckInput() {
   };
 }
 
-function patientInput() {
+function patientInput(
+  timelineEvents = [
+    timelineEvent(
+      EVENT_ID,
+      '산소포화도 94%로 재측정 필요',
+      'rounding-analysis:job:utterance:1',
+    ),
+  ],
+  tasks = [
+    {
+      id: TASK_ID,
+      title: '산소포화도 재측정',
+      dueAt: null,
+      effectivePriority: 'HIGH' as const,
+      version: 1,
+      sourceReferences: ['task:601'],
+    },
+  ],
+) {
   return {
     patientId: PATIENT_ID,
-    timelineEvents: [
-      {
-        id: EVENT_ID,
-        occurredAt: NOW,
-        type: 'OBSERVATION' as const,
-        summary: '산소포화도 94%로 재측정 필요',
-        sourceReference: 'rounding-analysis:job:utterance:1',
-      },
-    ],
-    tasks: [
-      {
-        id: TASK_ID,
-        title: '산소포화도 재측정',
-        dueAt: null,
-        effectivePriority: 'HIGH' as const,
-        version: 1,
-        sourceReferences: ['task:601'],
-      },
-    ],
+    timelineEvents,
+    tasks,
+  };
+}
+
+function timelineEvent(
+  id: string,
+  summary: string,
+  sourceReference = `rounding-analysis:${id}`,
+) {
+  return {
+    id,
+    occurredAt: NOW,
+    type: 'OBSERVATION' as const,
+    summary,
+    sourceReference,
   };
 }
