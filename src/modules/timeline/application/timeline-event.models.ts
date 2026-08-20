@@ -1,5 +1,6 @@
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type {
+  TimelineClinicalCategory,
   TimelineEventConfirmationStatus,
   TimelineEventSource,
   TimelineEventType,
@@ -12,6 +13,7 @@ export type TimelineEventDetail = {
   patientId: string;
   occurredAt: Date;
   type: TimelineEventType;
+  clinicalCategory: TimelineClinicalCategory | null;
   source: TimelineEventSource;
   sourceReference: string;
   summary: string;

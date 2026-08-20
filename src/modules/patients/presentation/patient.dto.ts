@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsISO8601, IsOptional, Matches } from 'class-validator';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
+import {
+  TIMELINE_CLINICAL_CATEGORIES,
+  type TimelineClinicalCategory,
+} from '../../timeline/domain/timeline.types';
 import type {
   PatientReadModel,
   PatientTimelineReadResult,
@@ -93,6 +97,9 @@ export class PatientTimelineEventDto {
   })
   type!: 'OBSERVATION' | 'MEDICATION' | 'PROCEDURE' | 'REPORT' | 'TASK';
 
+  @ApiPropertyOptional({ enum: TIMELINE_CLINICAL_CATEGORIES })
+  clinicalCategory?: TimelineClinicalCategory;
+
   @ApiProperty({ enum: ['MANUAL', 'AI_AUDIO'] })
   source!: 'MANUAL' | 'AI_AUDIO';
 
@@ -182,6 +189,10 @@ export function toPatientTimelineDataDto(
       patientId: event.patientId,
       occurredAt: event.occurredAt.toISOString(),
       type: event.type,
+      ...(event.clinicalCategory === undefined ||
+      event.clinicalCategory === null
+        ? {}
+        : { clinicalCategory: event.clinicalCategory }),
       source: event.source,
       summary: event.summary,
       important: event.important ?? false,

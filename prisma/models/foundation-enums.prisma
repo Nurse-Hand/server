@@ -33,6 +33,16 @@ enum TimelineEventType {
   TASK
 }
 
+enum TimelineClinicalCategory {
+  VITAL_SIGNS
+  RESPIRATION
+  MENTAL_STATUS
+  PAIN
+  TREATMENT
+  DIET
+  OBSERVATION
+}
+
 enum TimelineEventConfirmationStatus {
   PENDING
   CONFIRMED

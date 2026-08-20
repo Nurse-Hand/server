@@ -126,6 +126,7 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
             wardId: input.context.wardId,
             occurredAt: input.occurredAt,
             type: 'OBSERVATION',
+            clinicalCategory: input.noteType,
             source: 'MANUAL',
             sourceReference: `quick-note:${quickNoteId}`,
             summary: input.structuredFacts.summary ?? input.text ?? '',

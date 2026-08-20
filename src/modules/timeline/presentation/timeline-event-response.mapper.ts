@@ -15,6 +15,9 @@ export function toTimelineEventDataDto(
     patientId: event.patientId,
     occurredAt: event.occurredAt.toISOString(),
     type: event.type,
+    ...(event.clinicalCategory === null
+      ? {}
+      : { clinicalCategory: event.clinicalCategory }),
     source: event.source,
     sourceReference: event.sourceReference,
     summary: event.summary,

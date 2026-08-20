@@ -14,9 +14,11 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
 import {
+  TIMELINE_CLINICAL_CATEGORIES,
   TIMELINE_EVENT_CONFIRMATION_STATUSES,
   TIMELINE_EVENT_SOURCES,
   TIMELINE_EVENT_TYPES,
+  type TimelineClinicalCategory,
   type TimelineEventConfirmationStatus,
   type TimelineEventSource,
   type TimelineEventType,
@@ -98,6 +100,9 @@ export class TimelineEventDataDto {
 
   @ApiProperty({ enum: TIMELINE_EVENT_TYPES })
   type!: TimelineEventType;
+
+  @ApiPropertyOptional({ enum: TIMELINE_CLINICAL_CATEGORIES })
+  clinicalCategory?: TimelineClinicalCategory;
 
   @ApiProperty({ enum: TIMELINE_EVENT_SOURCES })
   source!: TimelineEventSource;
