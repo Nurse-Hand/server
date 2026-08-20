@@ -128,6 +128,7 @@
         ],
         "requestBody": {
           "required": true,
+          "description": "multipart/form-data field name은 file입니다. 허용 MIME types: audio/aac, audio/flac, audio/m4a, audio/mp4, audio/mpeg, audio/ogg, audio/wav, audio/webm, audio/x-m4a, audio/x-wav, video/mp4",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -256,6 +257,7 @@
         ],
         "requestBody": {
           "required": true,
+          "description": "multipart/form-data field name은 file입니다. 허용 MIME types: image/heic, image/heif, image/jpeg, image/jpg, image/pjpeg, image/png, image/webp",
           "content": {
             "multipart/form-data": {
               "schema": {

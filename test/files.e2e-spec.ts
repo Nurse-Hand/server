@@ -182,6 +182,27 @@ describe('Files (e2e)', () => {
     await expect(readdir(join(storageRoot, 'photos'))).resolves.toHaveLength(1);
   });
 
+  it('POST /api/v1/files/photos는 image/jpeg 사진을 저장한다', async () => {
+    const fileBuffer = Buffer.from('synthetic-jpeg-bytes');
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/files/photos')
+      .attach('file', fileBuffer, {
+        contentType: 'image/jpeg',
+        filename: 'photo.jpg',
+      })
+      .expect(201);
+
+    expect(response.body.data).toMatchObject({
+      kind: 'PHOTO',
+      mimeType: 'image/jpeg',
+      originalName: 'photo.jpg',
+      sizeBytes: fileBuffer.length,
+    });
+    expect(repository.records[0]?.storageUri).toMatch(
+      /^local:\/\/\/photos\/.+\.jpg$/,
+    );
+  });
+
   it('검증 실패 시 tmp와 최종 디렉터리에 파일을 남기지 않는다', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/files/audio')
