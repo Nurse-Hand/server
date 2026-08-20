@@ -472,34 +472,102 @@ export class RoundingAnalysisService {
   async searchEvidence(
     input: SearchEvidenceInput,
   ): Promise<readonly RoundingEvidenceReadModel[]> {
-    const rows = await this.prisma.roundingEvidence.findMany({
-      where: {
-        datasetId: input.context.datasetId,
-        wardId: input.context.wardId,
-        ...(input.patientId === undefined
-          ? {}
-          : { patientId: input.patientId }),
-        ...(input.topic === undefined ? {} : { topic: input.topic }),
-        ...(input.query === undefined || input.query.trim() === ''
-          ? {}
-          : {
-              OR: [
-                {
-                  textForRetrieval: {
-                    contains: input.query.trim(),
-                    mode: 'insensitive',
+    const limit = input.limit ?? 20;
+    const query = input.query?.trim();
+    const [roundingRows, quickNoteRows] = await Promise.all([
+      this.prisma.roundingEvidence.findMany({
+        where: {
+          datasetId: input.context.datasetId,
+          wardId: input.context.wardId,
+          ...(input.patientId === undefined
+            ? {}
+            : { patientId: input.patientId }),
+          ...(input.topic === undefined ? {} : { topic: input.topic }),
+          ...(query === undefined || query === ''
+            ? {}
+            : {
+                OR: [
+                  {
+                    textForRetrieval: {
+                      contains: query,
+                      mode: 'insensitive',
+                    },
                   },
-                },
-                { keywords: { has: input.query.trim() } },
-              ],
-            }),
+                  { keywords: { has: query } },
+                ],
+              }),
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit,
+        select: evidenceSelect,
+      }),
+      this.prisma.quickNote.findMany({
+        where: {
+          datasetId: input.context.datasetId,
+          wardId: input.context.wardId,
+          evidenceStatus: 'CONVERTED',
+          text: { not: null },
+          ...(input.patientId === undefined
+            ? {}
+            : { patientId: input.patientId }),
+          ...(input.topic === undefined ? {} : { topic: input.topic }),
+          ...(query === undefined || query === ''
+            ? {}
+            : {
+                OR: [
+                  { text: { contains: query, mode: 'insensitive' } },
+                  { keywords: { has: query } },
+                ],
+              }),
+        },
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        take: limit,
+        select: quickNoteEvidenceSelect,
+      }),
+    ]);
+
+    const quickNoteTimelineIds = await this.readQuickNoteTimelineIds(
+      input.context,
+      quickNoteRows.map((row) => row.id),
+    );
+    const evidences = [
+      ...roundingRows.map(mapEvidence),
+      ...quickNoteRows.map((row) =>
+        mapQuickNoteEvidence(row, quickNoteTimelineIds.get(row.id) ?? null),
+      ),
+    ];
+
+    return evidences
+      .sort(
+        (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+      )
+      .slice(0, limit);
+  }
+
+  private async readQuickNoteTimelineIds(
+    context: DemoSessionContext,
+    quickNoteIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    if (quickNoteIds.length === 0) {
+      return new Map();
+    }
+
+    const sourceReferences = quickNoteIds.map((id) => `quick-note:${id}`);
+    const rows = await this.prisma.timelineEvent.findMany({
+      where: {
+        datasetId: context.datasetId,
+        wardId: context.wardId,
+        sourceReference: { in: sourceReferences },
       },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: input.limit ?? 20,
-      select: evidenceSelect,
+      select: { id: true, sourceReference: true },
     });
 
-    return rows.map(mapEvidence);
+    return new Map(
+      rows.map((row) => [
+        row.sourceReference.replace(/^quick-note:/, ''),
+        row.id,
+      ]),
+    );
   }
 }
 
@@ -609,6 +677,30 @@ type EvidenceRow = {
   utteranceLinks: { utteranceId: string }[];
 };
 
+const quickNoteEvidenceSelect = {
+  id: true,
+  patientId: true,
+  topic: true,
+  handoffSection: true,
+  keywords: true,
+  structuredFacts: true,
+  text: true,
+  occurredAt: true,
+  createdAt: true,
+} as const;
+
+type QuickNoteEvidenceRow = {
+  id: string;
+  patientId: string;
+  topic: RoundingEvidenceTopic;
+  handoffSection: string;
+  keywords: string[];
+  structuredFacts: unknown;
+  text: string | null;
+  occurredAt: Date;
+  createdAt: Date;
+};
+
 function mapAnalysisJob(row: AnalysisJobRow): RoundingAnalysisJobReadModel {
   return {
     jobId: row.id,
@@ -654,6 +746,42 @@ function mapEvidence(row: EvidenceRow): RoundingEvidenceReadModel {
     sourceUtteranceIds: row.utteranceLinks.map((link) => link.utteranceId),
     timelineEventId: row.timelineEventId,
     createdAt: row.createdAt,
+  };
+}
+
+function mapQuickNoteEvidence(
+  row: QuickNoteEvidenceRow,
+  timelineEventId: string | null,
+): RoundingEvidenceReadModel {
+  const structuredFacts = parseQuickNoteStructuredFacts(row.structuredFacts);
+  const textForRetrieval =
+    row.text?.trim() || structuredFacts.summary?.trim() || row.handoffSection;
+
+  return {
+    evidenceId: row.id,
+    patientId: row.patientId,
+    topic: row.topic,
+    handoffSection: row.handoffSection,
+    keywords: row.keywords,
+    importanceFlags: ['quick_note'],
+    requiresNurseConfirmation: false,
+    textForRetrieval,
+    sourceUtteranceIds: [],
+    timelineEventId,
+    createdAt: row.occurredAt,
+  };
+}
+
+function parseQuickNoteStructuredFacts(value: unknown): {
+  summary: string | null;
+} {
+  if (typeof value !== 'object' || value === null || !('summary' in value)) {
+    return { summary: null };
+  }
+
+  const candidate = value as { summary?: unknown };
+  return {
+    summary: typeof candidate.summary === 'string' ? candidate.summary : null,
   };
 }
 

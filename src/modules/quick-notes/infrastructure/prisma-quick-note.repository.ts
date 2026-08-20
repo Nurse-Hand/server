@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import type {
@@ -81,77 +82,60 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
 
   async create(input: CreateQuickNoteInput): Promise<QuickNoteView> {
     const quickNoteId = randomUUID();
-    const created = await this.prisma.quickNote.create({
-      data: {
-        id: quickNoteId,
-        datasetId: input.context.datasetId,
-        logicalKey: `quick-note:${quickNoteId}`,
-        actorId: input.context.actorId,
-        wardId: input.context.wardId,
-        patientId: input.patientId,
-        noteType: input.noteType,
-        topic: input.topic,
-        handoffSection: input.handoffSection,
-        text: input.text,
-        occurredAt: input.occurredAt,
-        keywords: [...input.keywords],
-        structuredFacts: input.structuredFacts,
-        ...(input.audioFile === null
-          ? {}
-          : { audioFileId: input.audioFile.id }),
-        ...(input.photoFiles.length === 0
-          ? {}
-          : {
-              photoLinks: {
-                create: input.photoFiles.map((file) => ({
-                  datasetId: input.context.datasetId,
-                  photoFileId: file.id,
-                })),
-              },
-            }),
-      },
-      select: {
-        id: true,
-        patientId: true,
-        noteType: true,
-        topic: true,
-        handoffSection: true,
-        sourceType: true,
-        text: true,
-        occurredAt: true,
-        keywords: true,
-        structuredFacts: true,
-        evidenceStatus: true,
-        createdAt: true,
-        updatedAt: true,
-        audioFile: {
-          select: {
-            id: true,
-            kind: true,
-            mimeType: true,
-            originalName: true,
-            sizeBytes: true,
-            checksum: true,
-            createdAt: true,
-          },
+    const hasTextEvidence = input.text !== null;
+    const created = await this.prisma.$transaction(async (transaction) => {
+      const note = await transaction.quickNote.create({
+        data: {
+          id: quickNoteId,
+          datasetId: input.context.datasetId,
+          logicalKey: `quick-note:${quickNoteId}`,
+          actorId: input.context.actorId,
+          wardId: input.context.wardId,
+          patientId: input.patientId,
+          noteType: input.noteType,
+          topic: input.topic,
+          handoffSection: input.handoffSection,
+          text: input.text,
+          occurredAt: input.occurredAt,
+          keywords: [...input.keywords],
+          structuredFacts: input.structuredFacts,
+          evidenceStatus: hasTextEvidence ? 'CONVERTED' : 'PENDING',
+          ...(input.audioFile === null
+            ? {}
+            : { audioFileId: input.audioFile.id }),
+          ...(input.photoFiles.length === 0
+            ? {}
+            : {
+                photoLinks: {
+                  create: input.photoFiles.map((file) => ({
+                    datasetId: input.context.datasetId,
+                    photoFileId: file.id,
+                  })),
+                },
+              }),
         },
-        photoLinks: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: {
-            photoFile: {
-              select: {
-                id: true,
-                kind: true,
-                mimeType: true,
-                originalName: true,
-                sizeBytes: true,
-                checksum: true,
-                createdAt: true,
-              },
-            },
+        select: quickNoteSelect,
+      });
+
+      if (hasTextEvidence) {
+        await transaction.timelineEvent.create({
+          data: {
+            datasetId: input.context.datasetId,
+            logicalKey: `quick-note:${quickNoteId}`,
+            patientId: input.patientId,
+            wardId: input.context.wardId,
+            occurredAt: input.occurredAt,
+            type: 'OBSERVATION',
+            source: 'MANUAL',
+            sourceReference: `quick-note:${quickNoteId}`,
+            summary: input.structuredFacts.summary ?? input.text ?? '',
+            confirmationStatus: 'CONFIRMED',
+            updatedByActorId: input.context.actorId,
           },
-        },
-      },
+        });
+      }
+
+      return note;
     });
 
     return {
@@ -176,6 +160,49 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
     };
   }
 }
+
+const quickNoteSelect = {
+  id: true,
+  patientId: true,
+  noteType: true,
+  topic: true,
+  handoffSection: true,
+  sourceType: true,
+  text: true,
+  occurredAt: true,
+  keywords: true,
+  structuredFacts: true,
+  evidenceStatus: true,
+  createdAt: true,
+  updatedAt: true,
+  audioFile: {
+    select: {
+      id: true,
+      kind: true,
+      mimeType: true,
+      originalName: true,
+      sizeBytes: true,
+      checksum: true,
+      createdAt: true,
+    },
+  },
+  photoLinks: {
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      photoFile: {
+        select: {
+          id: true,
+          kind: true,
+          mimeType: true,
+          originalName: true,
+          sizeBytes: true,
+          checksum: true,
+          createdAt: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.QuickNoteSelect;
 
 function mapAttachment(file: {
   id: string;

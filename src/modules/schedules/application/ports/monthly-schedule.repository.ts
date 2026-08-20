@@ -11,7 +11,7 @@ export const MONTHLY_SCHEDULE_REPOSITORY = Symbol(
 export type MonthlyScheduleView = {
   yearMonth: string;
   version: number;
-  entries: readonly ScheduleEntryInput[];
+  entries: readonly (ScheduleEntryInput & { shiftId?: string | null })[];
   totals: Readonly<Record<ScheduleDuty, number>>;
 };
 
