@@ -1,6 +1,9 @@
 import type { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { Clock } from '../../../common/time/clock';
-import { RoundingSegmentPeriodInvalidError } from '../domain/rounding.errors';
+import {
+  RoundingSegmentPeriodInvalidError,
+  RoundingSessionCompletedAtInvalidError,
+} from '../domain/rounding.errors';
 import { RoundingSessionService } from './rounding-session.service';
 
 describe('RoundingSessionService', () => {
@@ -66,5 +69,34 @@ describe('RoundingSessionService', () => {
       }),
     ).rejects.toBeInstanceOf(RoundingSegmentPeriodInvalidError);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('라운딩 종료 시각이 시작 시각보다 이르면 서비스에서 거부한다', async () => {
+    const startedAt = new Date('2026-08-20T09:00:00.000Z');
+    const prisma = {
+      $transaction: jest.fn(async (callback) =>
+        callback({
+          roundingSession: {
+            findFirst: jest.fn().mockResolvedValue({
+              id: '44444444-4444-4444-8444-444444444444',
+              status: 'RECORDING',
+              startedAt,
+            }),
+            update: jest.fn(),
+          },
+        }),
+      ),
+    } as unknown as PrismaService;
+    const service = new RoundingSessionService(prisma, {
+      now: () => new Date('2026-08-20T10:00:00.000Z'),
+    } as Clock);
+
+    await expect(
+      service.complete({
+        context,
+        sessionId: '44444444-4444-4444-8444-444444444444',
+        completedAt: new Date('2026-08-20T08:59:59.000Z'),
+      }),
+    ).rejects.toBeInstanceOf(RoundingSessionCompletedAtInvalidError);
   });
 });
