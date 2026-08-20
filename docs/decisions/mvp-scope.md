@@ -14,12 +14,12 @@
 
 ## 2. 범위 요약
 
-| 구분 | 개수 | 구현 결정 | 소유권 |
-|---|---:|---|---|
-| 인증 공개 API | 5 | MVP 제외 | 후속 Node.js 서버 작업 |
-| 인증 외 공개 API | 33 | 전부 구현 | Node.js 서버 |
-| 내부 AI API | 5 | 전부 연동 | Python AI가 추론 API 제공, Node.js가 Adapter와 작업 오케스트레이션 구현 |
-| 합계 | 43 | 38개 API 구현·연동, 인증 5개 제외 | 아래 전수 목록 참조 |
+| 구분             | 개수 | 구현 결정                         | 소유권                                                                  |
+| ---------------- | ---: | --------------------------------- | ----------------------------------------------------------------------- |
+| 인증 공개 API    |    5 | MVP 제외                          | 후속 Node.js 서버 작업                                                  |
+| 인증 외 공개 API |   33 | 전부 구현                         | Node.js 서버                                                            |
+| 내부 AI API      |    5 | 전부 연동                         | Python AI가 추론 API 제공, Node.js가 Adapter와 작업 오케스트레이션 구현 |
+| 합계             |   43 | 38개 API 구현·연동, 인증 5개 제외 | 아래 전수 목록 참조                                                     |
 
 인증을 제외하는 동안 actor와 병동 범위를 임의 body 값으로 받지 않도록 `POST /api/v1/demo-sessions`를 서버 지원 API로 추가한다. 이 API는 Notion export의 43개에는 포함하지 않으며 로그인·회원가입을 대신하는 실제 인증 기능으로 취급하지 않는다. 첫 업무 API를 구현하기 전에 synthetic 사용자·병동·환자 배정과 함께 제공해야 한다.
 
@@ -27,14 +27,14 @@
 
 Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라운딩 resource 연결에 필요한 공개 API는 별도 지원 API로 관리한다. 지원 API를 추가·삭제할 때도 Controller·DTO·OpenAPI·테스트와 아래 표를 같은 변경에서 갱신한다.
 
-| Method | Endpoint | 목적 | 기존 기능과의 경계 |
-|---|---|---|---|
-| `POST` | `/api/v1/demo-sessions` | 인증 제외 기간의 검증된 synthetic context 생성 | 인증 5개를 구현한 것으로 계산하지 않음 |
-| `POST` | `/api/v1/rounding-sessions/{sessionId}/patient-segments` | 한 라운딩 안의 현재 환자 구간 전환 기록 | 라운딩 세션 시작·종료·조회 API를 대체하지 않음 |
-| `POST` | `/api/v1/files/audio` | 빠른 기록 등 단일 오디오 파일 저장 | 장시간 라운딩의 `audio-chunks` API를 대체하지 않음 |
-| `POST` | `/api/v1/files/photos` | 사진 파일 저장 | 파일 ID를 실제 라운딩·빠른 기록 resource에 연결해야 함 |
-| `POST` | `/api/v1/quick-notes` | 활성 라운딩 밖에서 환자를 선택해 빠른 기록 생성 | 세션 안의 `/rounding-sessions/{sessionId}/records`를 대체하지 않음 |
-| `POST` | `/api/v1/task-priority-suggestions` | 수동 업무의 명시적 AI 우선순위 참고 제안 batch 생성 | Notion 업무 API 6개와 내부 `/internal/v1/tasks/prioritize`를 대체하지 않음 |
+| Method | Endpoint                                                 | 목적                                                | 기존 기능과의 경계                                                         |
+| ------ | -------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
+| `POST` | `/api/v1/demo-sessions`                                  | 인증 제외 기간의 검증된 synthetic context 생성      | 인증 5개를 구현한 것으로 계산하지 않음                                     |
+| `POST` | `/api/v1/rounding-sessions/{sessionId}/patient-segments` | 한 라운딩 안의 현재 환자 구간 전환 기록             | 라운딩 세션 시작·종료·조회 API를 대체하지 않음                             |
+| `POST` | `/api/v1/files/audio`                                    | 빠른 기록 등 단일 오디오 파일 저장                  | 장시간 라운딩의 `audio-chunks` API를 대체하지 않음                         |
+| `POST` | `/api/v1/files/photos`                                   | 사진 파일 저장                                      | 파일 ID를 실제 라운딩·빠른 기록 resource에 연결해야 함                     |
+| `POST` | `/api/v1/quick-notes`                                    | 활성 라운딩 밖에서 환자를 선택해 빠른 기록 생성     | 세션 안의 `/rounding-sessions/{sessionId}/records`를 대체하지 않음         |
+| `POST` | `/api/v1/task-priority-suggestions`                      | 수동 업무의 명시적 AI 우선순위 참고 제안 batch 생성 | Notion 업무 API 6개와 내부 `/internal/v1/tasks/prioritize`를 대체하지 않음 |
 
 지원 파일은 demo session scope를 검증하고, 연결되지 않은 orphan의 정리 정책을 파일 저장 Issue에서 고정해야 한다. 파일 업로드 성공만으로 라운딩 기록이나 빠른 기록이 생성된 것으로 취급하지 않는다.
 
@@ -42,33 +42,33 @@ Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라�
 
 ### 3.1 인증 — 5개, MVP 제외
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 1 | `POST` | `/api/v1/auth/token/refresh` | Access Token 재발급 | P0 | Node.js | MVP 제외 |
-| 2 | `POST` | `/api/v1/auth/password-reset/request` | 비밀번호 재설정 요청 | P1 | Node.js | MVP 제외 |
-| 3 | `POST` | `/api/v1/auth/logout` | 로그아웃 | P1 | Node.js | MVP 제외 |
-| 4 | `POST` | `/api/v1/auth/login` | 로그인 | P0 | Node.js | MVP 제외 |
-| 5 | `POST` | `/api/v1/auth/register` | 회원가입 | P1 | Node.js | MVP 제외 |
+|   # | Method | Endpoint                              | 기능                 | 우선순위 | 소유권  | 구현 여부 |
+| --: | ------ | ------------------------------------- | -------------------- | -------- | ------- | --------- |
+|   1 | `POST` | `/api/v1/auth/token/refresh`          | Access Token 재발급  | P0       | Node.js | MVP 제외  |
+|   2 | `POST` | `/api/v1/auth/password-reset/request` | 비밀번호 재설정 요청 | P1       | Node.js | MVP 제외  |
+|   3 | `POST` | `/api/v1/auth/logout`                 | 로그아웃             | P1       | Node.js | MVP 제외  |
+|   4 | `POST` | `/api/v1/auth/login`                  | 로그인               | P0       | Node.js | MVP 제외  |
+|   5 | `POST` | `/api/v1/auth/register`               | 회원가입             | P1       | Node.js | MVP 제외  |
 
 ### 3.2 근무표 — 4개, Node.js 구현
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 6 | `POST` | `/api/v1/schedule-ocr-jobs` | 근무표 OCR 작업 생성 | P1 | Node.js, OCR은 AI Adapter 연동 | 구현 |
-| 7 | `GET` | `/api/v1/schedule-ocr-jobs/{jobId}` | 근무표 OCR 결과 조회 | P1 | Node.js | 구현 |
-| 8 | `PUT` | `/api/v1/me/schedules/{yearMonth}` | 근무표 저장·수정 | P1 | Node.js | 구현 |
-| 9 | `GET` | `/api/v1/me/schedules/{yearMonth}` | 내 근무표 조회 | P1 | Node.js | 구현 |
+|   # | Method | Endpoint                            | 기능                 | 우선순위 | 소유권                         | 구현 여부 |
+| --: | ------ | ----------------------------------- | -------------------- | -------- | ------------------------------ | --------- |
+|   6 | `POST` | `/api/v1/schedule-ocr-jobs`         | 근무표 OCR 작업 생성 | P1       | Node.js, OCR은 AI Adapter 연동 | 구현      |
+|   7 | `GET`  | `/api/v1/schedule-ocr-jobs/{jobId}` | 근무표 OCR 결과 조회 | P1       | Node.js                        | 구현      |
+|   8 | `PUT`  | `/api/v1/me/schedules/{yearMonth}`  | 근무표 저장·수정     | P1       | Node.js                        | 구현      |
+|   9 | `GET`  | `/api/v1/me/schedules/{yearMonth}`  | 내 근무표 조회       | P1       | Node.js                        | 구현      |
 
 ### 3.3 라운딩 — 6개, Node.js 구현
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 10 | `POST` | `/api/v1/rounding-sessions/{sessionId}/complete` | 라운딩 세션 종료 | P0 | Node.js | 구현 |
-| 11 | `GET` | `/api/v1/rounding-sessions/{sessionId}` | 라운딩 세션 상태 조회 | P0 | Node.js | 구현 |
-| 12 | `POST` | `/api/v1/rounding-sessions` | 라운딩 세션 시작 | P0 | Node.js | 구현 |
-| 13 | `GET` | `/api/v1/rounding-records` | 오늘 라운딩 기록 조회 | P0 | Node.js | 구현 |
-| 14 | `POST` | `/api/v1/rounding-sessions/{sessionId}/records` | 빠른 기록 생성 | P1 | Node.js | 구현 |
-| 15 | `POST` | `/api/v1/rounding-sessions/{sessionId}/audio-chunks` | 음성 청크 업로드 | P0 | Node.js, 분석은 AI Adapter 연동 | 구현 |
+|   # | Method | Endpoint                                             | 기능                  | 우선순위 | 소유권                          | 구현 여부 |
+| --: | ------ | ---------------------------------------------------- | --------------------- | -------- | ------------------------------- | --------- |
+|  10 | `POST` | `/api/v1/rounding-sessions/{sessionId}/complete`     | 라운딩 세션 종료      | P0       | Node.js                         | 구현      |
+|  11 | `GET`  | `/api/v1/rounding-sessions/{sessionId}`              | 라운딩 세션 상태 조회 | P0       | Node.js                         | 구현      |
+|  12 | `POST` | `/api/v1/rounding-sessions`                          | 라운딩 세션 시작      | P0       | Node.js                         | 구현      |
+|  13 | `GET`  | `/api/v1/rounding-records`                           | 오늘 라운딩 기록 조회 | P0       | Node.js                         | 구현      |
+|  14 | `POST` | `/api/v1/rounding-sessions/{sessionId}/records`      | 빠른 기록 생성        | P1       | Node.js                         | 구현      |
+|  15 | `POST` | `/api/v1/rounding-sessions/{sessionId}/audio-chunks` | 음성 청크 업로드      | P0       | Node.js, 분석은 AI Adapter 연동 | 구현      |
 
 가비아 단일 서버 데모에서는 사진과 음성을 서버 로컬 디스크에 저장하고 DB에는 검증된 metadata와 비공개 storage URI만 둔다. 파일 저장 구현은 교체 가능한 Port/Adapter 뒤에 두되 S3 연동은 MVP 범위에서 제외한다. 저장소 선택과 무관하게 음성 업로드 API 자체는 범위에서 제외하지 않는다.
 
@@ -76,55 +76,55 @@ Notion의 기능 API를 대체하지 않으면서 데모 실행과 파일·라�
 
 ### 3.4 환자 Timeline — 7개, Node.js 구현
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 16 | `POST` | `/api/v1/patient-insights/{insightId}/actions` | AI 인사이트 처리 | P0 | Node.js | 구현 |
-| 17 | `GET` | `/api/v1/patients/{patientId}/timeline` | 환자 Timeline 조회 | P0 | Node.js | 구현 |
-| 18 | `PATCH` | `/api/v1/rounding-records/{recordId}/patient` | 기록 환자 매칭 수정 | P0 | Node.js | 구현 |
-| 19 | `GET` | `/api/v1/patients` | 담당 환자 목록 조회 | P0 | Node.js | 구현 |
-| 20 | `PATCH` | `/api/v1/timeline-events/{eventId}` | Timeline 이벤트 수정 | P1 | Node.js | 구현 |
-| 21 | `GET` | `/api/v1/patients/{patientId}` | 환자 상세 조회 | P0 | Node.js | 구현 |
-| 22 | `GET` | `/api/v1/timeline-events/{eventId}/history` | Timeline 이벤트 변경 이력 조회 | P1 | Node.js | 구현 |
+|   # | Method  | Endpoint                                       | 기능                           | 우선순위 | 소유권  | 구현 여부 |
+| --: | ------- | ---------------------------------------------- | ------------------------------ | -------- | ------- | --------- |
+|  16 | `POST`  | `/api/v1/patient-insights/{insightId}/actions` | AI 인사이트 처리               | P0       | Node.js | 구현      |
+|  17 | `GET`   | `/api/v1/patients/{patientId}/timeline`        | 환자 Timeline 조회             | P0       | Node.js | 구현      |
+|  18 | `PATCH` | `/api/v1/rounding-records/{recordId}/patient`  | 기록 환자 매칭 수정            | P0       | Node.js | 구현      |
+|  19 | `GET`   | `/api/v1/patients`                             | 담당 환자 목록 조회            | P0       | Node.js | 구현      |
+|  20 | `PATCH` | `/api/v1/timeline-events/{eventId}`            | Timeline 이벤트 수정           | P1       | Node.js | 구현      |
+|  21 | `GET`   | `/api/v1/patients/{patientId}`                 | 환자 상세 조회                 | P0       | Node.js | 구현      |
+|  22 | `GET`   | `/api/v1/timeline-events/{eventId}/history`    | Timeline 이벤트 변경 이력 조회 | P1       | Node.js | 구현      |
 
 ### 3.5 업무 — 6개, Node.js 구현
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 23 | `GET` | `/api/v1/tasks` | 업무 목록 조회 | P0 | Node.js | 구현 |
-| 24 | `POST` | `/api/v1/tasks` | 업무 직접 생성 | P0 | Node.js | 구현 |
-| 25 | `POST` | `/api/v1/task-extraction-jobs` | 업무 추출 작업 생성 | P0 | Node.js, AI Adapter 연동 | 구현 |
-| 26 | `GET` | `/api/v1/task-extraction-jobs/{jobId}` | 업무 추출 결과 조회 | P0 | Node.js | 구현 |
-| 27 | `PATCH` | `/api/v1/tasks/{taskId}` | 업무 수정·상태 변경 | P0 | Node.js | 구현 |
-| 28 | `POST` | `/api/v1/task-extraction-jobs/{jobId}/apply` | 추출 업무 선택 반영 | P0 | Node.js | 구현 |
+|   # | Method  | Endpoint                                     | 기능                | 우선순위 | 소유권                   | 구현 여부 |
+| --: | ------- | -------------------------------------------- | ------------------- | -------- | ------------------------ | --------- |
+|  23 | `GET`   | `/api/v1/tasks`                              | 업무 목록 조회      | P0       | Node.js                  | 구현      |
+|  24 | `POST`  | `/api/v1/tasks`                              | 업무 직접 생성      | P0       | Node.js                  | 구현      |
+|  25 | `POST`  | `/api/v1/task-extraction-jobs`               | 업무 추출 작업 생성 | P0       | Node.js, AI Adapter 연동 | 구현      |
+|  26 | `GET`   | `/api/v1/task-extraction-jobs/{jobId}`       | 업무 추출 결과 조회 | P0       | Node.js                  | 구현      |
+|  27 | `PATCH` | `/api/v1/tasks/{taskId}`                     | 업무 수정·상태 변경 | P0       | Node.js                  | 구현      |
+|  28 | `POST`  | `/api/v1/task-extraction-jobs/{jobId}/apply` | 추출 업무 선택 반영 | P0       | Node.js                  | 구현      |
 
 위 6개는 Notion 43개 전수표의 업무 API다. 명시적 AI 제안 batch용 `POST /api/v1/task-priority-suggestions`는 2.1의 서버 지원 API로 별도 관리하므로 43개 합계와 업무 6개 개수에는 포함하지 않는다.
 
 ### 3.6 인수인계 — 10개, Node.js 전부 구현
 
-| # | Method | Endpoint | 기능 | 우선순위 | 소유권 | 구현 여부 |
-|---:|---|---|---|---|---|---|
-| 29 | `POST` | `/api/v1/handoffs/{handoffId}/finalize` | 인수인계 최종 확정 | P0 | Node.js | 구현 |
-| 30 | `PATCH` | `/api/v1/handoffs/{handoffId}` | 인수인계 초안 수정 | P0 | Node.js | 구현 |
-| 31 | `GET` | `/api/v1/handoffs/{handoffId}/history` | 인수인계 변경·열람 이력 조회 | P1 | Node.js | 구현 |
-| 32 | `GET` | `/api/v1/handoff-prechecks/{precheckId}` | 인수인계 사전검증 결과 조회 | P0 | Node.js | 구현 |
-| 33 | `GET` | `/api/v1/handoffs` | 인수인계 목록 조회 | P0 | Node.js | 구현 |
-| 34 | `PATCH` | `/api/v1/handoff-prechecks/{precheckId}/items/{itemId}` | 역질문 응답 저장 | P0 | Node.js | 구현 |
-| 35 | `GET` | `/api/v1/handoffs/{handoffId}` | 인수인계 상세 조회 | P0 | Node.js | 구현 |
-| 36 | `POST` | `/api/v1/handoffs` | 인수인계 초안 생성 | P0 | Node.js, AI Adapter 연동 | 구현 |
-| 37 | `POST` | `/api/v1/handoffs/{handoffId}/acknowledgements` | 인수인계 수신 확인 | P1 | Node.js | 구현 |
-| 38 | `POST` | `/api/v1/handoff-prechecks` | 인수인계 사전검증 생성 | P0 | Node.js, AI Adapter 연동 | 구현 |
+|   # | Method  | Endpoint                                                | 기능                         | 우선순위 | 소유권                   | 구현 여부 |
+| --: | ------- | ------------------------------------------------------- | ---------------------------- | -------- | ------------------------ | --------- |
+|  29 | `POST`  | `/api/v1/handoffs/{handoffId}/finalize`                 | 인수인계 최종 확정           | P0       | Node.js                  | 구현      |
+|  30 | `PATCH` | `/api/v1/handoffs/{handoffId}`                          | 인수인계 초안 수정           | P0       | Node.js                  | 구현      |
+|  31 | `GET`   | `/api/v1/handoffs/{handoffId}/history`                  | 인수인계 변경·열람 이력 조회 | P1       | Node.js                  | 구현      |
+|  32 | `GET`   | `/api/v1/handoff-prechecks/{precheckId}`                | 인수인계 사전검증 결과 조회  | P0       | Node.js                  | 구현      |
+|  33 | `GET`   | `/api/v1/handoffs`                                      | 인수인계 목록 조회           | P0       | Node.js                  | 구현      |
+|  34 | `PATCH` | `/api/v1/handoff-prechecks/{precheckId}/items/{itemId}` | 역질문 응답 저장             | P0       | Node.js                  | 구현      |
+|  35 | `GET`   | `/api/v1/handoffs/{handoffId}`                          | 인수인계 상세 조회           | P0       | Node.js                  | 구현      |
+|  36 | `POST`  | `/api/v1/handoffs`                                      | 인수인계 초안 생성           | P0       | Node.js, AI Adapter 연동 | 구현      |
+|  37 | `POST`  | `/api/v1/handoffs/{handoffId}/acknowledgements`         | 인수인계 수신 확인           | P1       | Node.js                  | 구현      |
+|  38 | `POST`  | `/api/v1/handoff-prechecks`                             | 인수인계 사전검증 생성       | P0       | Node.js, AI Adapter 연동 | 구현      |
 
 인수인계 목록, 사전검증 생성, 결과 조회, 역질문 응답, 초안 생성, 상세 조회, 초안 수정, 최종 확정, 수신 확인, 변경·열람 이력의 10개 기능을 모두 구현한다. P1인 수신 확인과 이력 조회도 생략하지 않는다.
 
 ### 3.7 내부 AI — 5개, Python 제공 및 Node.js 연동
 
-| # | Method | Endpoint | 기능 | 우선순위 | Python AI 책임 | Node.js 책임 | 구현 여부 |
-|---:|---|---|---|---|---|---|---|
-| 39 | `POST` | `/internal/v1/audio/analyze` | 음성 분석 | P0 | STT·화자 분리·구조화 추론과 FastAPI 계약 제공 | 입력 준비, 호출, timeout, 작업 상태와 결과 저장 | 연동 구현 |
-| 40 | `POST` | `/internal/v1/tasks/prioritize` | 업무 우선순위 제안 | P0 | 우선순위·근거·score 제안과 FastAPI 계약 제공 | 규칙 우선순위 계산, 제안 저장, 사용자 확정 반영 | 연동 구현 |
-| 41 | `POST` | `/internal/v1/tasks/extract` | 업무 후보 추출 | P0 | 후보·근거·신뢰도 추론과 FastAPI 계약 제공 | 작업 오케스트레이션, 후보 저장, 선택 반영 | 연동 구현 |
-| 42 | `POST` | `/internal/v1/handoffs/precheck` | 인수인계 누락 검증 | P0 | 근거 기반 역질문 생성과 FastAPI 계약 제공 | 입력 구성, 결과 저장, 답변과 상태 관리 | 연동 구현 |
-| 43 | `POST` | `/internal/v1/handoffs/generate` | 인수인계 초안 생성 | P0 | 근거가 연결된 6개 임상 section 초안 생성과 FastAPI 계약 제공 | 생성 요청, 초안·근거 저장, 수정·확정 관리 | 연동 구현 |
+|   # | Method | Endpoint                         | 기능               | 우선순위 | Python AI 책임                                               | Node.js 책임                                    | 구현 여부 |
+| --: | ------ | -------------------------------- | ------------------ | -------- | ------------------------------------------------------------ | ----------------------------------------------- | --------- |
+|  39 | `POST` | `/internal/v1/audio/analyze`     | 음성 분석          | P0       | STT·화자 분리·구조화 추론과 FastAPI 계약 제공                | 입력 준비, 호출, timeout, 작업 상태와 결과 저장 | 연동 구현 |
+|  40 | `POST` | `/internal/v1/tasks/prioritize`  | 업무 우선순위 제안 | P0       | 우선순위·근거·score 제안과 FastAPI 계약 제공                 | 규칙 우선순위 계산, 제안 저장, 사용자 확정 반영 | 연동 구현 |
+|  41 | `POST` | `/internal/v1/tasks/extract`     | 업무 후보 추출     | P0       | 후보·근거·신뢰도 추론과 FastAPI 계약 제공                    | 작업 오케스트레이션, 후보 저장, 선택 반영       | 연동 구현 |
+|  42 | `POST` | `/internal/v1/handoffs/precheck` | 인수인계 누락 검증 | P0       | 근거 기반 역질문 생성과 FastAPI 계약 제공                    | 입력 구성, 결과 저장, 답변과 상태 관리          | 연동 구현 |
+|  43 | `POST` | `/internal/v1/handoffs/generate` | 인수인계 초안 생성 | P0       | 근거가 연결된 6개 임상 section 초안 생성과 FastAPI 계약 제공 | 생성 요청, 초안·근거 저장, 수정·확정 관리       | 연동 구현 |
 
 Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라도 Node.js의 Adapter, Mock, 요청·응답 검증, timeout, 오류 변환, 멱등성, 작업 상태 관리는 서버 구현 범위다.
 
@@ -133,7 +133,7 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 업무 우선순위는 AI, Node.js 규칙, 간호사의 역할을 분리한다.
 
 1. 명시적 우선순위 batch에서 AI는 `suggestedPriority`, 제안 근거, 같은 batch 표시용 `score`를 반환한다. 이는 자동 확정값이 아니다. 업무 추출 후보의 별도 계약만 `confidence`를 유지한다.
-2. Node.js는 마감 상태와 `dueAt`처럼 검증 가능한 구조화 데이터로 재현 가능한 `rulePriority`와 정렬 키를 계산한다. 이월 여부는 MVP 규칙의 입력으로 사용하지 않는다.
+2. Node.js는 마감 상태와 `dueAt`처럼 검증 가능한 구조화 데이터로 재현 가능한 `rulePriority`와 정렬 키를 계산한다. 이 규칙값은 시간 제약 중심이며 AI 판단 기준과 분리한다.
 3. 간호사는 AI 제안을 수락하거나 수정해 `confirmedPriority`를 확정할 수 있다.
 4. 표시와 정렬에는 간호사 확정값을 먼저 사용하고, 확정값이 없으면 Node.js 규칙을 사용한다.
 5. 동일한 우선순위에서는 `dueAt`, `createdAt`, ID 순서로 안정 정렬한다.
@@ -149,6 +149,8 @@ Python 모델 코드는 이 저장소에서 구현하지 않는다. 그렇더라
 숫자형 AI score는 명시적으로 생성한 같은 batch의 참고 제안 표시 순서에만 저장·노출하며, 실제 Task 정렬·자동 확정·임상 위험도에는 사용하지 않는다. AI 제안 수락은 별도 사용자 행동으로 감사 이력에 남긴다. 정확한 Node.js 규칙과 AI·간호사 간 결정 경계는 `docs/decisions/task-handoff-policy.md`를 따른다.
 
 화면의 선택형 긴급도는 `priorityOverride`, 시간 조건은 `dueAt`으로 기존 계약에 매핑한다. AI `score`는 같은 batch의 참고 제안 순서 외에는 비교하지 않고 별도 `priorityScore` 입력이나 Task 정렬 필드를 추가하지 않는다.
+
+환자 업무와 병동 운영 업무는 같은 Task 객체로 저장한다. `scopeType=PATIENT`이면 `patientId`가 필요하고, `scopeType=WARD`이면 `patientId=null`과 선택적 `locationLabel`로 병동 운영 업무를 표현한다. AI 우선순위 batch 입력에는 `scopeType`, nullable `patientId`, `locationLabel`, `isCarryOver`, `dependencyTaskIds`, `priorityMeta`를 함께 전달해 환자 상태 긴급도, 시간 제약, 업무 성격, 선행 업무 여부, 이월 여부를 참고 제안의 판단 재료로 제공한다.
 
 ## 5. 인수인계 공통 정책
 

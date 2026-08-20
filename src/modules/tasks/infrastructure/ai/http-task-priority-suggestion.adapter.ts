@@ -41,7 +41,7 @@ export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestion
           },
           body: JSON.stringify({
             requestId: input.requestId,
-            tasks: input.tasks,
+            tasks: input.tasks.map(toAiTaskPayload),
             patientRisk: [],
             now: input.now,
           }),
@@ -116,6 +116,34 @@ export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestion
 
     return { url, token, timeoutMilliseconds };
   }
+}
+
+function toAiTaskPayload(
+  task: TaskPrioritySuggestionGatewayInput['tasks'][number],
+): {
+  taskId: string;
+  patientId: string;
+  title: string;
+  dueAt: string | null;
+  carriedOver: boolean;
+} {
+  const titleParts = [
+    task.scopeType === 'WARD' ? '[병동 운영]' : null,
+    task.title,
+    task.description,
+  ].filter(
+    (part): part is string => typeof part === 'string' && part.length > 0,
+  );
+
+  return {
+    taskId: task.taskId,
+    patientId:
+      task.patientId ??
+      `WARD:${task.locationLabel ?? task.scopeType.toLowerCase()}`,
+    title: titleParts.join(' - '),
+    dueAt: task.dueAt,
+    carriedOver: task.isCarryOver,
+  };
 }
 
 async function readBoundedBody(response: Response): Promise<string> {

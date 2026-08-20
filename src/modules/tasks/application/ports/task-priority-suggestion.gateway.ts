@@ -1,4 +1,5 @@
 import type { TaskPriority } from '../../domain/task.types';
+import type { TaskPriorityMeta } from './task.repository';
 
 export const TASK_PRIORITY_SUGGESTION_GATEWAY = Symbol(
   'TASK_PRIORITY_SUGGESTION_GATEWAY',
@@ -8,10 +9,15 @@ export type TaskPrioritySuggestionGatewayInput = {
   requestId: string;
   tasks: readonly {
     taskId: string;
-    patientId: string;
+    scopeType: 'PATIENT' | 'WARD';
+    patientId: string | null;
+    locationLabel: string | null;
     title: string;
+    description: string | null;
     dueAt: string | null;
-    carriedOver: boolean;
+    isCarryOver: boolean;
+    dependencyTaskIds: readonly string[];
+    priorityMeta: TaskPriorityMeta;
   }[];
   now: string;
 };

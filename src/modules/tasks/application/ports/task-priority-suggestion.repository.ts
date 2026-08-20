@@ -1,5 +1,6 @@
 import type { DemoSessionContext } from '../../../demo/application/demo-session-context';
-import type { TaskPriority } from '../../domain/task.types';
+import type { TaskPriority, TaskScopeType } from '../../domain/task.types';
+import type { TaskPriorityMeta } from './task.repository';
 
 export const TASK_PRIORITY_SUGGESTION_REPOSITORY = Symbol(
   'TASK_PRIORITY_SUGGESTION_REPOSITORY',
@@ -7,9 +8,15 @@ export const TASK_PRIORITY_SUGGESTION_REPOSITORY = Symbol(
 
 export type TaskPrioritySuggestionSnapshotTask = {
   taskId: string;
+  scopeType: TaskScopeType;
   patientId: string | null;
+  locationLabel: string | null;
   title: string;
+  description: string | null;
   dueAt: Date | null;
+  isCarryOver: boolean;
+  dependencyTaskIds: readonly string[];
+  priorityMeta: TaskPriorityMeta;
   version: number;
 };
 

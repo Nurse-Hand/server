@@ -137,7 +137,7 @@ describe('Task priority suggestion public API (isolated e2e)', () => {
     expect(schema).toMatchObject({
       properties: {
         aiScore: { minimum: 0 },
-        aiSuggestedPriority: { enum: ['CRITICAL', 'NORMAL'] },
+        aiSuggestedPriority: { enum: ['CRITICAL', 'HIGH', 'NORMAL'] },
         reasons: { maxItems: 5, items: { maxLength: 200 } },
       },
     });

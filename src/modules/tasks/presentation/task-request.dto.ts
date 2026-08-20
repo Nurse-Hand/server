@@ -25,9 +25,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   TASK_LIST_SORTS,
   TASK_PRIORITIES,
+  TASK_PRIORITY_SIGNAL_LEVELS,
+  TASK_SCOPE_TYPES,
   TASK_STATUSES,
   type TaskListSort,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
   type TaskStatus,
 } from '../domain/task.types';
 
@@ -44,6 +48,12 @@ const TASK_PATCH_FIELDS = [
   'description',
   'dueAt',
   'status',
+  'scopeType',
+  'patientId',
+  'locationLabel',
+  'isCarryOver',
+  'dependencyTaskIds',
+  'priorityMeta',
   'priorityOverride',
 ] as const;
 
@@ -120,11 +130,51 @@ export class ListTasksQueryDto {
   limit = 20;
 }
 
+export class TaskPriorityMetaRequestDto {
+  @ApiPropertyOptional({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  @IsOptional()
+  @IsIn(TASK_PRIORITY_SIGNAL_LEVELS)
+  patientStatusUrgency?: TaskPrioritySignalLevel | null;
+
+  @ApiPropertyOptional({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  @IsOptional()
+  @IsIn(TASK_PRIORITY_SIGNAL_LEVELS)
+  timeSensitivity?: TaskPrioritySignalLevel | null;
+
+  @ApiPropertyOptional({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  @IsOptional()
+  @IsIn(TASK_PRIORITY_SIGNAL_LEVELS)
+  taskCriticality?: TaskPrioritySignalLevel | null;
+
+  @ApiPropertyOptional({ default: false, type: Boolean })
+  @IsOptional()
+  @IsBoolean()
+  isBlocking?: boolean;
+}
+
 export class CreateTaskRequestDto {
+  @ApiPropertyOptional({ enum: TASK_SCOPE_TYPES })
+  @IsOptional()
+  @IsIn(TASK_SCOPE_TYPES)
+  scopeType?: TaskScopeType;
+
   @ApiPropertyOptional({ format: 'uuid', nullable: true, type: String })
   @IsOptional()
   @IsUUID('4')
   patientId?: string | null;
+
+  @ApiPropertyOptional({
+    description: '병동 운영 업무 위치 또는 표시 라벨',
+    example: '물품 창고',
+    maxLength: 100,
+    nullable: true,
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(NON_WHITESPACE_PATTERN)
+  @MaxLength(100)
+  locationLabel?: string | null;
 
   @ApiProperty({ example: '통증 재평가', maxLength: TITLE_MAX_LENGTH })
   @IsString()
@@ -159,6 +209,32 @@ export class CreateTaskRequestDto {
   @IsOptional()
   @IsIn(TASK_PRIORITIES)
   priorityOverride?: TaskPriority | null;
+
+  @ApiPropertyOptional({ default: false, type: Boolean })
+  @IsOptional()
+  @IsBoolean()
+  isCarryOver?: boolean;
+
+  @ApiPropertyOptional({
+    description: '이 업무보다 먼저 완료되어야 하는 업무 ID 목록',
+    format: 'uuid',
+    isArray: true,
+    maxItems: TASK_BATCH_MAX_SIZE,
+    type: String,
+    uniqueItems: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(TASK_BATCH_MAX_SIZE)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  dependencyTaskIds?: string[];
+
+  @ApiPropertyOptional({ type: () => TaskPriorityMetaRequestDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TaskPriorityMetaRequestDto)
+  priorityMeta?: TaskPriorityMetaRequestDto;
 }
 
 export class CreateTaskPrioritySuggestionRequestDto {
@@ -193,6 +269,23 @@ export class ReserveTaskExtractionRequestDto {
 }
 
 export class UpdateTaskRequestDto {
+  @ApiPropertyOptional({ enum: TASK_SCOPE_TYPES })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsIn(TASK_SCOPE_TYPES)
+  scopeType?: TaskScopeType;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true, type: String })
+  @IsOptional()
+  @IsUUID('4')
+  patientId?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 100, nullable: true, type: String })
+  @IsOptional()
+  @IsString()
+  @Matches(NON_WHITESPACE_PATTERN)
+  @MaxLength(100)
+  locationLabel?: string | null;
+
   @ApiPropertyOptional({ example: '통증 재평가', maxLength: TITLE_MAX_LENGTH })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsString()
@@ -232,6 +325,31 @@ export class UpdateTaskRequestDto {
   @IsOptional()
   @IsIn(TASK_PRIORITIES)
   priorityOverride?: TaskPriority | null;
+
+  @ApiPropertyOptional({ type: Boolean })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  isCarryOver?: boolean;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    isArray: true,
+    maxItems: TASK_BATCH_MAX_SIZE,
+    type: String,
+    uniqueItems: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(TASK_BATCH_MAX_SIZE)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  dependencyTaskIds?: string[];
+
+  @ApiPropertyOptional({ type: () => TaskPriorityMetaRequestDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TaskPriorityMetaRequestDto)
+  priorityMeta?: TaskPriorityMetaRequestDto;
 
   @ApiPropertyOptional({
     description: 'AI 제안을 그대로 수락할 때 함께 전달하는 제안 식별자',
