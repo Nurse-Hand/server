@@ -80,6 +80,7 @@ export class PrismaHandoffPrecheckRepository implements HandoffPrecheckRepositor
   async resolveShiftScope(
     input: Parameters<HandoffPrecheckRepository['resolveShiftScope']>[0],
   ): ReturnType<HandoffPrecheckRepository['resolveShiftScope']> {
+    const range = seoulDateRange(input.date);
     const sender = await this.prisma.nurseShift.findFirst({
       where: {
         id: input.shiftId,
@@ -87,14 +88,11 @@ export class PrismaHandoffPrecheckRepository implements HandoffPrecheckRepositor
         wardId: input.context.wardId,
         nurseId: input.context.actorId,
         membership: { role: 'SENDER' },
-        startsAt: { lte: input.now },
-        endsAt: { gt: input.now },
       },
       select: { id: true, startsAt: true, endsAt: true },
     });
     if (!sender) throw new HandoffShiftNotFoundError();
 
-    const range = seoulDateRange(input.date);
     const receivers = await this.prisma.nurseShift.findMany({
       where: {
         datasetId: input.context.datasetId,
@@ -107,7 +105,6 @@ export class PrismaHandoffPrecheckRepository implements HandoffPrecheckRepositor
           lt: range.to,
           gt: sender.startsAt,
         },
-        endsAt: { gt: input.now },
       },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
       take: 2,
@@ -123,8 +120,6 @@ export class PrismaHandoffPrecheckRepository implements HandoffPrecheckRepositor
         wardId: input.context.wardId,
         nurseId: input.context.actorId,
         nurseShiftId: sender.id,
-        startsAt: { lte: input.now },
-        OR: [{ endsAt: null }, { endsAt: { gte: input.now } }],
       },
       orderBy: [{ patientId: 'asc' }, { id: 'asc' }],
       select: { patientId: true },
