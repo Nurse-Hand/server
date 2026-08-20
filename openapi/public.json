@@ -6303,6 +6303,18 @@
             ],
             "type": "string"
           },
+          "clinicalCategory": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
           "source": {
             "enum": [
               "MANUAL",
@@ -6508,6 +6520,18 @@
               "PROCEDURE",
               "REPORT",
               "TASK"
+            ],
+            "type": "string"
+          },
+          "clinicalCategory": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
             ],
             "type": "string"
           },
