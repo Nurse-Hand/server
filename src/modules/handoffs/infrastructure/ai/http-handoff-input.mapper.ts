@@ -160,11 +160,18 @@ export function handoffSectionOf(topic: HandoffClinicalSection): string {
 }
 
 function classifyTopic(text: string): HandoffClinicalSection {
-  if (/(혈압|맥박|체온|열|산소포화도|spo2|산소)/i.test(text)) {
+  if (/(혈압|맥박|체온|열|산소\s*포화도|spo\s*2)/i.test(text)) {
     return 'VITAL_SIGNS';
   }
-  if (/(기침|가래|호흡|숨|산소|네뷸라이저)/i.test(text)) {
+  if (/(기침|가래|호흡\s*곤란|호흡|숨\s*참|숨|네뷸라이저)/i.test(text)) {
     return 'RESPIRATION';
+  }
+  if (
+    /(산소\s*(투여|공급|요법|적용|유지)|(?:비강\s*)?캐뉼라|nasal\s+cannula)/i.test(
+      text,
+    )
+  ) {
+    return 'TREATMENT';
   }
   if (/(의식|혼돈|졸림|섬망|반응)/i.test(text)) {
     return 'MENTAL_STATUS';
