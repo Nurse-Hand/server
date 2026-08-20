@@ -42,7 +42,6 @@ model WardMembership {
   demoSessions       DemoSession[]       @relation("DemoSessionMembership")
   nurseShifts        NurseShift[]        @relation("ShiftMembership")
   roundingSessions   RoundingSession[]   @relation("RoundingSessionMembership")
-  storedFiles        StoredFile[]        @relation("StoredFileMembership")
   aiJobs             AiJob[]             @relation("AiJobMembership")
   idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
   monthlySchedules   MonthlySchedule[]   @relation("MonthlyScheduleMembership")

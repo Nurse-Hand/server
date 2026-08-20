@@ -54,7 +54,9 @@ const STORED_FILE_UPLOAD_POLICIES: Readonly<
     extensionsByMimeType: {
       'image/heic': ['.heic'],
       'image/heif': ['.heif'],
+      'image/jpg': ['.jpg', '.jpeg'],
       'image/jpeg': ['.jpg', '.jpeg'],
+      'image/pjpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
       'image/webp': ['.webp'],
     },
