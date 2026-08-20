@@ -15,7 +15,6 @@ import { HttpTaskExtractionAiAdapter } from './infrastructure/ai/http-task-extra
 import { HttpTaskPriorityAiAdapter } from './infrastructure/ai/http-task-priority-ai.adapter';
 import { DeterministicTaskExtractionAiAdapter } from './infrastructure/deterministic-task-extraction-ai.adapter';
 import { DeterministicTaskExtractionEvidenceAdapter } from './infrastructure/deterministic-task-extraction-evidence.adapter';
-import { DeterministicTaskPriorityAiAdapter } from './infrastructure/deterministic-task-priority-ai.adapter';
 import { HttpTaskPrioritySuggestionAdapter } from './infrastructure/ai/http-task-priority-suggestion.adapter';
 import { PrismaTaskExtractionEvidenceAdapter } from './infrastructure/prisma-task-extraction-evidence.adapter';
 import { PrismaTaskRepository } from './infrastructure/prisma-task.repository';
@@ -32,7 +31,6 @@ import { TasksController } from './presentation/tasks.controller';
     PrismaTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionEvidenceAdapter,
     DeterministicTaskExtractionAiAdapter,
-    DeterministicTaskPriorityAiAdapter,
     HttpTaskExtractionAiAdapter,
     HttpTaskPriorityAiAdapter,
     HttpTaskPrioritySuggestionAdapter,
@@ -62,17 +60,7 @@ import { TasksController } from './presentation/tasks.controller';
     },
     {
       provide: TASK_PRIORITY_AI_GATEWAY,
-      inject: [
-        ConfigService,
-        HttpTaskPriorityAiAdapter,
-        DeterministicTaskPriorityAiAdapter,
-      ],
-      useFactory: (
-        configService: ConfigService,
-        httpAdapter: HttpTaskPriorityAiAdapter,
-        fallbackAdapter: DeterministicTaskPriorityAiAdapter,
-      ) =>
-        hasTaskAiConfiguration(configService) ? httpAdapter : fallbackAdapter,
+      useExisting: HttpTaskPriorityAiAdapter,
     },
     {
       provide: TASK_PRIORITY_SUGGESTION_GATEWAY,
