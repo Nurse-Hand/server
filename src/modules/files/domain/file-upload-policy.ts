@@ -69,6 +69,10 @@ export function readStoredFileUploadPolicy(
   return STORED_FILE_UPLOAD_POLICIES[kind];
 }
 
+export function listAllowedStoredFileMimeTypes(kind: StoredFileKind): string[] {
+  return listAllowedMimeTypes(readStoredFileUploadPolicy(kind));
+}
+
 export function validateStoredFileUpload(
   input: StoredFileValidationInput,
 ): ValidatedStoredFile {

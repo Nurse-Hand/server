@@ -63,6 +63,8 @@ jobs:
             "${SSH_USER}@${SSH_HOST}" \
             "set -euo pipefail; \
             cd '${DEPLOY_ROOT}'; \
+            mkdir -p /data/nurse-hand/uploads; \
+            chown -R 10001:10001 /data/nurse-hand/uploads; \
             COMPOSE_SERVICES='api'; \
             if docker compose --env-file .env -f docker-compose.prod.yml config --services | grep -qx 'worker'; then \
               COMPOSE_SERVICES='api worker'; \
