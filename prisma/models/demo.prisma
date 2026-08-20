@@ -12,6 +12,8 @@ model DemoDataset {
   patientAssignments PatientAssignment[]
   timelineEvents     TimelineEvent[]
   roundingSessions   RoundingSession[]
+  roundingRecords    RoundingRecord[]
+  roundingAudioChunks RoundingAudioChunk[]
   storedFiles        StoredFile[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]

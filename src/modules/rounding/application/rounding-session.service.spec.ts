@@ -1,5 +1,5 @@
-import type { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { Clock } from '../../../common/time/clock';
+import type { PrismaService } from '../../../infrastructure/database/prisma.service';
 import { RoundingSegmentPeriodInvalidError } from '../domain/rounding.errors';
 import { RoundingSessionService } from './rounding-session.service';
 
