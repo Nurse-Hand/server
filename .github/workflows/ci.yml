@@ -34,6 +34,9 @@ jobs:
       - name: Verify deterministic deployment failures
         run: bash deploy/deploy-server.test.sh
 
+      - name: Verify safe deployment contract
+        run: node deploy/safe-deployment-contract.test.mjs
+
   postgres-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
