@@ -2,10 +2,10 @@
 
 ## 1. 기본 브랜치
 
-| 브랜치 | 역할 | 직접 push |
-|---|---|---|
-| `main` | 배포 가능한 릴리스 | 금지 |
-| `dev` | 기능 통합 및 다음 릴리스 준비 | 금지 |
+| 브랜치 | 역할                          | 직접 push |
+| ------ | ----------------------------- | --------- |
+| `main` | 배포 가능한 릴리스            | 금지      |
+| `dev`  | 기능 통합 및 다음 릴리스 준비 | 금지      |
 
 저장소 최초 구성 커밋만 예외로 `main` 직접 push를 허용합니다. 최초 push 후 `main`에서 `dev`를 만들고, 이후 일반 작업은 `dev`에서 시작합니다.
 
@@ -28,15 +28,15 @@
 
 허용 type:
 
-| type | 용도 |
-|---|---|
-| `feat` | 새로운 기능 |
-| `fix` | 버그 수정 |
-| `refactor` | 동작을 유지하는 구조 변경 |
-| `test` | 테스트 추가 및 수정 |
-| `docs` | 문서 변경 |
-| `chore` | 설정, 빌드, 의존성, 운영 작업 |
-| `hotfix` | 운영 긴급 수정 |
+| type       | 용도                          |
+| ---------- | ----------------------------- |
+| `feat`     | 새로운 기능                   |
+| `fix`      | 버그 수정                     |
+| `refactor` | 동작을 유지하는 구조 변경     |
+| `test`     | 테스트 추가 및 수정           |
+| `docs`     | 문서 변경                     |
+| `chore`    | 설정, 빌드, 의존성, 운영 작업 |
+| `hotfix`   | 운영 긴급 수정                |
 
 예시:
 
@@ -122,5 +122,33 @@ Issue를 완전히 해결하면 `Closes #<number>`, 일부만 다루면 `Refs #<
 - 기능 브랜치에서 `dev`: rebase merge
 - `dev`에서 `main`: release PR의 merge commit
 - `hotfix`에서 `main`: 리뷰 후 merge하고 `dev`에 동일 변경 동기화
-- Ready 전환과 병합은 사람의 승인을 받아 진행합니다.
+- Ready 전환과 병합은 작성자 외 사람의 승인을 받아 진행합니다.
 
+### 7.1 수동 병합 게이트
+
+현재 비공개 저장소 플랜에서는 ruleset과 branch protection API가 `403`을 반환하므로, 아래 절차를 병합 담당자가 수동으로 확인합니다. 저장소 플랜이 바뀌면 같은 조건을 GitHub 설정으로 강제하고 문서의 수동 항목을 줄입니다.
+
+1. Draft PR 본문의 5개 section과 체크리스트가 실제 diff·검증 결과와 일치하는지 확인합니다.
+2. Ready 전환 뒤 PR 작성자가 아닌 리뷰어에게 승인을 받습니다. 작성자의 self-approval은 승인으로 계산하지 않습니다.
+3. 승인 당시 head SHA를 기록하고, 병합 직전 현재 head SHA와 비교합니다. SHA가 바뀌었으면 이전 승인을 사용하지 않고 다시 리뷰와 승인을 받습니다.
+4. 현재 head의 `verify`와 `postgres-integration`이 모두 성공했는지 확인합니다. 이전 SHA의 성공 결과는 사용하지 않습니다.
+5. 선행 PR, 파일 교집합, migration 적용 순서, 생성 OpenAPI 영향을 확인합니다.
+6. 여러 PR을 한꺼번에 병합하지 않습니다. 하나를 병합한 뒤 `git fetch origin`으로 `origin/dev`를 갱신하고 다음 PR의 base·충돌·CI를 다시 확인합니다.
+7. 기능 브랜치는 `dev`에 rebase merge하고, 병합 결과와 Issue 종료 상태를 확인합니다.
+
+병합 직전 최소 확인 명령은 다음과 같습니다.
+
+```bash
+gh pr view <number> --json author,isDraft,headRefOid,baseRefName,mergeable,mergeStateStatus,reviews,statusCheckRollup
+git fetch origin
+git rev-parse origin/dev
+```
+
+명령 출력만으로 승인의 유효성을 추측하지 않습니다. 리뷰어가 작성자와 다른지, 승인 뒤 head가 바뀌지 않았는지, check가 현재 head에서 실행됐는지를 함께 확인합니다.
+
+### 7.2 확인 책임
+
+- 작성자: PR 본문, 검증 결과, head SHA 변경 사실을 최신 상태로 유지합니다.
+- 리뷰어: 실제 diff와 검증 근거를 확인한 뒤 승인하며, head 변경 시 다시 검토합니다.
+- 병합 담당자: 승인·현재 head CI·선행 순서·mergeability를 병합 직전에 최종 확인합니다.
+- GitHub 설정으로 강제되지 않는 동안 위 역할을 CI 성공만으로 대체하지 않습니다.

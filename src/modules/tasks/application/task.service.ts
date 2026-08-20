@@ -15,9 +15,13 @@ import {
   TASK_EXTRACTION_MAX_ATTEMPTS,
   TASK_LIST_SORTS,
   TASK_PRIORITIES,
+  TASK_PRIORITY_SIGNAL_LEVELS,
+  TASK_SCOPE_TYPES,
   TASK_STATUSES,
   type TaskListSort,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
   type TaskStatus,
 } from '../domain/task.types';
 import {
@@ -36,6 +40,7 @@ import {
   type ApplyTaskCandidatesResult,
   type CreateTaskResult,
   type ListTasksResult,
+  type TaskPriorityMeta,
   type TaskExtractionJobView,
   type TaskRepository,
   type TaskView,
@@ -51,10 +56,15 @@ type ListTasksCommand = {
 };
 
 type CreateTaskCommand = {
+  scopeType?: TaskScopeType;
   patientId?: string | null;
+  locationLabel?: string | null;
   title: string;
   description?: string | null;
   dueAt: string;
+  isCarryOver?: boolean;
+  dependencyTaskIds?: readonly string[];
+  priorityMeta?: Partial<TaskPriorityMeta>;
   priorityOverride?: TaskPriority | null;
 };
 
@@ -69,7 +79,14 @@ type UpdateTaskCommand = {
   description?: string | null;
   dueAt?: string | null;
   status?: TaskStatus;
+  scopeType?: TaskScopeType;
+  patientId?: string | null;
+  locationLabel?: string | null;
+  isCarryOver?: boolean;
+  dependencyTaskIds?: readonly string[];
+  priorityMeta?: Partial<TaskPriorityMeta>;
   priorityOverride?: TaskPriority | null;
+  prioritySuggestionId?: string;
 };
 
 type ApplyCandidateCommand = {
@@ -154,13 +171,26 @@ export class TaskService {
     const title = normalizeRequiredText(command.title, 200);
     const description = normalizeNullableText(command.description, 1000);
     const patientId = command.patientId ?? null;
+    const scopeType = normalizeTaskScope(command.scopeType, patientId);
+    const locationLabel = normalizeNullableText(command.locationLabel, 100);
+    assertScopePatient(scopeType, patientId);
+    const isCarryOver = command.isCarryOver ?? false;
+    const dependencyTaskIds = normalizeDependencyTaskIds(
+      command.dependencyTaskIds ?? [],
+    );
+    const priorityMeta = normalizePriorityMeta(command.priorityMeta);
     const confirmedPriority = command.priorityOverride ?? null;
     assertPriorityOrNull(confirmedPriority);
     const normalizedBody = {
       description,
       dueAt: dueAt.toISOString(),
+      dependencyTaskIds: [...dependencyTaskIds],
+      isCarryOver,
+      locationLabel,
       patientId,
+      priorityMeta,
       priorityOverride: confirmedPriority,
+      scopeType,
       title,
     };
 
@@ -172,11 +202,16 @@ export class TaskService {
         query: {},
         body: normalizedBody,
       }),
+      scopeType,
       patientId,
+      locationLabel,
       title,
       description,
       dueAt,
       workDate: deriveSeoulWorkDate(dueAt),
+      isCarryOver,
+      dependencyTaskIds,
+      priorityMeta,
       confirmedPriority,
       now,
     });
@@ -264,13 +299,26 @@ export class TaskService {
     const hasDescription = command.description !== undefined;
     const hasDueAt = command.dueAt !== undefined;
     const hasStatus = command.status !== undefined;
+    const hasScopeType = command.scopeType !== undefined;
+    const hasPatientId = command.patientId !== undefined;
+    const hasLocationLabel = command.locationLabel !== undefined;
+    const hasCarryOver = command.isCarryOver !== undefined;
+    const hasDependencyTaskIds = command.dependencyTaskIds !== undefined;
+    const hasPriorityMeta = command.priorityMeta !== undefined;
     const hasPriority = command.priorityOverride !== undefined;
+    const hasPrioritySuggestion = command.prioritySuggestionId !== undefined;
 
     if (
       !hasTitle &&
       !hasDescription &&
       !hasDueAt &&
       !hasStatus &&
+      !hasScopeType &&
+      !hasPatientId &&
+      !hasLocationLabel &&
+      !hasCarryOver &&
+      !hasDependencyTaskIds &&
+      !hasPriorityMeta &&
       !hasPriority
     ) {
       throw new TaskCommandInvalidError(
@@ -290,9 +338,32 @@ export class TaskService {
     const confirmedPriority = hasPriority
       ? (command.priorityOverride ?? null)
       : undefined;
+    const scopeType = hasScopeType ? command.scopeType : undefined;
+    const patientId = hasPatientId ? (command.patientId ?? null) : undefined;
+    const locationLabel = hasLocationLabel
+      ? normalizeNullableText(command.locationLabel, 100)
+      : undefined;
+    const isCarryOver = hasCarryOver ? command.isCarryOver : undefined;
+    const dependencyTaskIds = hasDependencyTaskIds
+      ? normalizeDependencyTaskIds(command.dependencyTaskIds ?? [])
+      : undefined;
+    const priorityMeta = hasPriorityMeta
+      ? normalizePriorityMeta(command.priorityMeta)
+      : undefined;
 
     if (confirmedPriority !== undefined) {
       assertPriorityOrNull(confirmedPriority);
+    }
+
+    if (
+      hasPrioritySuggestion &&
+      (!isUUID(command.prioritySuggestionId, '4') ||
+        !hasPriority ||
+        confirmedPriority === null)
+    ) {
+      throw new TaskCommandInvalidError(
+        'prioritySuggestionId에는 null이 아닌 priorityOverride가 필요합니다.',
+      );
     }
 
     if (
@@ -316,7 +387,16 @@ export class TaskService {
         ? {}
         : { dueAt, workDate: deriveSeoulWorkDate(dueAt) }),
       ...(hasStatus ? { status: command.status } : {}),
+      ...(scopeType === undefined ? {} : { scopeType }),
+      ...(patientId === undefined ? {} : { patientId }),
+      ...(locationLabel === undefined ? {} : { locationLabel }),
+      ...(isCarryOver === undefined ? {} : { isCarryOver }),
+      ...(dependencyTaskIds === undefined ? {} : { dependencyTaskIds }),
+      ...(priorityMeta === undefined ? {} : { priorityMeta }),
       ...(hasPriority ? { confirmedPriority: confirmedPriority! } : {}),
+      ...(hasPrioritySuggestion
+        ? { prioritySuggestionId: command.prioritySuggestionId }
+        : {}),
       now: this.clock.now(),
     });
   }
@@ -454,6 +534,75 @@ function normalizeNullableText(
   }
 
   return normalized;
+}
+
+function normalizeTaskScope(
+  scopeType: TaskScopeType | undefined,
+  patientId: string | null,
+): TaskScopeType {
+  if (scopeType !== undefined) {
+    if (!TASK_SCOPE_TYPES.includes(scopeType))
+      throw new TaskCommandInvalidError();
+    return scopeType;
+  }
+  return patientId === null ? 'WARD' : 'PATIENT';
+}
+
+function assertScopePatient(
+  scopeType: TaskScopeType,
+  patientId: string | null,
+): void {
+  if (
+    (scopeType === 'PATIENT' && patientId === null) ||
+    (scopeType === 'WARD' && patientId !== null)
+  ) {
+    throw new TaskCommandInvalidError(
+      'PATIENT 업무는 patientId가 필요하고 WARD 업무는 patientId가 없어야 합니다.',
+    );
+  }
+}
+
+function normalizeDependencyTaskIds(
+  dependencyTaskIds: readonly string[],
+): readonly string[] {
+  if (new Set(dependencyTaskIds).size !== dependencyTaskIds.length) {
+    throw new TaskCommandInvalidError(
+      'dependencyTaskIds는 중복될 수 없습니다.',
+    );
+  }
+
+  for (const taskId of dependencyTaskIds) {
+    if (!isUUID(taskId, '4')) {
+      throw new TaskCommandInvalidError(
+        'dependencyTaskIds가 올바르지 않습니다.',
+      );
+    }
+  }
+
+  return [...dependencyTaskIds].sort();
+}
+
+function normalizePriorityMeta(
+  value: Partial<TaskPriorityMeta> | undefined,
+): TaskPriorityMeta {
+  return {
+    patientStatusUrgency: normalizePrioritySignal(value?.patientStatusUrgency),
+    timeSensitivity: normalizePrioritySignal(value?.timeSensitivity),
+    taskCriticality: normalizePrioritySignal(value?.taskCriticality),
+    isBlocking: value?.isBlocking ?? false,
+  };
+}
+
+function normalizePrioritySignal(
+  value: TaskPrioritySignalLevel | null | undefined,
+): TaskPrioritySignalLevel | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (!TASK_PRIORITY_SIGNAL_LEVELS.includes(value)) {
+    throw new TaskCommandInvalidError('priorityMeta 값이 올바르지 않습니다.');
+  }
+  return value;
 }
 
 function assertPriorityOrNull(

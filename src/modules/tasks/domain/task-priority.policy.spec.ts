@@ -1,7 +1,9 @@
 import {
   calculateTaskRulePriority,
+  compareTaskPrioritySuggestions,
   compareTaskOrdering,
   getEffectiveTaskPriority,
+  mapAiTaskPriority,
   type TaskOrderingValue,
 } from './task-priority.policy';
 
@@ -50,6 +52,29 @@ describe('task priority policy', () => {
   it('간호사 확정값이 있으면 규칙값보다 우선하고 해제되면 규칙값으로 돌아간다', () => {
     expect(getEffectiveTaskPriority('NORMAL', 'CRITICAL')).toBe('CRITICAL');
     expect(getEffectiveTaskPriority('HIGH', null)).toBe('HIGH');
+  });
+
+  it('AI enum을 참고 제안 enum으로만 변환한다', () => {
+    expect(mapAiTaskPriority('CRITICAL')).toBe('CRITICAL');
+    expect(mapAiTaskPriority('HIGH')).toBe('HIGH');
+    expect(mapAiTaskPriority('NORMAL')).toBe('NORMAL');
+    expect(mapAiTaskPriority('LOW')).toBe('NORMAL');
+  });
+
+  it('같은 batch의 참고 제안만 score 내림차순과 taskId로 안정 정렬한다', () => {
+    const suggestions = [
+      { taskId: 'task-b', aiScore: 10 },
+      { taskId: 'task-c', aiScore: 20 },
+      { taskId: 'task-a', aiScore: 10 },
+    ];
+
+    suggestions.sort(compareTaskPrioritySuggestions);
+
+    expect(suggestions.map(({ taskId }) => taskId)).toEqual([
+      'task-c',
+      'task-a',
+      'task-b',
+    ]);
   });
 
   it('미확정 AI 제안은 effectivePriority와 실제 priority 정렬에 영향을 주지 않는다', () => {

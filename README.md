@@ -49,6 +49,10 @@ docker compose --env-file .env -f docker-compose.prod.yml up -d
 - `DEMO_UI_PORT` (local compose 전용)
 - `NO_LOGIN_MVP_CONTEXT` (`true`이면 `DEMO_MODE=false`에서도 MVP 시연용 synthetic context를 자동 생성)
 - `NO_LOGIN_MVP_DATASET_ID`
+- `AI_BASE_URL` (업무 우선순위 제안 AI 서버 URL, Docker Compose 기본값은 `http://ai:8000`)
+- `INTERNAL_API_TOKEN` (Docker Compose에서 AI 컨테이너 인증과 API의 `AI_INTERNAL_API_TOKEN`에 함께 주입)
+- `AI_INTERNAL_API_TOKEN` (Compose를 사용하지 않고 API를 직접 실행할 때 `AI_BASE_URL`과 함께 설정하며, 둘 다 미설정이면 해당 endpoint는 `503`)
+- `AI_PRIORITY_TIMEOUT_MS` (AI URL·token 설정 시 선택, 기본 `15000`, 최대 `120000`)
 - `POSTGRES_DATA_DIR`
 - `AI_DATA_DIR`
 - `AI_TMP_DIR`

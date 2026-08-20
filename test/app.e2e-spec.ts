@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/bootstrap/configure-application';
+import { DATABASE_READINESS_PROBE } from '../src/modules/health/application/database-readiness.probe';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,7 +23,10 @@ describe('App (e2e)', () => {
     const moduleFixture = await Test.createTestingModule({
       imports: [AppModule],
       controllers: [ProtectedProbeController],
-    }).compile();
+    })
+      .overrideProvider(DATABASE_READINESS_PROBE)
+      .useValue({ check: jest.fn().mockResolvedValue(undefined) })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     configureApplication(app);

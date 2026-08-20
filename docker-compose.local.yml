@@ -26,10 +26,11 @@ services:
 
   api:
     image: ${NURSE_HAND_SERVER_IMAGE:-nurse-hand-server:dev}
+    platform: ${NURSE_HAND_SERVER_PLATFORM:-linux/amd64}
     container_name: nurse-hand-server
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: .env.local
         required: false
     depends_on:
       db:
@@ -43,6 +44,9 @@ services:
       NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
       NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
       FILE_STORAGE_ROOT: /data/nurse-hand/uploads
+      AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
+      AI_INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      AI_PRIORITY_TIMEOUT_MS: ${AI_PRIORITY_TIMEOUT_MS:-15000}
     ports:
       - '${APP_PORT:-3000}:3000'
     volumes:
@@ -63,12 +67,45 @@ services:
       retries: 3
       start_period: 30s
 
+  worker:
+    image: ${NURSE_HAND_SERVER_IMAGE:-nurse-hand-server:dev}
+    platform: ${NURSE_HAND_SERVER_PLATFORM:-linux/amd64}
+    container_name: nurse-hand-worker
+    restart: unless-stopped
+    env_file:
+      - path: .env.local
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+      ai:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://nurse_hand:nurse_hand@db:5432/nurse_hand}
+      DEMO_MODE: ${DEMO_MODE:-false}
+      DEMO_SESSION_TTL_SECONDS: ${DEMO_SESSION_TTL_SECONDS:-25200}
+      NO_LOGIN_MVP_CONTEXT: ${NO_LOGIN_MVP_CONTEXT:-true}
+      NO_LOGIN_MVP_DATASET_ID: ${NO_LOGIN_MVP_DATASET_ID:-00000000-0000-4000-8000-000000000101}
+      FILE_STORAGE_ROOT: /data/nurse-hand/uploads
+      AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
+      AI_INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      AI_PRIORITY_TIMEOUT_MS: ${AI_PRIORITY_TIMEOUT_MS:-15000}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
+    volumes:
+      - '${FILE_STORAGE_HOST_ROOT:-./.local/uploads}:/data/nurse-hand/uploads'
+    command: >
+      sh -c "npx prisma migrate deploy &&
+      node dist/src/worker-main.js"
+    healthcheck:
+      disable: true
+
   ai:
     image: ${NURSE_HAND_AI_IMAGE:-jadest03/nurse-hand-ai:latest}
     container_name: nurse-hand-ai
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: .env.local
         required: false
     environment:
       PORT: 8000
@@ -85,14 +122,14 @@ services:
       MIN_SEGMENT_SEC: ${MIN_SEGMENT_SEC:-0.8}
       MIN_SPEAKER_TOTAL_SEC: ${MIN_SPEAKER_TOTAL_SEC:-1.2}
       KEEP_UPLOADS: ${KEEP_UPLOADS:-false}
-      DATA_DIR: ${AI_DATA_DIR:-./.local/ai/data}
-      TMP_DIR: ${AI_TMP_DIR:-./.local/ai/tmp}
+      DATA_DIR: /data/nurse-hand/ai/data
+      TMP_DIR: /data/nurse-hand/ai/tmp
       FFMPEG_BIN: ${FFMPEG_BIN:-ffmpeg}
     ports:
       - '${AI_PORT:-8000}:8000'
     volumes:
-      - '${AI_DATA_DIR:-./.local/ai/data}:${AI_DATA_DIR:-./.local/ai/data}'
-      - '${AI_TMP_DIR:-./.local/ai/tmp}:${AI_TMP_DIR:-./.local/ai/tmp}'
+      - '${AI_DATA_HOST_DIR:-./.local/ai/data}:/data/nurse-hand/ai/data'
+      - '${AI_TMP_HOST_DIR:-./.local/ai/tmp}:/data/nurse-hand/ai/tmp'
     healthcheck:
       test:
         [

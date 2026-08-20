@@ -4,11 +4,15 @@ import {
   TASK_AI_CONFIDENCES,
   TASK_EVIDENCE_SOURCE_TYPES,
   TASK_PRIORITIES,
+  TASK_PRIORITY_SIGNAL_LEVELS,
+  TASK_SCOPE_TYPES,
   TASK_SOURCES,
   TASK_STATUSES,
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
   type TaskSource,
   type TaskStatus,
 } from '../domain/task.types';
@@ -34,12 +38,32 @@ export class TaskAiSuggestionDto {
   confidence!: TaskAiConfidence;
 }
 
+export class TaskPriorityMetaDto {
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  patientStatusUrgency!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  timeSensitivity!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  taskCriticality!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ type: Boolean })
+  isBlocking!: boolean;
+}
+
 export class TaskDataDto {
   @ApiProperty({ format: 'uuid' })
   taskId!: string;
 
+  @ApiProperty({ enum: TASK_SCOPE_TYPES })
+  scopeType!: TaskScopeType;
+
   @ApiProperty({ format: 'uuid', nullable: true, type: String })
   patientId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  locationLabel!: string | null;
 
   @ApiProperty({ example: '통증 재평가' })
   title!: string;
@@ -58,6 +82,15 @@ export class TaskDataDto {
 
   @ApiProperty({ enum: TASK_SOURCES })
   source!: TaskSource;
+
+  @ApiProperty({ type: Boolean })
+  isCarryOver!: boolean;
+
+  @ApiProperty({ format: 'uuid', isArray: true, type: String })
+  dependencyTaskIds!: string[];
+
+  @ApiProperty({ type: () => TaskPriorityMetaDto })
+  priorityMeta!: TaskPriorityMetaDto;
 
   @ApiProperty({ nullable: true, type: TaskAiSuggestionDto })
   aiSuggestion!: TaskAiSuggestionDto | null;
@@ -173,6 +206,48 @@ export class ApplyTaskCandidatesDataDto {
   skippedCandidateIds!: string[];
 }
 
+export class TaskPrioritySuggestionItemDto {
+  @ApiProperty({ format: 'uuid' })
+  suggestionId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  taskId!: string;
+
+  @ApiProperty({
+    description: '같은 batch 안의 참고 표시 순서 전용 점수',
+    minimum: 0,
+  })
+  aiScore!: number;
+
+  @ApiProperty({ enum: TASK_PRIORITIES })
+  aiSuggestedPriority!: TaskPriority;
+
+  @ApiProperty({
+    isArray: true,
+    maxItems: 5,
+    type: String,
+    items: { type: 'string', maxLength: 200 },
+  })
+  reasons!: string[];
+}
+
+export class TaskPrioritySuggestionBatchDataDto {
+  @ApiProperty({ format: 'uuid' })
+  batchId!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  evaluatedAt!: string;
+
+  @ApiProperty({ example: 'tasks-prioritize-v1' })
+  contractVersion!: string;
+
+  @ApiProperty({ type: TaskPrioritySuggestionItemDto, isArray: true })
+  suggestions!: TaskPrioritySuggestionItemDto[];
+
+  @ApiProperty({ format: 'uuid', isArray: true })
+  skippedTaskIds!: string[];
+}
+
 export class TaskResponseDto {
   @ApiProperty({ type: TaskDataDto })
   data!: TaskDataDto;
@@ -208,6 +283,14 @@ export class TaskExtractionJobResponseDto {
 export class ApplyTaskCandidatesResponseDto {
   @ApiProperty({ type: ApplyTaskCandidatesDataDto })
   data!: ApplyTaskCandidatesDataDto;
+
+  @ApiProperty({ type: ApiMetaDto })
+  meta!: ApiMetaDto;
+}
+
+export class TaskPrioritySuggestionBatchResponseDto {
+  @ApiProperty({ type: TaskPrioritySuggestionBatchDataDto })
+  data!: TaskPrioritySuggestionBatchDataDto;
 
   @ApiProperty({ type: ApiMetaDto })
   meta!: ApiMetaDto;

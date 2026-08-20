@@ -16,7 +16,10 @@ model StoredFile {
   kind         StoredFileKind
   createdAt    DateTime       @default(now()) @db.Timestamptz(3)
   dataset      DemoDataset    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  membership   WardMembership @relation("StoredFileMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  roundingRecordAudioLinks RoundingRecord[] @relation("RoundingRecordAudioFile")
+  quickNoteAudioLinks QuickNote[] @relation("QuickNoteAudioFile")
+  quickNotePhotoLinks QuickNotePhoto[] @relation("QuickNotePhotoFile")
+  roundingAudioChunks   RoundingAudioChunk[] @relation("RoundingAudioChunkFile")
 
   @@unique(name: "stored_file_dataset_id", [datasetId, id])
   @@index([datasetId, wardId, kind, createdAt(sort: Desc), id(sort: Desc)])

@@ -11,10 +11,16 @@ model DemoDataset {
   patients           Patient[]
   patientAssignments PatientAssignment[]
   timelineEvents     TimelineEvent[]
+  timelineEventHistories TimelineEventHistory[]
   roundingSessions   RoundingSession[]
+  roundingRecords    RoundingRecord[]
+  roundingAudioChunks RoundingAudioChunk[]
   storedFiles        StoredFile[]
+  quickNotes         QuickNote[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
+  monthlySchedules   MonthlySchedule[]
+  scheduleReceipts   MonthlyScheduleReceipt[]
 }
 
 model DemoSession {

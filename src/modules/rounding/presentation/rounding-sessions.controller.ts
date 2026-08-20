@@ -2,23 +2,43 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
+  ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { ApiErrorResponseDto } from '../../../common/http/api-response.dto';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import { DemoSessionContextParam } from '../../demo/presentation/demo-session-context.decorator';
+import type { UploadedFilePayload } from '../../files/application/uploaded-file';
+import { UploadFileRequestDto } from '../../files/presentation/upload-file-request.dto';
+import { RoundingRecordService } from '../application/rounding-record.service';
 import { RoundingSessionService } from '../application/rounding-session.service';
+import {
+  CreateRoundingRecordRequestDto,
+  mapCreatedRoundingRecordDto,
+  mapRoundingAudioChunkDto,
+  RoundingAudioChunkDataDto,
+  RoundingAudioChunkResponseDto,
+  type CreatedRoundingRecordDataDto,
+  RoundingRecordResponseDto,
+} from './rounding-record.dto';
 import {
   AddRoundingPatientSegmentRequestDto,
   CompleteRoundingSessionRequestDto,
@@ -31,7 +51,10 @@ import {
 @ApiTags('Rounding')
 @Controller('rounding-sessions')
 export class RoundingSessionsController {
-  constructor(private readonly service: RoundingSessionService) {}
+  constructor(
+    private readonly service: RoundingSessionService,
+    private readonly roundingRecordService: RoundingRecordService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: '라운딩 세션 시작' })
@@ -76,7 +99,59 @@ export class RoundingSessionsController {
     );
   }
 
+  @Post(':sessionId/records')
+  @ApiOperation({ summary: '현재 환자 라운딩 기록 저장' })
+  @ApiCreatedResponse({ type: RoundingRecordResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  async createRecord(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() body: CreateRoundingRecordRequestDto,
+  ): Promise<CreatedRoundingRecordDataDto> {
+    return mapCreatedRoundingRecordDto(
+      await this.roundingRecordService.create({
+        context,
+        sessionId,
+        patientId: body.patientId,
+        startedAt: new Date(body.startedAt),
+        endedAt: new Date(body.endedAt),
+        ...(body.audioFileId === undefined
+          ? {}
+          : { audioFileId: body.audioFileId }),
+        ...(body.note === undefined ? {} : { note: body.note }),
+      }),
+    );
+  }
+
+  @Post(':sessionId/audio-chunks')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '라운딩 음성 청크 업로드' })
+  @ApiBody({ type: UploadFileRequestDto })
+  @ApiCreatedResponse({ type: RoundingAudioChunkResponseDto })
+  @ApiBadRequestResponse({ type: ApiErrorResponseDto })
+  @ApiUnauthorizedResponse({ type: ApiErrorResponseDto })
+  @ApiNotFoundResponse({ type: ApiErrorResponseDto })
+  @ApiUnprocessableEntityResponse({ type: ApiErrorResponseDto })
+  @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
+  async uploadAudioChunk(
+    @DemoSessionContextParam() context: DemoSessionContext,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @UploadedFile() file: UploadedFilePayload | undefined,
+  ): Promise<RoundingAudioChunkDataDto> {
+    return mapRoundingAudioChunkDto(
+      await this.roundingRecordService.uploadAudioChunk({
+        context,
+        sessionId,
+        file,
+      }),
+    );
+  }
+
   @Post(':sessionId/complete')
+  @HttpCode(200)
   @ApiOperation({ summary: '전체 라운딩 종료' })
   @ApiOkResponse({ type: RoundingSessionResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })

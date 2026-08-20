@@ -12,6 +12,7 @@ import {
   TaskCompletedImmutableError,
   TaskCursorInvalidError,
   TaskNotFoundError,
+  TaskPrioritySuggestionAcceptanceInvalidError,
 } from '../domain/task.errors';
 import { encodeTaskCursor } from '../domain/task-cursor';
 import { getEffectiveTaskPriority } from '../domain/task-priority.policy';
@@ -31,6 +32,7 @@ const NOW = new Date('2026-08-19T00:00:00.000Z');
 const DUTY_ENDS_AT = new Date('2026-08-19T08:00:00.000Z');
 const WORK_DATE = new Date('2026-08-19T00:00:00.000Z');
 const REQUEST_HASH = 'a'.repeat(64);
+const SUGGESTION_ID = '00000000-0000-4000-8000-000000000701';
 
 const CONTEXT: DemoSessionContext = {
   datasetId: DATASET_ID,
@@ -66,6 +68,8 @@ type FakeDatabaseClient = {
   taskExtractionCandidate: ModelMock;
   taskExtractionJob: ModelMock;
   taskPriorityAudit: ModelMock;
+  taskPrioritySuggestion: ModelMock;
+  taskPrioritySuggestionBatch: ModelMock;
 };
 
 type FakePrisma = FakeDatabaseClient & {
@@ -222,6 +226,199 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
     ).rejects.toBeInstanceOf(TaskCursorInvalidError);
   });
 
+  it('해당 scope의 수동 미완료 업무만 51개까지 snapshot으로 조회한다', async () => {
+    const { prisma } = createHarness();
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: TASK_ID,
+        scopeType: 'PATIENT',
+        patientId: PATIENT_ID,
+        locationLabel: null,
+        title: '통증 재평가',
+        description: null,
+        dueAt: new Date('2026-08-19T01:00:00.000Z'),
+        isCarryOver: false,
+        dependencyTaskIds: [],
+        priorityMeta: {},
+        version: 1,
+      },
+    ]);
+    prisma.patientAssignment.findMany.mockResolvedValue([
+      { patientId: PATIENT_ID },
+    ]);
+
+    const snapshot = await createRepository(prisma).findSnapshot({
+      context: CONTEXT,
+      workDate: WORK_DATE,
+      now: NOW,
+    });
+
+    expect(prisma.task.findMany).toHaveBeenCalledWith({
+      where: {
+        datasetId: DATASET_ID,
+        actorId: ACTOR_ID,
+        wardId: WARD_ID,
+        workDate: WORK_DATE,
+        source: 'MANUAL',
+        status: { in: ['TODO', 'IN_PROGRESS'] },
+      },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        scopeType: true,
+        patientId: true,
+        locationLabel: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        isCarryOver: true,
+        dependencyTaskIds: true,
+        priorityMeta: true,
+        version: true,
+      },
+    });
+    expect(snapshot[0].taskId).toBe(TASK_ID);
+  });
+
+  it('현재 배정이 해제된 환자 업무를 priority snapshot에서 제외한다', async () => {
+    const { prisma } = createHarness();
+    prisma.task.findMany.mockResolvedValue([
+      {
+        id: TASK_ID,
+        patientId: PATIENT_ID,
+        title: '통증 재평가',
+        dueAt: new Date('2026-08-19T01:00:00.000Z'),
+        version: 1,
+      },
+    ]);
+    prisma.patientAssignment.findMany.mockResolvedValue([]);
+
+    await expect(
+      createRepository(prisma).findSnapshot({
+        context: CONTEXT,
+        workDate: WORK_DATE,
+        now: NOW,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('priority batch reservation과 success 결과를 각각 원자적으로 완료한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.idempotencyRecord.findUnique.mockResolvedValue(null);
+    transaction.idempotencyRecord.create.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+    });
+    transaction.taskPrioritySuggestionBatch.create.mockResolvedValue({
+      id: JOB_ID,
+    });
+    const repository = createRepository(prisma);
+    const reserved = await repository.reserve({
+      context: CONTEXT,
+      workDate: WORK_DATE,
+      idempotencyKey: 'priority-key',
+      requestHash: REQUEST_HASH,
+      requestId: SUGGESTION_ID,
+      inputSnapshot: [
+        {
+          taskId: TASK_ID,
+          scopeType: 'PATIENT',
+          patientId: PATIENT_ID,
+          locationLabel: null,
+          title: '통증 재평가',
+          description: null,
+          dueAt: new Date('2026-08-19T01:00:00.000Z'),
+          isCarryOver: false,
+          dependencyTaskIds: [],
+          priorityMeta: {
+            patientStatusUrgency: null,
+            timeSensitivity: null,
+            taskCriticality: null,
+            isBlocking: false,
+          },
+          version: 1,
+        },
+      ],
+      now: NOW,
+    });
+    expect(reserved).toEqual({ state: 'RESERVED', batchId: JOB_ID });
+
+    transaction.taskPrioritySuggestionBatch.findFirst.mockResolvedValue({
+      id: JOB_ID,
+      idempotencyRecordId: IDEMPOTENCY_RECORD_ID,
+    });
+    transaction.taskPrioritySuggestion.create.mockResolvedValue({
+      id: SUGGESTION_ID,
+      taskId: TASK_ID,
+      taskVersion: 1,
+      aiScore: 10,
+      aiSuggestedPriority: 'CRITICAL',
+      reasons: ['즉시 확인'],
+    });
+    transaction.taskPrioritySuggestionBatch.updateMany.mockResolvedValue({
+      count: 1,
+    });
+    const result = await repository.completeSuccess({
+      context: CONTEXT,
+      batchId: JOB_ID,
+      suggestions: [
+        {
+          taskId: TASK_ID,
+          taskVersion: 1,
+          aiScore: 10,
+          aiSuggestedPriority: 'CRITICAL',
+          reasons: ['즉시 확인'],
+        },
+      ],
+      skippedTaskIds: [],
+      evaluatedAt: NOW,
+    });
+    expect(result.suggestions[0].suggestionId).toBe(SUGGESTION_ID);
+    expect(transaction.taskPrioritySuggestion.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        datasetId: DATASET_ID,
+        actorId: ACTOR_ID,
+        wardId: WARD_ID,
+        batchId: JOB_ID,
+        taskId: TASK_ID,
+        taskVersion: 1,
+      }),
+      select: expect.any(Object),
+    });
+  });
+
+  it('완료된 priority 실패 snapshot을 같은 key와 hash에 그대로 replay한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.idempotencyRecord.findUnique.mockResolvedValue({
+      id: IDEMPOTENCY_RECORD_ID,
+      wardId: WARD_ID,
+      requestHash: REQUEST_HASH,
+      status: 'COMPLETED',
+      resultReference: JOB_ID,
+    });
+    transaction.taskPrioritySuggestionBatch.findFirst.mockResolvedValue({
+      id: JOB_ID,
+      status: 'FAILED',
+      responseSnapshot: { code: 'TASK_AI_TIMEOUT', httpStatus: 504 },
+      failureCode: 'TASK_AI_TIMEOUT',
+      failureHttpStatus: 504,
+    });
+
+    await expect(
+      createRepository(prisma).reserve({
+        context: CONTEXT,
+        workDate: WORK_DATE,
+        idempotencyKey: 'priority-key',
+        requestHash: REQUEST_HASH,
+        requestId: SUGGESTION_ID,
+        inputSnapshot: [],
+        now: NOW,
+      }),
+    ).resolves.toEqual({
+      state: 'FAILED',
+      failure: { code: 'TASK_AI_TIMEOUT', httpStatus: 504 },
+    });
+  });
+
   it('updateMany가 version 경쟁에서 0건이면 optimistic conflict로 처리한다', async () => {
     const { prisma, transaction } = createHarness();
     transaction.task.findFirst.mockResolvedValue(createTaskRow());
@@ -263,6 +460,133 @@ describe('PrismaTaskRepository CRUD boundaries', () => {
 
     expect(transaction.nurseShift.findMany).not.toHaveBeenCalled();
     expect(transaction.task.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('scope와 priority가 일치하는 suggestionId만 ACCEPT_AI로 감사한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.task.findFirst.mockResolvedValue(createTaskRow());
+    transaction.taskPrioritySuggestion.findFirst.mockResolvedValue({
+      id: SUGGESTION_ID,
+      taskVersion: 1,
+      aiSuggestedPriority: 'CRITICAL',
+    });
+    transaction.nurseShift.findMany.mockResolvedValue([
+      { endsAt: DUTY_ENDS_AT },
+    ]);
+    transaction.task.findUnique.mockResolvedValue(
+      createTaskRow({ confirmedPriority: 'CRITICAL', version: 2 }),
+    );
+
+    await createRepository(prisma).update({
+      context: CONTEXT,
+      taskId: TASK_ID,
+      expectedVersion: 1,
+      confirmedPriority: 'CRITICAL',
+      prioritySuggestionId: SUGGESTION_ID,
+      now: NOW,
+    });
+
+    expect(transaction.taskPrioritySuggestion.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: SUGGESTION_ID,
+        datasetId: DATASET_ID,
+        taskId: TASK_ID,
+        actorId: ACTOR_ID,
+        wardId: WARD_ID,
+        batch: { actorId: ACTOR_ID, wardId: WARD_ID, status: 'SUCCEEDED' },
+      },
+      select: {
+        id: true,
+        taskVersion: true,
+        aiSuggestedPriority: true,
+      },
+    });
+    expect(transaction.taskPriorityAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ACCEPT_AI',
+        prioritySuggestionId: SUGGESTION_ID,
+        aiSuggestedPriority: 'CRITICAL',
+      }),
+    });
+  });
+
+  it('suggestionId가 없으면 같은 AI 값이어도 MANUAL_SET으로 감사한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.task.findFirst.mockResolvedValue(
+      createTaskRow({ aiSuggestedPriority: 'CRITICAL' }),
+    );
+    transaction.nurseShift.findMany.mockResolvedValue([
+      { endsAt: DUTY_ENDS_AT },
+    ]);
+    transaction.task.findUnique.mockResolvedValue(
+      createTaskRow({ confirmedPriority: 'CRITICAL', version: 2 }),
+    );
+
+    await createRepository(prisma).update({
+      context: CONTEXT,
+      taskId: TASK_ID,
+      expectedVersion: 1,
+      confirmedPriority: 'CRITICAL',
+      now: NOW,
+    });
+
+    expect(transaction.taskPriorityAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'MANUAL_SET' }),
+    });
+  });
+
+  it('현재 확정값과 같아도 명시적 suggestion 수락은 ACCEPT_AI로 감사한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.task.findFirst.mockResolvedValue(
+      createTaskRow({ confirmedPriority: 'CRITICAL' }),
+    );
+    transaction.taskPrioritySuggestion.findFirst.mockResolvedValue({
+      id: SUGGESTION_ID,
+      taskVersion: 1,
+      aiSuggestedPriority: 'CRITICAL',
+    });
+    transaction.nurseShift.findMany.mockResolvedValue([
+      { endsAt: DUTY_ENDS_AT },
+    ]);
+    transaction.task.findUnique.mockResolvedValue(
+      createTaskRow({ confirmedPriority: 'CRITICAL', version: 2 }),
+    );
+
+    await createRepository(prisma).update({
+      context: CONTEXT,
+      taskId: TASK_ID,
+      expectedVersion: 1,
+      confirmedPriority: 'CRITICAL',
+      prioritySuggestionId: SUGGESTION_ID,
+      now: NOW,
+    });
+
+    expect(transaction.taskPriorityAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'ACCEPT_AI' }),
+    });
+  });
+
+  it('Task가 변경된 뒤 stale suggestion 수락을 거부한다', async () => {
+    const { prisma, transaction } = createHarness();
+    transaction.task.findFirst.mockResolvedValue(createTaskRow({ version: 2 }));
+    transaction.taskPrioritySuggestion.findFirst.mockResolvedValue({
+      id: SUGGESTION_ID,
+      taskVersion: 1,
+      aiSuggestedPriority: 'CRITICAL',
+    });
+
+    await expect(
+      createRepository(prisma).update({
+        context: CONTEXT,
+        taskId: TASK_ID,
+        expectedVersion: 2,
+        confirmedPriority: 'CRITICAL',
+        prioritySuggestionId: SUGGESTION_ID,
+        now: NOW,
+      }),
+    ).rejects.toBeInstanceOf(TaskPrioritySuggestionAcceptanceInvalidError);
+    expect(transaction.task.updateMany).not.toHaveBeenCalled();
+    expect(transaction.taskPriorityAudit.create).not.toHaveBeenCalled();
   });
 
   it('TaskQueryPort는 활성 배정 환자의 미완료 업무를 scope하고 안정 정렬한다', async () => {
@@ -663,6 +987,8 @@ function createDatabaseClient(): FakeDatabaseClient {
     taskExtractionCandidate: createModelMock(),
     taskExtractionJob: createModelMock(),
     taskPriorityAudit: createModelMock(),
+    taskPrioritySuggestion: createModelMock(),
+    taskPrioritySuggestionBatch: createModelMock(),
   };
 }
 
@@ -683,11 +1009,21 @@ function createInput(): CreateTaskInput {
     context: CONTEXT,
     idempotencyKey: 'task-create-key',
     requestHash: REQUEST_HASH,
+    scopeType: 'PATIENT',
     patientId: PATIENT_ID,
+    locationLabel: null,
     title: '통증 재평가',
     description: null,
     dueAt: new Date('2026-08-19T01:00:00.000Z'),
     workDate: WORK_DATE,
+    isCarryOver: false,
+    dependencyTaskIds: [],
+    priorityMeta: {
+      patientStatusUrgency: null,
+      timeSensitivity: null,
+      taskCriticality: null,
+      isBlocking: false,
+    },
     confirmedPriority: null,
     now: NOW,
   };
@@ -710,13 +1046,23 @@ function completedIdempotencyRecord(
 function createTaskRow(overrides: Partial<TaskView> = {}): TaskView {
   return {
     id: TASK_ID,
+    scopeType: overrides.scopeType ?? 'WARD',
     patientId: null,
+    locationLabel: overrides.locationLabel ?? null,
     title: '통증 재평가',
     description: null,
     dueAt: new Date('2026-08-19T01:00:00.000Z'),
     workDate: WORK_DATE,
     status: 'TODO',
     source: 'MANUAL',
+    isCarryOver: false,
+    dependencyTaskIds: [],
+    priorityMeta: {
+      patientStatusUrgency: null,
+      timeSensitivity: null,
+      taskCriticality: null,
+      isBlocking: false,
+    },
     aiSuggestedPriority: null,
     aiReasons: [],
     aiConfidence: null,

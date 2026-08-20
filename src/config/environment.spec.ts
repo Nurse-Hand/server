@@ -74,4 +74,53 @@ describe('validateEnvironment', () => {
       }),
     ).toThrow('환경변수 검증 실패: FILE_STORAGE_ROOT');
   });
+
+  it('AI 우선순위 endpoint 설정을 검증하고 timeout을 숫자로 변환한다', () => {
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'test',
+        AI_BASE_URL: 'http://ai:8000',
+        AI_INTERNAL_API_TOKEN: 'synthetic-token',
+        AI_PRIORITY_TIMEOUT_MS: '15000',
+      }),
+    ).toMatchObject({
+      AI_BASE_URL: 'http://ai:8000',
+      AI_INTERNAL_API_TOKEN: 'synthetic-token',
+      AI_PRIORITY_TIMEOUT_MS: 15000,
+    });
+  });
+
+  it.each([
+    ['AI_BASE_URL', { AI_BASE_URL: 'file:///tmp/ai' }],
+    ['AI_INTERNAL_API_TOKEN', { AI_INTERNAL_API_TOKEN: '   ' }],
+    ['AI_PRIORITY_TIMEOUT_MS', { AI_PRIORITY_TIMEOUT_MS: '0' }],
+    ['AI_PRIORITY_TIMEOUT_MS', { AI_PRIORITY_TIMEOUT_MS: '120001' }],
+  ])('%s이 올바르지 않으면 시작을 거부한다', (field, values) => {
+    expect(() => validateEnvironment({ NODE_ENV: 'test', ...values })).toThrow(
+      `환경변수 검증 실패: ${field}`,
+    );
+  });
+
+  it.each([
+    { AI_BASE_URL: 'http://ai:8000' },
+    { AI_INTERNAL_API_TOKEN: 'synthetic-token' },
+    { AI_PRIORITY_TIMEOUT_MS: '15000' },
+  ])('AI 연결 구성이 일부만 있으면 시작을 거부한다', (values) => {
+    expect(() => validateEnvironment({ NODE_ENV: 'test', ...values })).toThrow(
+      '환경변수 검증 실패: AI_BASE_URL, AI_INTERNAL_API_TOKEN',
+    );
+  });
+
+  it('AI URL과 token pair는 timeout 없이 사용할 수 있다', () => {
+    expect(
+      validateEnvironment({
+        NODE_ENV: 'test',
+        AI_BASE_URL: 'http://ai:8000',
+        AI_INTERNAL_API_TOKEN: 'synthetic-token',
+      }),
+    ).toMatchObject({
+      AI_BASE_URL: 'http://ai:8000',
+      AI_INTERNAL_API_TOKEN: 'synthetic-token',
+    });
+  });
 });

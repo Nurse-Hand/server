@@ -27,10 +27,18 @@ import type {
   ReserveTaskExtractionResult,
   TaskExtractionJobView,
   TaskExtractionWorkItem,
+  TaskPriorityMeta,
   TaskRepository,
   TaskView,
   UpdateTaskInput,
 } from '../application/ports/task.repository';
+import type {
+  ReserveTaskPrioritySuggestionResult,
+  TaskPrioritySuggestionBatchResult,
+  TaskPrioritySuggestionFailure,
+  TaskPrioritySuggestionRepository,
+  TaskPrioritySuggestionSnapshotTask,
+} from '../application/ports/task-priority-suggestion.repository';
 import {
   TaskCandidateAlreadyAppliedError,
   TaskCompletedImmutableError,
@@ -38,6 +46,7 @@ import {
   TaskCursorInvalidError,
   TaskNotFoundError,
   TaskPersistenceInvariantError,
+  TaskPrioritySuggestionAcceptanceInvalidError,
   TaskExtractionNotSucceededError,
 } from '../domain/task.errors';
 import {
@@ -50,21 +59,30 @@ import {
   TASK_APPLY_OPERATION,
   TASK_CREATE_OPERATION,
   TASK_EXTRACTION_OPERATION,
+  TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+  TASK_PRIORITY_SUGGESTION_OPERATION,
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
 } from '../domain/task.types';
 import { deriveSeoulWorkDate } from '../domain/task-work-date';
 
 const TASK_SELECT = {
   id: true,
+  scopeType: true,
   patientId: true,
+  locationLabel: true,
   title: true,
   description: true,
   dueAt: true,
   workDate: true,
   status: true,
   source: true,
+  isCarryOver: true,
+  dependencyTaskIds: true,
+  priorityMeta: true,
   aiSuggestedPriority: true,
   aiReasons: true,
   aiConfidence: true,
@@ -87,7 +105,9 @@ type IdempotencyRow = {
 };
 
 @Injectable()
-export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
+export class PrismaTaskRepository
+  implements TaskRepository, TaskQueryPort, TaskPrioritySuggestionRepository
+{
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: Clock,
@@ -164,6 +184,271 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
     };
   }
 
+  async findSnapshot(input: {
+    context: DemoSessionContext;
+    workDate: Date;
+    now: Date;
+  }): Promise<readonly TaskPrioritySuggestionSnapshotTask[]> {
+    const rows = await this.prisma.task.findMany({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        workDate: input.workDate,
+        source: 'MANUAL',
+        status: { in: ['TODO', 'IN_PROGRESS'] },
+      },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        scopeType: true,
+        patientId: true,
+        locationLabel: true,
+        title: true,
+        description: true,
+        dueAt: true,
+        isCarryOver: true,
+        dependencyTaskIds: true,
+        priorityMeta: true,
+        version: true,
+      },
+    });
+
+    const patientIds = rows.flatMap(({ patientId }) =>
+      patientId === null ? [] : [patientId],
+    );
+    const accessiblePatientIds = new Set(
+      patientIds.length === 0
+        ? []
+        : await this.findAccessiblePatientIds(
+            this.prisma,
+            input.context,
+            input.now,
+            patientIds,
+          ),
+    );
+
+    return rows
+      .filter(
+        ({ patientId }) =>
+          patientId === null || accessiblePatientIds.has(patientId),
+      )
+      .slice(0, 51)
+      .map(({ id, priorityMeta, ...row }) => ({
+        taskId: id,
+        ...row,
+        priorityMeta: parsePriorityMeta(priorityMeta),
+      }));
+  }
+
+  async reserve(input: {
+    context: DemoSessionContext;
+    workDate: Date;
+    idempotencyKey: string;
+    requestHash: string;
+    requestId: string;
+    inputSnapshot: readonly TaskPrioritySuggestionSnapshotTask[];
+    now: Date;
+  }): Promise<ReserveTaskPrioritySuggestionResult> {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const existing = await this.findIdempotencyRecord(
+          transaction,
+          input.context,
+          TASK_PRIORITY_SUGGESTION_OPERATION,
+          input.idempotencyKey,
+        );
+        if (existing) {
+          return this.resolvePrioritySuggestionReplay(
+            transaction,
+            input,
+            existing,
+          );
+        }
+
+        const record = await transaction.idempotencyRecord.create({
+          data: {
+            ...input.context,
+            operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+            idempotencyKey: input.idempotencyKey,
+            requestHash: input.requestHash,
+          },
+          select: { id: true },
+        });
+        const batch = await transaction.taskPrioritySuggestionBatch.create({
+          data: {
+            ...input.context,
+            workDate: input.workDate,
+            requestId: input.requestId,
+            operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+            idempotencyRecordId: record.id,
+            requestHash: input.requestHash,
+            contractVersion: TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+            inputSnapshot: serializePrioritySuggestionInput(
+              input.inputSnapshot,
+            ),
+            createdAt: input.now,
+            updatedAt: input.now,
+          },
+          select: { id: true },
+        });
+
+        return { state: 'RESERVED' as const, batchId: batch.id };
+      });
+    } catch (error: unknown) {
+      if (!hasPrismaErrorCode(error, 'P2002')) throw error;
+      const existing = await this.findIdempotencyRecord(
+        this.prisma,
+        input.context,
+        TASK_PRIORITY_SUGGESTION_OPERATION,
+        input.idempotencyKey,
+      );
+      if (!existing) throw error;
+      return this.resolvePrioritySuggestionReplay(this.prisma, input, existing);
+    }
+  }
+
+  async completeSuccess(input: {
+    context: DemoSessionContext;
+    batchId: string;
+    suggestions: readonly {
+      taskId: string;
+      taskVersion: number;
+      aiScore: number;
+      aiSuggestedPriority: TaskPriority;
+      reasons: readonly string[];
+    }[];
+    skippedTaskIds: readonly string[];
+    evaluatedAt: Date;
+  }): Promise<TaskPrioritySuggestionBatchResult> {
+    return this.prisma.$transaction(async (transaction) => {
+      const batch = await this.findProcessingPrioritySuggestionBatch(
+        transaction,
+        input.context,
+        input.batchId,
+      );
+      const suggestions = [];
+      for (const suggestion of input.suggestions) {
+        const created = await transaction.taskPrioritySuggestion.create({
+          data: {
+            datasetId: input.context.datasetId,
+            batchId: batch.id,
+            taskId: suggestion.taskId,
+            taskVersion: suggestion.taskVersion,
+            actorId: input.context.actorId,
+            wardId: input.context.wardId,
+            aiScore: suggestion.aiScore,
+            aiSuggestedPriority: suggestion.aiSuggestedPriority,
+            reasons: [...suggestion.reasons],
+            createdAt: input.evaluatedAt,
+          },
+          select: {
+            id: true,
+            taskId: true,
+            taskVersion: true,
+            aiScore: true,
+            aiSuggestedPriority: true,
+            reasons: true,
+          },
+        });
+        suggestions.push({
+          suggestionId: created.id,
+          taskId: created.taskId,
+          taskVersion: created.taskVersion,
+          aiScore: created.aiScore,
+          aiSuggestedPriority: created.aiSuggestedPriority,
+          reasons: created.reasons,
+        });
+      }
+      const result: TaskPrioritySuggestionBatchResult = {
+        batchId: batch.id,
+        evaluatedAt: input.evaluatedAt,
+        contractVersion: TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION,
+        suggestions,
+        skippedTaskIds: [...input.skippedTaskIds],
+        isReplay: false,
+      };
+      const responseSnapshot = serializePrioritySuggestionResult(result);
+      const completedBatch =
+        await transaction.taskPrioritySuggestionBatch.updateMany({
+          where: {
+            id: batch.id,
+            datasetId: input.context.datasetId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'SUCCEEDED',
+            responseSnapshot,
+            evaluatedAt: input.evaluatedAt,
+            updatedAt: input.evaluatedAt,
+          },
+        });
+      const completedRecord = await transaction.idempotencyRecord.updateMany({
+        where: {
+          id: batch.idempotencyRecordId,
+          datasetId: input.context.datasetId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'COMPLETED',
+          resultReference: batch.id,
+          updatedAt: input.evaluatedAt,
+        },
+      });
+      if (completedBatch.count !== 1 || completedRecord.count !== 1) {
+        throw new TaskPersistenceInvariantError();
+      }
+      return result;
+    });
+  }
+
+  async completeFailure(input: {
+    context: DemoSessionContext;
+    batchId: string;
+    failure: TaskPrioritySuggestionFailure;
+    evaluatedAt: Date;
+  }): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      const batch = await this.findProcessingPrioritySuggestionBatch(
+        transaction,
+        input.context,
+        input.batchId,
+      );
+      const failureSnapshot = serializePrioritySuggestionFailure(input.failure);
+      const completedBatch =
+        await transaction.taskPrioritySuggestionBatch.updateMany({
+          where: {
+            id: batch.id,
+            datasetId: input.context.datasetId,
+            status: 'PROCESSING',
+          },
+          data: {
+            status: 'FAILED',
+            responseSnapshot: failureSnapshot,
+            failureCode: input.failure.code,
+            failureHttpStatus: input.failure.httpStatus,
+            evaluatedAt: input.evaluatedAt,
+            updatedAt: input.evaluatedAt,
+          },
+        });
+      const completedRecord = await transaction.idempotencyRecord.updateMany({
+        where: {
+          id: batch.idempotencyRecordId,
+          datasetId: input.context.datasetId,
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'COMPLETED',
+          resultReference: batch.id,
+          updatedAt: input.evaluatedAt,
+        },
+      });
+      if (completedBatch.count !== 1 || completedRecord.count !== 1) {
+        throw new TaskPersistenceInvariantError();
+      }
+    });
+  }
+
   async create(input: CreateTaskInput): Promise<CreateTaskResult> {
     try {
       return await this.prisma.$transaction(async (transaction) => {
@@ -184,6 +469,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
           input.now,
           input.patientId === null ? [] : [input.patientId],
         );
+        assertStoredTaskScope(input.scopeType, input.patientId);
         const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
           transaction,
           input.context,
@@ -207,12 +493,17 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         const created = await transaction.task.create({
           data: {
             ...input.context,
+            scopeType: input.scopeType,
             patientId: input.patientId,
+            locationLabel: input.locationLabel,
             title: input.title,
             description: input.description,
             dueAt: input.dueAt,
             workDate: input.workDate,
             source: 'MANUAL',
+            isCarryOver: input.isCarryOver,
+            dependencyTaskIds: [...input.dependencyTaskIds],
+            priorityMeta: serializePriorityMeta(input.priorityMeta),
             aiReasons: [],
             rulePriority,
             confirmedPriority: input.confirmedPriority,
@@ -316,12 +607,55 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         throw new TaskCompletedImmutableError();
       }
 
+      const acceptedSuggestion =
+        input.prioritySuggestionId === undefined
+          ? null
+          : await transaction.taskPrioritySuggestion.findFirst({
+              where: {
+                id: input.prioritySuggestionId,
+                datasetId: input.context.datasetId,
+                taskId: current.id,
+                actorId: input.context.actorId,
+                wardId: input.context.wardId,
+                batch: {
+                  actorId: input.context.actorId,
+                  wardId: input.context.wardId,
+                  status: 'SUCCEEDED',
+                },
+              },
+              select: {
+                id: true,
+                taskVersion: true,
+                aiSuggestedPriority: true,
+              },
+            });
+      if (input.prioritySuggestionId !== undefined && !acceptedSuggestion) {
+        throw new TaskNotFoundError();
+      }
+      if (
+        acceptedSuggestion &&
+        (acceptedSuggestion.taskVersion !== current.version ||
+          acceptedSuggestion.aiSuggestedPriority !== input.confirmedPriority)
+      ) {
+        throw new TaskPrioritySuggestionAcceptanceInvalidError();
+      }
+
       const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
         transaction,
         input.context,
         input.now,
       );
       const dueAt = input.dueAt ?? current.dueAt;
+      const nextScopeType = input.scopeType ?? current.scopeType;
+      const nextPatientId =
+        input.patientId === undefined ? current.patientId : input.patientId;
+      assertStoredTaskScope(nextScopeType, nextPatientId);
+      await this.assertPatientsAccessible(
+        transaction,
+        input.context,
+        input.now,
+        nextPatientId === null ? [] : [nextPatientId],
+      );
       const rulePriority = calculateTaskRulePriority({
         dueAt,
         now: input.now,
@@ -345,6 +679,24 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             ? {}
             : { dueAt: input.dueAt, workDate: input.workDate }),
           ...(input.status === undefined ? {} : { status: input.status }),
+          ...(input.scopeType === undefined
+            ? {}
+            : { scopeType: input.scopeType }),
+          ...(input.patientId === undefined
+            ? {}
+            : { patientId: input.patientId }),
+          ...(input.locationLabel === undefined
+            ? {}
+            : { locationLabel: input.locationLabel }),
+          ...(input.isCarryOver === undefined
+            ? {}
+            : { isCarryOver: input.isCarryOver }),
+          ...(input.dependencyTaskIds === undefined
+            ? {}
+            : { dependencyTaskIds: [...input.dependencyTaskIds] }),
+          ...(input.priorityMeta === undefined
+            ? {}
+            : { priorityMeta: serializePriorityMeta(input.priorityMeta) }),
           ...(input.confirmedPriority === undefined
             ? {}
             : { confirmedPriority: input.confirmedPriority }),
@@ -358,7 +710,7 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
         throw new VersionConflictError(input.expectedVersion);
       }
 
-      if (priorityChanged) {
+      if (priorityChanged || acceptedSuggestion) {
         await transaction.taskPriorityAudit.create({
           data: {
             datasetId: input.context.datasetId,
@@ -367,12 +719,15 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
             action:
               input.confirmedPriority === null
                 ? 'CLEARED'
-                : input.confirmedPriority === current.aiSuggestedPriority
+                : acceptedSuggestion
                   ? 'ACCEPT_AI'
                   : 'MANUAL_SET',
             previousConfirmedPriority: current.confirmedPriority,
             newConfirmedPriority: input.confirmedPriority,
-            aiSuggestedPriority: current.aiSuggestedPriority,
+            aiSuggestedPriority:
+              acceptedSuggestion?.aiSuggestedPriority ??
+              current.aiSuggestedPriority,
+            prioritySuggestionId: acceptedSuggestion?.id,
           },
         });
       }
@@ -1244,6 +1599,77 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
     };
   }
 
+  private async resolvePrioritySuggestionReplay(
+    client: DatabaseClient,
+    input: {
+      context: DemoSessionContext;
+      requestHash: string;
+    },
+    record: IdempotencyRow,
+  ): Promise<ReserveTaskPrioritySuggestionResult> {
+    assertIdempotencyMatch(input.context.wardId, input.requestHash, record);
+    if (record.status === 'PROCESSING') {
+      throw new IdempotencyRequestInProgressError();
+    }
+
+    const batch = await client.taskPrioritySuggestionBatch.findFirst({
+      where: {
+        datasetId: input.context.datasetId,
+        actorId: input.context.actorId,
+        wardId: input.context.wardId,
+        operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+        idempotencyRecordId: record.id,
+      },
+      select: {
+        id: true,
+        status: true,
+        responseSnapshot: true,
+        failureCode: true,
+        failureHttpStatus: true,
+      },
+    });
+    if (!batch || record.resultReference !== batch.id) {
+      throw new IdempotencyInvariantViolationError();
+    }
+    if (batch.status === 'SUCCEEDED') {
+      return {
+        state: 'SUCCEEDED',
+        result: deserializePrioritySuggestionResult(batch.responseSnapshot),
+      };
+    }
+    if (batch.status === 'FAILED') {
+      return {
+        state: 'FAILED',
+        failure: deserializePrioritySuggestionFailure(
+          batch.responseSnapshot,
+          batch.failureCode,
+          batch.failureHttpStatus,
+        ),
+      };
+    }
+    throw new IdempotencyInvariantViolationError();
+  }
+
+  private async findProcessingPrioritySuggestionBatch(
+    transaction: Prisma.TransactionClient,
+    context: DemoSessionContext,
+    batchId: string,
+  ): Promise<{ id: string; idempotencyRecordId: string }> {
+    const batch = await transaction.taskPrioritySuggestionBatch.findFirst({
+      where: {
+        id: batchId,
+        datasetId: context.datasetId,
+        actorId: context.actorId,
+        wardId: context.wardId,
+        operation: TASK_PRIORITY_SUGGESTION_OPERATION,
+        status: 'PROCESSING',
+      },
+      select: { id: true, idempotencyRecordId: true },
+    });
+    if (!batch) throw new TaskPersistenceInvariantError();
+    return batch;
+  }
+
   private findIdempotencyRecord(
     client: DatabaseClient,
     context: DemoSessionContext,
@@ -1391,6 +1817,8 @@ export class PrismaTaskRepository implements TaskRepository, TaskQueryPort {
 
     return {
       ...row,
+      dependencyTaskIds: [...row.dependencyTaskIds],
+      priorityMeta: parsePriorityMeta(row.priorityMeta),
       aiReasons: row.aiReasons,
       rulePriority,
       effectivePriority: getEffectiveTaskPriority(
@@ -1478,15 +1906,154 @@ function serializeTaskView(task: TaskView): Prisma.InputJsonObject {
   return {
     ...task,
     patientId: task.patientId,
+    locationLabel: task.locationLabel,
     description: task.description,
     dueAt: task.dueAt?.toISOString() ?? null,
     workDate: task.workDate.toISOString(),
+    dependencyTaskIds: [...task.dependencyTaskIds],
+    priorityMeta: serializePriorityMeta(task.priorityMeta),
     aiSuggestedPriority: task.aiSuggestedPriority,
     aiConfidence: task.aiConfidence,
     confirmedPriority: task.confirmedPriority,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
+}
+
+function serializePrioritySuggestionInput(
+  tasks: readonly TaskPrioritySuggestionSnapshotTask[],
+): Prisma.InputJsonArray {
+  return tasks.map((task) => ({
+    taskId: task.taskId,
+    scopeType: task.scopeType,
+    patientId: task.patientId,
+    locationLabel: task.locationLabel,
+    title: task.title,
+    description: task.description,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    isCarryOver: task.isCarryOver,
+    dependencyTaskIds: [...task.dependencyTaskIds],
+    priorityMeta: serializePriorityMeta(task.priorityMeta),
+    version: task.version,
+  }));
+}
+
+function serializePrioritySuggestionResult(
+  result: TaskPrioritySuggestionBatchResult,
+): Prisma.InputJsonObject {
+  return {
+    batchId: result.batchId,
+    evaluatedAt: result.evaluatedAt.toISOString(),
+    contractVersion: result.contractVersion,
+    suggestions: result.suggestions.map((suggestion) => ({
+      suggestionId: suggestion.suggestionId,
+      taskId: suggestion.taskId,
+      taskVersion: suggestion.taskVersion,
+      aiScore: suggestion.aiScore,
+      aiSuggestedPriority: suggestion.aiSuggestedPriority,
+      reasons: [...suggestion.reasons],
+    })),
+    skippedTaskIds: [...result.skippedTaskIds],
+  };
+}
+
+function deserializePrioritySuggestionResult(
+  value: Prisma.JsonValue | null,
+): TaskPrioritySuggestionBatchResult {
+  const snapshot = readJsonObject(value);
+  const evaluatedAt = readDate(snapshot.evaluatedAt);
+  const suggestions = readJsonArray(snapshot.suggestions).map((item) => {
+    const suggestion = readJsonObject(item);
+    const reasons = readStringArray(suggestion.reasons);
+    if (
+      typeof suggestion.suggestionId !== 'string' ||
+      typeof suggestion.taskId !== 'string' ||
+      typeof suggestion.taskVersion !== 'number' ||
+      !Number.isInteger(suggestion.taskVersion) ||
+      suggestion.taskVersion < 1 ||
+      typeof suggestion.aiScore !== 'number' ||
+      !Number.isFinite(suggestion.aiScore) ||
+      suggestion.aiScore < 0 ||
+      (suggestion.aiSuggestedPriority !== 'CRITICAL' &&
+        suggestion.aiSuggestedPriority !== 'HIGH' &&
+        suggestion.aiSuggestedPriority !== 'NORMAL')
+    ) {
+      throw new IdempotencyInvariantViolationError();
+    }
+    return {
+      suggestionId: suggestion.suggestionId,
+      taskId: suggestion.taskId,
+      taskVersion: suggestion.taskVersion,
+      aiScore: suggestion.aiScore,
+      aiSuggestedPriority: suggestion.aiSuggestedPriority as TaskPriority,
+      reasons,
+    };
+  });
+  const skippedTaskIds = readStringArray(snapshot.skippedTaskIds);
+  if (
+    typeof snapshot.batchId !== 'string' ||
+    snapshot.contractVersion !== TASK_PRIORITY_SUGGESTION_CONTRACT_VERSION
+  ) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return {
+    batchId: snapshot.batchId,
+    evaluatedAt,
+    contractVersion: snapshot.contractVersion,
+    suggestions,
+    skippedTaskIds,
+    isReplay: true,
+  };
+}
+
+function serializePrioritySuggestionFailure(
+  failure: TaskPrioritySuggestionFailure,
+): Prisma.InputJsonObject {
+  return { code: failure.code, httpStatus: failure.httpStatus };
+}
+
+function deserializePrioritySuggestionFailure(
+  value: Prisma.JsonValue | null,
+  storedCode: string | null,
+  storedHttpStatus: number | null,
+): TaskPrioritySuggestionFailure {
+  const snapshot = readJsonObject(value);
+  const code = snapshot.code;
+  const httpStatus = snapshot.httpStatus;
+  if (
+    code !== storedCode ||
+    httpStatus !== storedHttpStatus ||
+    ((code !== 'TASK_AI_TIMEOUT' || httpStatus !== 504) &&
+      (code !== 'TASK_AI_RESPONSE_INVALID' || httpStatus !== 502) &&
+      (code !== 'TASK_AI_UNAVAILABLE' || httpStatus !== 503))
+  ) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return { code, httpStatus };
+}
+
+function readJsonObject(
+  value: Prisma.JsonValue | null | undefined,
+): Prisma.JsonObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return value;
+}
+
+function readJsonArray(
+  value: Prisma.JsonValue | undefined,
+): readonly Prisma.JsonValue[] {
+  if (!Array.isArray(value)) throw new IdempotencyInvariantViolationError();
+  return value;
+}
+
+function readStringArray(value: Prisma.JsonValue | undefined): string[] {
+  const items = readJsonArray(value);
+  if (items.some((item) => typeof item !== 'string')) {
+    throw new IdempotencyInvariantViolationError();
+  }
+  return items as string[];
 }
 
 function deserializeTaskView(value: Prisma.JsonValue): TaskView {
@@ -1523,13 +2090,25 @@ function deserializeTaskView(value: Prisma.JsonValue): TaskView {
 
   return {
     id: snapshot.id,
+    scopeType: readTaskScope(snapshot.scopeType, snapshot.patientId),
     patientId: snapshot.patientId,
+    locationLabel:
+      typeof snapshot.locationLabel === 'string'
+        ? snapshot.locationLabel
+        : null,
     title: snapshot.title,
     description: snapshot.description,
     dueAt,
     workDate,
     status: snapshot.status as TaskView['status'],
     source: snapshot.source as TaskView['source'],
+    isCarryOver:
+      typeof snapshot.isCarryOver === 'boolean' ? snapshot.isCarryOver : false,
+    dependencyTaskIds:
+      snapshot.dependencyTaskIds === undefined
+        ? []
+        : readStringArray(snapshot.dependencyTaskIds),
+    priorityMeta: parsePriorityMeta(snapshot.priorityMeta),
     aiSuggestedPriority:
       (snapshot.aiSuggestedPriority as TaskView['aiSuggestedPriority']) ?? null,
     aiReasons,
@@ -1542,6 +2121,76 @@ function deserializeTaskView(value: Prisma.JsonValue): TaskView {
     createdAt,
     updatedAt,
   };
+}
+
+function readTaskScope(
+  value: Prisma.JsonValue | undefined,
+  patientId: Prisma.JsonValue | undefined,
+): TaskScopeType {
+  if (value === 'PATIENT' || value === 'WARD') {
+    return value;
+  }
+  return patientId === null ? 'WARD' : 'PATIENT';
+}
+
+function serializePriorityMeta(
+  priorityMeta: TaskPriorityMeta,
+): Prisma.InputJsonObject {
+  return {
+    patientStatusUrgency: priorityMeta.patientStatusUrgency,
+    timeSensitivity: priorityMeta.timeSensitivity,
+    taskCriticality: priorityMeta.taskCriticality,
+    isBlocking: priorityMeta.isBlocking,
+  };
+}
+
+function parsePriorityMeta(
+  value: Prisma.JsonValue | null | undefined,
+): TaskPriorityMeta {
+  if (value === undefined || value === null) {
+    return emptyPriorityMeta();
+  }
+
+  const meta = readJsonObject(value);
+  return {
+    patientStatusUrgency: parseSignal(meta.patientStatusUrgency),
+    timeSensitivity: parseSignal(meta.timeSensitivity),
+    taskCriticality: parseSignal(meta.taskCriticality),
+    isBlocking: typeof meta.isBlocking === 'boolean' ? meta.isBlocking : false,
+  };
+}
+
+function emptyPriorityMeta(): TaskPriorityMeta {
+  return {
+    patientStatusUrgency: null,
+    timeSensitivity: null,
+    taskCriticality: null,
+    isBlocking: false,
+  };
+}
+
+function parseSignal(
+  value: Prisma.JsonValue | undefined,
+): TaskPrioritySignalLevel | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (value === 'LOW' || value === 'MEDIUM' || value === 'HIGH') {
+    return value;
+  }
+  throw new IdempotencyInvariantViolationError();
+}
+
+function assertStoredTaskScope(
+  scopeType: TaskScopeType,
+  patientId: string | null,
+): void {
+  if (
+    (scopeType === 'PATIENT' && patientId === null) ||
+    (scopeType === 'WARD' && patientId !== null)
+  ) {
+    throw new TaskPersistenceInvariantError();
+  }
 }
 
 function readDate(value: Prisma.JsonValue | undefined): Date {

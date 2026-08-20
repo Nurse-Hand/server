@@ -143,6 +143,39 @@ export class TaskAiResponseInvalidError extends ApplicationError {
   }
 }
 
+export class TaskAiUnavailableError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'TASK_AI_UNAVAILABLE',
+      kind: 'DEPENDENCY_UNAVAILABLE',
+      publicMessage: '업무 제안 서비스를 일시적으로 사용할 수 없습니다.',
+    });
+    this.name = TaskAiUnavailableError.name;
+  }
+}
+
+export class TaskPrioritySuggestionLimitExceededError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'TASK_PRIORITY_SUGGESTION_LIMIT_EXCEEDED',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '한 번에 제안할 수 있는 업무는 최대 50개입니다.',
+    });
+    this.name = TaskPrioritySuggestionLimitExceededError.name;
+  }
+}
+
+export class TaskPrioritySuggestionAcceptanceInvalidError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'TASK_PRIORITY_SUGGESTION_ACCEPTANCE_INVALID',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '선택한 AI 제안과 확정 우선순위가 일치하지 않습니다.',
+    });
+    this.name = TaskPrioritySuggestionAcceptanceInvalidError.name;
+  }
+}
+
 export class TaskPersistenceInvariantError extends ApplicationError {
   constructor() {
     super({

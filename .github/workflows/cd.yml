@@ -10,9 +10,10 @@ permissions:
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_SERVER_REPOSITORY || 'nursehand-server' }}
+  DEPLOY_ROOT: ${{ vars.GABIA_DEPLOY_ROOT || '/data/nurse-hand' }}
 
 jobs:
-  build-and-push:
+  deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -29,57 +30,48 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push server image
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Deploy to Gabia server
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Deploy on Gabia server
         env:
           SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
           SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.GABIA_SSH_USER }}
           SSH_PASSWORD: ${{ secrets.GABIA_SSH_PASSWORD }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          SERVER_IMAGE: ${{ env.IMAGE_NAME }}:latest
+          SERVER_IMAGE_TAG: ${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
-          required_vars=(
-            SSH_HOST
-            SSH_PORT
-            SSH_USER
-            SSH_PASSWORD
-            DOCKERHUB_USERNAME
-            DOCKERHUB_TOKEN
-            SERVER_IMAGE
-          )
-          for var_name in "${required_vars[@]}"; do
-            if [[ -z "${!var_name}" ]]; then
-              echo "Missing required CD environment variable: ${var_name}" >&2
-              exit 1
-            fi
-          done
+          set -euo pipefail
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          remote_command="cd /data/nurse-hand && chmod +x deploy-server.sh && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE}' bash ./deploy-server.sh"
-
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-          sshpass -p "${SSH_PASSWORD}" \
-            ssh \
+          sshpass -p "${SSH_PASSWORD}" ssh \
             -p "${SSH_PORT}" \
             -o PreferredAuthentications=password \
             -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
             "${SSH_USER}@${SSH_HOST}" \
-            "${remote_command}"
+            "set -euo pipefail; \
+            cd '${DEPLOY_ROOT}'; \
+            PREVIOUS_SERVER_IMAGE=\$(docker inspect -f '{{.Config.Image}}' nurse-hand-server 2>/dev/null || true); \
+            rollback() { \
+              echo 'Deploy failed. Rolling back...'; \
+              if [ -n \"\${PREVIOUS_SERVER_IMAGE:-}\" ]; then \
+                NURSE_HAND_SERVER_IMAGE=\"\${PREVIOUS_SERVER_IMAGE}\" docker compose --env-file .env -f docker-compose.prod.yml up -d api worker; \
+                docker compose --env-file .env -f docker-compose.prod.yml ps; \
+              fi; \
+            }; \
+            trap rollback ERR; \
+            NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE_TAG}' docker compose --env-file .env -f docker-compose.prod.yml pull api worker; \
+            NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE_TAG}' docker compose --env-file .env -f docker-compose.prod.yml up -d api worker; \
+            docker compose --env-file .env -f docker-compose.prod.yml ps"

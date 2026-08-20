@@ -15,6 +15,11 @@ enum TaskPriority {
   NORMAL
 }
 
+enum TaskScopeType {
+  PATIENT
+  WARD
+}
+
 enum TaskAiConfidence {
   HIGH
   MEDIUM
@@ -32,18 +37,29 @@ enum TaskPriorityAuditAction {
   CLEARED
 }
 
+enum TaskPrioritySuggestionBatchStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 model Task {
   id                  String              @id @default(uuid()) @db.Uuid
   datasetId           String              @db.Uuid
   actorId             String              @db.Uuid
   wardId              String              @db.Uuid
+  scopeType           TaskScopeType       @default(PATIENT)
   patientId           String?             @db.Uuid
+  locationLabel       String?             @db.VarChar(100)
   title               String              @db.VarChar(200)
   description         String?             @db.VarChar(1000)
   dueAt               DateTime?           @db.Timestamptz(3)
   workDate            DateTime            @db.Date
   status              TaskStatus          @default(TODO)
   source              TaskSource
+  isCarryOver         Boolean             @default(false)
+  dependencyTaskIds   String[]            @default([])
+  priorityMeta        Json                @default("{}")
   aiSuggestedPriority TaskPriority?
   aiReasons           String[]
   aiConfidence        TaskAiConfidence?
@@ -56,11 +72,13 @@ model Task {
   sourceEvidence      TaskEvidence[]      @relation("TaskEvidenceSourceTask")
   sourceExtractionEvidence TaskExtractionEvidence[] @relation("TaskExtractionEvidenceSourceTask")
   priorityAudits      TaskPriorityAudit[] @relation("TaskPriorityAuditTask")
+  prioritySuggestions TaskPrioritySuggestion[] @relation("TaskPrioritySuggestionTask")
   createReceipt       TaskCreateReceipt?  @relation("TaskCreateReceiptTask")
   duplicateCandidates TaskExtractionCandidate[] @relation("TaskCandidateDuplicate")
   appliedCandidate    TaskExtractionCandidate? @relation("TaskCandidateApplied")
 
   @@unique(name: "task_dataset_id", [datasetId, id])
+  @@unique(name: "task_dataset_id_actor_ward", [datasetId, id, actorId, wardId])
   @@index([datasetId, wardId, actorId, workDate, status, patientId])
   @@index([datasetId, wardId, actorId, workDate, dueAt, createdAt, id])
   @@index([datasetId, wardId, patientId, status, dueAt, createdAt, id])
@@ -111,11 +129,65 @@ model TaskPriorityAudit {
   previousConfirmedPriority TaskPriority?
   newConfirmedPriority      TaskPriority?
   aiSuggestedPriority       TaskPriority?
+  prioritySuggestionId      String?                 @db.Uuid
   createdAt                 DateTime                @default(now()) @db.Timestamptz(3)
   task                      Task                    @relation("TaskPriorityAuditTask", fields: [datasetId, taskId], references: [datasetId, id], onDelete: Cascade)
+  prioritySuggestion        TaskPrioritySuggestion? @relation("TaskPriorityAuditSuggestion", fields: [datasetId, prioritySuggestionId, taskId], references: [datasetId, id, taskId], onDelete: Restrict)
 
   @@unique(name: "task_priority_audit_dataset_id", [datasetId, id])
   @@index([datasetId, taskId, createdAt, id])
+  @@index([datasetId, prioritySuggestionId])
+}
+
+model TaskPrioritySuggestionBatch {
+  id                  String                            @id @default(uuid()) @db.Uuid
+  datasetId           String                            @db.Uuid
+  actorId             String                            @db.Uuid
+  wardId              String                            @db.Uuid
+  workDate            DateTime                          @db.Date
+  requestId           String                            @db.Uuid
+  operation           String                            @default("tasks.priority-suggestions") @db.VarChar(100)
+  idempotencyRecordId String                            @unique @db.Uuid
+  requestHash         String                            @db.Char(64)
+  contractVersion     String                            @db.VarChar(64)
+  status              TaskPrioritySuggestionBatchStatus @default(PROCESSING)
+  inputSnapshot       Json
+  responseSnapshot    Json?
+  failureCode         String?                           @db.VarChar(100)
+  failureHttpStatus   Int?
+  evaluatedAt         DateTime?                         @db.Timestamptz(3)
+  createdAt           DateTime                          @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                          @updatedAt @db.Timestamptz(3)
+  suggestions         TaskPrioritySuggestion[]          @relation("TaskPrioritySuggestionBatchResults")
+
+  @@unique(name: "task_priority_suggestion_batch_dataset_id", [datasetId, id])
+  @@unique(name: "task_priority_suggestion_batch_scope", [datasetId, id, actorId, wardId])
+  @@unique(name: "task_priority_suggestion_batch_idempotency_scope", [datasetId, idempotencyRecordId, actorId, wardId, operation])
+  @@index([datasetId, requestId])
+  @@index([datasetId, wardId, actorId, workDate, createdAt, id])
+}
+
+model TaskPrioritySuggestion {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  datasetId           String                       @db.Uuid
+  batchId             String                       @db.Uuid
+  taskId              String                       @db.Uuid
+  taskVersion         Int
+  actorId             String                       @db.Uuid
+  wardId              String                       @db.Uuid
+  aiScore             Float
+  aiSuggestedPriority TaskPriority
+  reasons             String[]
+  createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  batch               TaskPrioritySuggestionBatch  @relation("TaskPrioritySuggestionBatchResults", fields: [datasetId, batchId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Cascade)
+  task                Task                         @relation("TaskPrioritySuggestionTask", fields: [datasetId, taskId, actorId, wardId], references: [datasetId, id, actorId, wardId], onDelete: Restrict)
+  priorityAudits      TaskPriorityAudit[]           @relation("TaskPriorityAuditSuggestion")
+
+  @@unique(name: "task_priority_suggestion_dataset_id", [datasetId, id])
+  @@unique(name: "task_priority_suggestion_dataset_id_task", [datasetId, id, taskId])
+  @@unique(name: "task_priority_suggestion_batch_task", [datasetId, batchId, taskId])
+  @@index([datasetId, taskId, createdAt, id])
+  @@index([datasetId, batchId, aiScore, taskId])
 }
 
 model TaskExtractionJob {

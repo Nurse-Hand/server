@@ -10,17 +10,17 @@
 
 ### 2.1 책임 분리
 
-- AI는 `suggestedPriority`, 근거와 `confidence`를 제안한다.
+- 명시적 `tasks-prioritize-v1` batch는 `suggestedPriority`, 근거와 `score`를 제안한다. 업무 추출 후보의 별도 계약만 기존 `confidence`를 유지한다.
 - 간호사는 제안을 수락하거나 수정해 `confirmedPriority`를 확정하거나 기존 확정을 해제할 수 있다.
 - Node.js는 검증 가능한 시간과 상태만 사용해 `rulePriority`와 실제 정렬을 결정한다.
-- 숫자형 AI score는 schema, DTO, fixture, 응답과 정렬에 사용하지 않는다.
+- 숫자형 AI score는 명시적으로 생성한 같은 `tasks-prioritize-v1` batch의 참고 제안 표시 순서(`score DESC`, `taskId ASC`)에만 저장·응답한다. 서로 다른 batch·contract version 간 비교, 실제 Task 정렬, 자동 확정과 임상 위험도에는 사용하지 않는다.
 - `effectivePriority`는 `confirmedPriority ?? rulePriority`다. AI 제안은 간호사가 확정하기 전까지 표시 정보이며 실제 정렬에 직접 사용하지 않는다.
 
 이 priority enum은 환자의 임상 위험도나 진단이 아니라 간호사가 수행할 **업무 처리 긴급도**를 뜻한다. AI는 저장된 Timeline event 또는 Task 근거 ID에 연결된 제안만 반환하며 새로운 진단이나 환자 위험도를 확정하지 않는다. 간호사가 확정하지 않은 AI 이유는 실제 정렬 근거로 표시하지 않는다.
 
 AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 보존한다. 제안 수락, 수동 변경과 확정 해제는 append-only 감사 기록으로 남긴다.
 
-화면의 선택형 `긴급도`는 별도 점수 필드가 아니라 기존 `priorityOverride`로 간호사가 확정한 처리 긴급도를 표현한다. `시간민감도`는 마감 시각인 `dueAt`으로 표현한다. 서로 합의되지 않은 가중치, 임계값 또는 `priorityScore`를 추가 입력·저장·정렬 필드로 만들지 않는다.
+화면의 선택형 `긴급도`는 기존 `priorityOverride`로 간호사가 확정한 처리 긴급도를 표현한다. `시간민감도`는 마감 시각인 `dueAt`으로 표현한다. AI의 `score`는 같은 batch 내 참고 제안 순서 외에는 의미를 부여하지 않으며, 별도 `priorityScore` 입력이나 Task 정렬 필드로 만들지 않는다.
 
 ### 2.2 Node.js 규칙
 
@@ -36,7 +36,7 @@ AI 제안, Node.js 규칙값과 간호사 확정값은 서로 다른 필드로 �
 
 모든 Task는 병동 기준 업무일인 `workDate`를 가진다. 직접 생성은 필수 미래 `dueAt`의 `Asia/Seoul` 날짜에서 파생한다. 추출 업무는 `dueAt`이 있으면 그 local date, 없으면 근거 라운딩의 근무일을 사용한다. PATCH로 `dueAt`을 추가하거나 변경하면 `workDate`도 같은 local date로 재계산하며, `dueAt`을 null로 되돌리는 변경은 허용하지 않는다. 목록의 필수 `date`는 `workDate`를 조회한다.
 
-직접 생성의 `patientId`, `description`, `priorityOverride`는 nullable이다. `priorityOverride`는 `confirmedPriority`로 매핑하고 null 또는 생략은 미확정으로 처리한다.
+직접 생성의 `patientId`, `locationLabel`, `description`, `priorityOverride`는 nullable이다. `priorityOverride`는 `confirmedPriority`로 매핑하고 null 또는 생략은 미확정으로 처리한다. 환자 관련 업무는 `scopeType=PATIENT`와 non-null `patientId`, 병동 운영 업무는 `scopeType=WARD`와 `patientId=null`로 저장한다. `isCarryOver`, `dependencyTaskIds`, `priorityMeta`는 AI 우선순위 참고 제안의 판단 재료로 저장하지만, Node.js의 기본 `rulePriority`는 계속 `dueAt` 중심의 재현 가능한 규칙값으로 계산한다.
 
 Rounding 구현 전에는 `TaskExtractionEvidencePort`와 deterministic Mock으로 근거 조회와 orchestration을 완성한다. 실제 Rounding repository 또는 Prisma model을 Task 모듈이 직접 참조하지 않으며, Rounding 구현 후 같은 Port의 Adapter를 통합 작업에서 연결한다.
 
@@ -68,14 +68,14 @@ Python FastAPI에서 생성한 OpenAPI artifact가 제공되기 전에는 실제
 
 인수인계 초안은 다음 6개 section을 환자별로 모두 가진다.
 
-| Section | 의미 |
-|---|---|
-| `PATIENT_STATUS` | 활력징후, 호흡, 의식 상태 등 환자 상태 |
-| `PAIN` | 통증과 변화 |
-| `TREATMENT` | 투약을 포함한 처치 |
-| `DIET` | 식이와 섭취 |
-| `ACTIVITY` | 활동, 이동과 안전 관련 수행 |
-| `OBSERVATION` | 보호자 문의, 낙상 위험 등 관찰·특이사항 |
+| Section          | 의미                                    |
+| ---------------- | --------------------------------------- |
+| `PATIENT_STATUS` | 활력징후, 호흡, 의식 상태 등 환자 상태  |
+| `PAIN`           | 통증과 변화                             |
+| `TREATMENT`      | 투약을 포함한 처치                      |
+| `DIET`           | 식이와 섭취                             |
+| `ACTIVITY`       | 활동, 이동과 안전 관련 수행             |
+| `OBSERVATION`    | 보호자 문의, 낙상 위험 등 관찰·특이사항 |
 
 Evidence의 세부 `topic`과 인수인계 표시 `section`은 서로 다른 축이다. 세부 검색 topic은 `VITAL_SIGNS`, `RESPIRATION`, `MENTAL_STATUS`, `PAIN`, `TREATMENT`, `DIET`, `ACTIVITY`, `OBSERVATION`을 사용할 수 있고, 앞의 세 topic은 `PATIENT_STATUS`로 묶는다. 나머지는 같은 이름의 section으로 매핑한다. 이 매핑은 검색 분류이며 원문 내용을 바꾸지 않는다.
 

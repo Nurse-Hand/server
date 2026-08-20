@@ -18,6 +18,8 @@ model RoundingSession {
   dataset     DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   membership  WardMembership           @relation("RoundingSessionMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
   segments    RoundingPatientSegment[]
+  records     RoundingRecord[]
+  audioChunks RoundingAudioChunk[]
 
   @@unique(name: "rounding_session_dataset_id", [datasetId, id])
   @@index([datasetId, wardId, actorId, status, startedAt(sort: Desc), id])
@@ -40,4 +42,49 @@ model RoundingPatientSegment {
   @@unique(name: "rounding_segment_dataset_id", [datasetId, id])
   @@unique(name: "rounding_segment_session_sequence", [datasetId, roundingSessionId, sequence])
   @@index([datasetId, wardId, patientId, startedAt, id])
+}
+
+model RoundingRecord {
+  id                String          @id @default(uuid()) @db.Uuid
+  datasetId         String          @db.Uuid
+  actorId           String          @db.Uuid
+  wardId            String          @db.Uuid
+  roundingSessionId String          @db.Uuid
+  patientId         String          @db.Uuid
+  audioFileId       String?         @db.Uuid
+  sequence          Int
+  workDate          DateTime        @db.Date
+  startedAt         DateTime        @db.Timestamptz(3)
+  endedAt           DateTime        @db.Timestamptz(3)
+  note              String?         @db.VarChar(500)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  dataset           DemoDataset     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership        WardMembership  @relation("RoundingRecordMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  session           RoundingSession @relation(fields: [datasetId, roundingSessionId], references: [datasetId, id], onDelete: Cascade)
+  patient           Patient         @relation("RoundingRecordPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  audioFile         StoredFile?     @relation("RoundingRecordAudioFile", fields: [datasetId, audioFileId], references: [datasetId, id], onDelete: Restrict)
+
+  @@unique(name: "rounding_record_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_record_session_sequence", [datasetId, roundingSessionId, sequence])
+  @@index([datasetId, wardId, actorId, workDate, startedAt(sort: Desc), id(sort: Desc)])
+  @@index([datasetId, wardId, patientId, workDate, startedAt(sort: Desc), id(sort: Desc)])
+}
+
+model RoundingAudioChunk {
+  id                String          @id @default(uuid()) @db.Uuid
+  datasetId         String          @db.Uuid
+  actorId           String          @db.Uuid
+  wardId            String          @db.Uuid
+  roundingSessionId String          @db.Uuid
+  audioFileId       String          @db.Uuid
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  dataset           DemoDataset     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  membership        WardMembership  @relation("RoundingAudioChunkMembership", fields: [datasetId, actorId, wardId], references: [datasetId, nurseId, wardId], onDelete: Restrict)
+  session           RoundingSession @relation(fields: [datasetId, roundingSessionId], references: [datasetId, id], onDelete: Cascade)
+  audioFile         StoredFile      @relation("RoundingAudioChunkFile", fields: [datasetId, audioFileId], references: [datasetId, id], onDelete: Restrict)
+
+  @@unique(name: "rounding_audio_chunk_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_audio_chunk_audio_file", [datasetId, audioFileId])
+  @@index([datasetId, wardId, actorId, roundingSessionId, createdAt(sort: Desc), id(sort: Desc)])
 }

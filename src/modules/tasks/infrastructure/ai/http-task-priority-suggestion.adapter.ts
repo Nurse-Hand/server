@@ -1,0 +1,201 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type {
+  TaskPrioritySuggestionGateway,
+  TaskPrioritySuggestionGatewayInput,
+  TaskPrioritySuggestionGatewayResult,
+} from '../../application/ports/task-priority-suggestion.gateway';
+import {
+  TaskAiResponseInvalidError,
+  TaskAiTimeoutError,
+  TaskAiUnavailableError,
+} from '../../domain/task.errors';
+import { parseTaskPrioritySuggestionResponse } from './task-priority-suggestion-response.parser';
+
+const PRIORITIZE_PATH = '/internal/v1/tasks/prioritize';
+const DEFAULT_TIMEOUT_MILLISECONDS = 15_000;
+const MAX_RESPONSE_BODY_BYTES = 256 * 1024;
+
+@Injectable()
+export class HttpTaskPrioritySuggestionAdapter implements TaskPrioritySuggestionGateway {
+  constructor(private readonly configService: ConfigService) {}
+
+  async prioritize(
+    input: TaskPrioritySuggestionGatewayInput,
+  ): Promise<TaskPrioritySuggestionGatewayResult> {
+    const configuration = this.readConfiguration();
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      configuration.timeoutMilliseconds,
+    );
+
+    try {
+      let response: Response;
+      try {
+        response = await fetch(configuration.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Token': configuration.token,
+          },
+          body: JSON.stringify({
+            requestId: input.requestId,
+            tasks: input.tasks.map(toAiTaskPayload),
+            patientRisk: [],
+            now: input.now,
+          }),
+          signal: controller.signal,
+        });
+      } catch (error: unknown) {
+        if (controller.signal.aborted || isAbortError(error)) {
+          throw new TaskAiTimeoutError();
+        }
+        throw new TaskAiUnavailableError();
+      }
+
+      if (response.status !== 201) {
+        await cancelResponseBody(response);
+        throw new TaskAiUnavailableError();
+      }
+
+      let body: unknown;
+      try {
+        body = JSON.parse(await readBoundedBody(response)) as unknown;
+      } catch (error: unknown) {
+        if (controller.signal.aborted || isAbortError(error)) {
+          throw new TaskAiTimeoutError();
+        }
+        throw new TaskAiResponseInvalidError();
+      }
+
+      return parseTaskPrioritySuggestionResponse(body, {
+        requestId: input.requestId,
+        taskIds: input.tasks.map(({ taskId }) => taskId),
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private readConfiguration(): {
+    url: string;
+    token: string;
+    timeoutMilliseconds: number;
+  } {
+    const baseUrl = this.configService.get<string>('AI_BASE_URL')?.trim();
+    const token = this.configService
+      .get<string>('AI_INTERNAL_API_TOKEN')
+      ?.trim();
+    const timeoutValue = this.configService.get<unknown>(
+      'AI_PRIORITY_TIMEOUT_MS',
+    );
+    const timeoutMilliseconds =
+      timeoutValue === undefined
+        ? DEFAULT_TIMEOUT_MILLISECONDS
+        : Number(timeoutValue);
+
+    if (
+      !baseUrl ||
+      !token ||
+      !Number.isInteger(timeoutMilliseconds) ||
+      timeoutMilliseconds < 1
+    ) {
+      throw new TaskAiUnavailableError();
+    }
+
+    const url = `${baseUrl.replace(/\/+$/, '')}${PRIORITIZE_PATH}`;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('unsupported protocol');
+      }
+    } catch {
+      throw new TaskAiUnavailableError();
+    }
+
+    return { url, token, timeoutMilliseconds };
+  }
+}
+
+function toAiTaskPayload(
+  task: TaskPrioritySuggestionGatewayInput['tasks'][number],
+): {
+  taskId: string;
+  patientId: string;
+  title: string;
+  dueAt: string | null;
+  carriedOver: boolean;
+} {
+  const titleParts = [
+    task.scopeType === 'WARD' ? '[병동 운영]' : null,
+    task.title,
+    task.description,
+  ].filter(
+    (part): part is string => typeof part === 'string' && part.length > 0,
+  );
+
+  return {
+    taskId: task.taskId,
+    patientId:
+      task.patientId ??
+      `WARD:${task.locationLabel ?? task.scopeType.toLowerCase()}`,
+    title: titleParts.join(' - '),
+    dueAt: task.dueAt,
+    carriedOver: task.isCarryOver,
+  };
+}
+
+async function readBoundedBody(response: Response): Promise<string> {
+  const contentLength = response.headers.get('content-length');
+  if (contentLength !== null) {
+    const parsedContentLength = Number(contentLength);
+    if (
+      !Number.isInteger(parsedContentLength) ||
+      parsedContentLength < 0 ||
+      parsedContentLength > MAX_RESPONSE_BODY_BYTES
+    ) {
+      await cancelResponseBody(response);
+      throw new TaskAiResponseInvalidError();
+    }
+  }
+
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let body = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BODY_BYTES) {
+        await reader.cancel();
+        throw new TaskAiResponseInvalidError();
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return body + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Upstream body 정리 실패가 원래 응답 오류를 가리지 않게 한다.
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  );
+}
