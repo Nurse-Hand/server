@@ -29,22 +29,22 @@ model Ward {
 }
 
 model WardMembership {
-  id                 String              @id @default(uuid()) @db.Uuid
-  datasetId          String              @db.Uuid
-  logicalKey         String              @db.VarChar(64)
-  nurseId            String              @db.Uuid
-  wardId             String              @db.Uuid
+  id                 String                   @id @default(uuid()) @db.Uuid
+  datasetId          String                   @db.Uuid
+  logicalKey         String                   @db.VarChar(64)
+  nurseId            String                   @db.Uuid
+  wardId             String                   @db.Uuid
   role               WardMembershipRole
-  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
-  dataset            DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  nurse              Nurse               @relation("MembershipNurse", fields: [datasetId, nurseId], references: [datasetId, id], onDelete: Restrict)
-  ward               Ward                @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
-  demoSessions       DemoSession[]       @relation("DemoSessionMembership")
-  nurseShifts        NurseShift[]        @relation("ShiftMembership")
-  roundingSessions   RoundingSession[]   @relation("RoundingSessionMembership")
-  aiJobs             AiJob[]             @relation("AiJobMembership")
-  idempotencyRecords IdempotencyRecord[] @relation("IdempotencyMembership")
-  monthlySchedules   MonthlySchedule[]   @relation("MonthlyScheduleMembership")
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  dataset            DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  nurse              Nurse                    @relation("MembershipNurse", fields: [datasetId, nurseId], references: [datasetId, id], onDelete: Restrict)
+  ward               Ward                     @relation("MembershipWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  demoSessions       DemoSession[]            @relation("DemoSessionMembership")
+  nurseShifts        NurseShift[]             @relation("ShiftMembership")
+  roundingSessions   RoundingSession[]        @relation("RoundingSessionMembership")
+  aiJobs             AiJob[]                  @relation("AiJobMembership")
+  idempotencyRecords IdempotencyRecord[]      @relation("IdempotencyMembership")
+  monthlySchedules   MonthlySchedule[]        @relation("MonthlyScheduleMembership")
   scheduleReceipts   MonthlyScheduleReceipt[] @relation("MonthlyScheduleReceiptMembership")
 
   @@unique(name: "membership_dataset_id", [datasetId, id])
@@ -115,24 +115,49 @@ model PatientAssignment {
 }
 
 model TimelineEvent {
-  id              String              @id @default(uuid()) @db.Uuid
-  datasetId       String              @db.Uuid
-  logicalKey      String              @db.VarChar(64)
-  patientId       String              @db.Uuid
-  wardId          String              @db.Uuid
-  occurredAt      DateTime            @db.Timestamptz(3)
-  type            TimelineEventType
-  source          TimelineEventSource
-  sourceReference String              @db.VarChar(128)
-  summary         String              @db.VarChar(500)
-  version         Int                 @default(1)
-  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
-  dataset         DemoDataset         @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-  patient         Patient             @relation("TimelineEventPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
-  ward            Ward                @relation("TimelineEventWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  id                 String                          @id @default(uuid()) @db.Uuid
+  datasetId          String                          @db.Uuid
+  logicalKey         String                          @db.VarChar(64)
+  patientId          String                          @db.Uuid
+  wardId             String                          @db.Uuid
+  occurredAt         DateTime                        @db.Timestamptz(3)
+  type               TimelineEventType
+  source             TimelineEventSource
+  sourceReference    String                          @db.VarChar(128)
+  summary            String                          @db.VarChar(500)
+  important          Boolean                         @default(false)
+  confirmationStatus TimelineEventConfirmationStatus @default(PENDING)
+  updatedByActorId   String?                         @db.Uuid
+  version            Int                             @default(1)
+  createdAt          DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                        @updatedAt @db.Timestamptz(3)
+  dataset            DemoDataset                     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  patient            Patient                         @relation("TimelineEventPatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  ward               Ward                            @relation("TimelineEventWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)
+  historyEntries     TimelineEventHistory[]
 
   @@unique(name: "timeline_event_dataset_id", [datasetId, id])
   @@unique(name: "timeline_event_dataset_logical_key", [datasetId, logicalKey])
   @@index([datasetId, wardId, patientId, occurredAt(sort: Desc), id(sort: Desc)])
+}
+
+model TimelineEventHistory {
+  id                         String                          @id @default(uuid()) @db.Uuid
+  datasetId                  String                          @db.Uuid
+  timelineEventId            String                          @db.Uuid
+  actorId                    String                          @db.Uuid
+  editedAt                   DateTime                        @db.Timestamptz(3)
+  version                    Int
+  previousSummary            String                          @db.VarChar(500)
+  nextSummary                String                          @db.VarChar(500)
+  previousImportant          Boolean
+  nextImportant              Boolean
+  previousConfirmationStatus TimelineEventConfirmationStatus
+  nextConfirmationStatus     TimelineEventConfirmationStatus
+  createdAt                  DateTime                        @default(now()) @db.Timestamptz(3)
+  dataset                    DemoDataset                     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  timelineEvent              TimelineEvent                   @relation(fields: [datasetId, timelineEventId], references: [datasetId, id], onDelete: Cascade)
+
+  @@unique(name: "timeline_event_history_dataset_id", [datasetId, id])
+  @@index([datasetId, timelineEventId, editedAt(sort: Desc), id(sort: Desc)])
 }

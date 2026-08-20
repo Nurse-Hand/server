@@ -11,6 +11,7 @@ model DemoDataset {
   patients           Patient[]
   patientAssignments PatientAssignment[]
   timelineEvents     TimelineEvent[]
+  timelineEventHistories TimelineEventHistory[]
   roundingSessions   RoundingSession[]
   storedFiles        StoredFile[]
   quickNotes         QuickNote[]

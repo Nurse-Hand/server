@@ -722,6 +722,250 @@
         ]
       }
     },
+    "/api/v1/timeline-events/{eventId}": {
+      "patch": {
+        "operationId": "TimelineEventsController_update",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTimelineEventRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Timeline 이벤트 수정",
+        "tags": [
+          "Timeline"
+        ]
+      }
+    },
+    "/api/v1/timeline-events/{eventId}/history": {
+      "get": {
+        "operationId": "TimelineEventsController_history",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventHistoryResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Timeline 이벤트 변경 이력 조회",
+        "tags": [
+          "Timeline"
+        ]
+      }
+    },
     "/api/v1/quick-notes": {
       "post": {
         "operationId": "QuickNotesController_create",
@@ -5292,6 +5536,17 @@
             "type": "string",
             "example": "통증 NRS 5점으로 감소"
           },
+          "important": {
+            "type": "boolean",
+            "default": false
+          },
+          "confirmationStatus": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED"
+            ],
+            "type": "string"
+          },
           "version": {
             "type": "number",
             "minimum": 1
@@ -5299,6 +5554,15 @@
           "sourceReference": {
             "type": "string",
             "example": "timeline:event:801"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedByActorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
           }
         },
         "required": [
@@ -5308,8 +5572,12 @@
           "type",
           "source",
           "summary",
+          "important",
+          "confirmationStatus",
           "version",
-          "sourceReference"
+          "sourceReference",
+          "updatedAt",
+          "updatedByActorId"
         ]
       },
       "PatientTimelineDataDto": {
@@ -5331,6 +5599,254 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PatientTimelineDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "UpdateTimelineEventRequestDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "통증 NRS 4점으로 감소, 오후 재평가 필요"
+          },
+          "important": {
+            "type": "boolean"
+          },
+          "confirmationStatus": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "TimelineEventDataDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "enum": [
+              "OBSERVATION",
+              "MEDICATION",
+              "PROCEDURE",
+              "REPORT",
+              "TASK"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "MANUAL",
+              "AI_AUDIO"
+            ],
+            "type": "string"
+          },
+          "sourceReference": {
+            "type": "string",
+            "example": "timeline:event:801"
+          },
+          "summary": {
+            "type": "string",
+            "example": "통증 NRS 4점으로 감소"
+          },
+          "important": {
+            "type": "boolean"
+          },
+          "confirmationStatus": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedByActorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "eventId",
+          "patientId",
+          "occurredAt",
+          "type",
+          "source",
+          "sourceReference",
+          "summary",
+          "important",
+          "confirmationStatus",
+          "version",
+          "updatedAt",
+          "updatedByActorId"
+        ]
+      },
+      "TimelineEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TimelineEventDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "TimelineEventHistoryChangeTextDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after"
+        ]
+      },
+      "TimelineEventHistoryChangeBooleanDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "boolean"
+          },
+          "after": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "before",
+          "after"
+        ]
+      },
+      "TimelineEventHistoryChangeStatusDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED"
+            ],
+            "type": "string"
+          },
+          "after": {
+            "enum": [
+              "PENDING",
+              "CONFIRMED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after"
+        ]
+      },
+      "TimelineEventHistoryChangesDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeTextDto"
+          },
+          "important": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeBooleanDto"
+          },
+          "confirmationStatus": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeStatusDto"
+          }
+        }
+      },
+      "TimelineEventHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "historyEntryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "changes": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangesDto"
+          }
+        },
+        "required": [
+          "historyEntryId",
+          "actorId",
+          "editedAt",
+          "version",
+          "changes"
+        ]
+      },
+      "TimelineEventHistoryDataDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEventHistoryItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "TimelineEventHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TimelineEventHistoryDataDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ApiMetaDto"
