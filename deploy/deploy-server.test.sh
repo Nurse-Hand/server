@@ -151,6 +151,9 @@ case "${action:-}" in
     if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
       exit 1
     fi
+    if [[ "${FAKE_SCENARIO}" == "baseline-storage-fail" && "${active_image}" != "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+      exit 1
+    fi
     if [[ "${FAKE_SCENARIO}" == "external-body-invalid" \
       && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" \
       && "$*" == *"health-envelope"* ]]; then
@@ -281,7 +284,7 @@ test_failure_before_replacement() {
 
 test_unhealthy_baseline_stops_before_mutation() {
   local scenario root
-  for scenario in baseline-api-health-fail baseline-worker-health-fail baseline-worker-running baseline-external-health-fail; do
+  for scenario in baseline-api-health-fail baseline-worker-health-fail baseline-worker-running baseline-external-health-fail baseline-storage-fail; do
     root="$(create_scenario "${scenario}")"
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"

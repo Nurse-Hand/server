@@ -77,6 +77,17 @@ assertIncludes(deployScript, "--write-out '%{http_code}'");
 assertIncludes(deployScript, 'health-envelope');
 assertIncludes(deployScript, 'patient-list-envelope');
 assertIncludes(deployScript, 'validate_deploy_root');
+assertOrdered(deployScript, [
+  'the existing API external readiness failed before deployment',
+  'check_storage_permissions "${previous_image_reference}"',
+  'docker image tag "${previous_image_id}" "${rollback_image}"',
+  'docker pull "${NURSE_HAND_SERVER_IMAGE}"',
+]);
+assertIncludes(
+  deployScript,
+  'check_storage_permissions "${NURSE_HAND_SERVER_IMAGE}"',
+  'Replacement storage smoke must use the new immutable image contract',
+);
 
 const validatorMatch = deployScript.match(
   /^READINESS_RESPONSE_VALIDATOR='([^']+)'$/m,
@@ -113,6 +124,17 @@ function assertCount(source, expected, count, message) {
   const actual = source.split(expected).length - 1;
   if (actual !== count) {
     throw new Error(`${message}: expected ${count}, received ${actual}`);
+  }
+}
+
+function assertOrdered(source, values) {
+  let previousIndex = -1;
+  for (const value of values) {
+    const currentIndex = source.indexOf(value);
+    if (currentIndex <= previousIndex) {
+      throw new Error(`Deployment contract is out of order near: ${value}`);
+    }
+    previousIndex = currentIndex;
   }
 }
 

@@ -214,7 +214,9 @@ check_external_readiness() {
 }
 
 check_storage_permissions() {
-  compose "${NURSE_HAND_SERVER_IMAGE}" exec -T api \
+  local image="$1"
+
+  compose "${image}" exec -T api \
     node --input-type=module - < "${STORAGE_SMOKE_SCRIPT}"
 }
 
@@ -293,6 +295,9 @@ fi
 if ! check_external_readiness; then
   fail "the existing API external readiness failed before deployment"
 fi
+if ! check_storage_permissions "${previous_image_reference}"; then
+  fail "the existing API storage permission smoke failed before deployment"
+fi
 
 rollback_image="nurse-hand-server-local:rollback-${DEPLOY_RUN_ID}"
 docker image tag "${previous_image_id}" "${rollback_image}"
@@ -315,7 +320,7 @@ fi
 if ! wait_for_container_readiness "${WORKER_CONTAINER_NAME}" 2; then
   rollback "${rollback_image}" "worker container readiness"
 fi
-if ! check_storage_permissions; then
+if ! check_storage_permissions "${NURSE_HAND_SERVER_IMAGE}"; then
   rollback "${rollback_image}" "storage permission smoke"
 fi
 if ! check_external_readiness; then
