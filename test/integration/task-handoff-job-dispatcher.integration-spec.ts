@@ -73,13 +73,36 @@ describe('Task/Handoff job dispatcher PostgreSQL integration', () => {
       },
       select: { startsAt: true },
     });
+    const assignment = await prisma.patientAssignment.findFirstOrThrow({
+      where: {
+        datasetId: context.datasetId,
+        nurseId: context.actorId,
+        wardId: context.wardId,
+      },
+      select: { patientId: true },
+    });
+    const timelineEvent = await prisma.timelineEvent.create({
+      data: {
+        datasetId: context.datasetId,
+        logicalKey: `dispatcher-evidence-${randomUUID()}`,
+        patientId: assignment.patientId,
+        wardId: context.wardId,
+        occurredAt: new Date('2026-08-20T01:30:00.000Z'),
+        type: 'OBSERVATION',
+        source: 'AI_AUDIO',
+        sourceReference: 'dispatcher-integration-audio',
+        summary: '라운딩 후 통증 재평가가 필요함',
+        important: true,
+      },
+      select: { id: true },
+    });
     const extraction = await tasks.reserveExtraction(
       context,
       `dispatcher-task-${randomUUID()}`,
       randomUUID(),
       {
         roundingSessionId: randomUUID(),
-        recordIds: [randomUUID()],
+        recordIds: [timelineEvent.id],
       },
     );
     const precheck = await prechecks.create(
