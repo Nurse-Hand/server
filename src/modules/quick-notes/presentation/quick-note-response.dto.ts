@@ -6,6 +6,7 @@ import type {
 } from '../application/ports/quick-note.repository';
 import {
   QUICK_NOTE_EVIDENCE_STATUSES,
+  QUICK_NOTE_SOURCE_CHANNELS,
   QUICK_NOTE_SOURCE_TYPES,
   QUICK_NOTE_TYPES,
 } from '../domain/quick-note.types';
@@ -33,6 +34,26 @@ export class QuickNoteAttachmentDto {
   createdAt!: string;
 }
 
+export class QuickNoteStructuredFactsDto {
+  @ApiProperty({ nullable: true, type: String })
+  summary!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  text!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  occurredAt!: string;
+
+  @ApiProperty({ enum: QUICK_NOTE_SOURCE_CHANNELS, isArray: true })
+  sourceChannels!: (typeof QUICK_NOTE_SOURCE_CHANNELS)[number][];
+
+  @ApiProperty({ format: 'uuid', nullable: true })
+  audioFileId!: string | null;
+
+  @ApiProperty({ type: String, isArray: true })
+  photoFileIds!: string[];
+}
+
 export class QuickNoteDataDto {
   @ApiProperty({ format: 'uuid' })
   quickNoteId!: string;
@@ -43,6 +64,12 @@ export class QuickNoteDataDto {
   @ApiProperty({ enum: QUICK_NOTE_TYPES })
   noteType!: (typeof QUICK_NOTE_TYPES)[number];
 
+  @ApiProperty({ enum: QUICK_NOTE_TYPES })
+  topic!: (typeof QUICK_NOTE_TYPES)[number];
+
+  @ApiProperty()
+  handoffSection!: string;
+
   @ApiProperty({ enum: QUICK_NOTE_SOURCE_TYPES })
   sourceType!: (typeof QUICK_NOTE_SOURCE_TYPES)[number];
 
@@ -52,17 +79,20 @@ export class QuickNoteDataDto {
   @ApiProperty({ format: 'date-time' })
   occurredAt!: string;
 
-  @ApiProperty({ enum: QUICK_NOTE_EVIDENCE_STATUSES })
-  evidenceStatus!: (typeof QUICK_NOTE_EVIDENCE_STATUSES)[number];
-
-  @ApiProperty({ type: String, isArray: true })
-  keywordCandidates!: string[];
-
   @ApiProperty({ type: QuickNoteAttachmentDto, nullable: true })
   audioFile!: QuickNoteAttachmentDto | null;
 
   @ApiProperty({ type: QuickNoteAttachmentDto, isArray: true })
   photoFiles!: QuickNoteAttachmentDto[];
+
+  @ApiProperty({ type: String, isArray: true })
+  keywords!: string[];
+
+  @ApiProperty({ enum: QUICK_NOTE_EVIDENCE_STATUSES })
+  evidenceStatus!: (typeof QUICK_NOTE_EVIDENCE_STATUSES)[number];
+
+  @ApiProperty({ type: QuickNoteStructuredFactsDto })
+  structuredFacts!: QuickNoteStructuredFactsDto;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
@@ -84,14 +114,24 @@ export function toQuickNoteDataDto(quickNote: QuickNoteView): QuickNoteDataDto {
     quickNoteId: quickNote.id,
     patientId: quickNote.patientId,
     noteType: quickNote.noteType,
+    topic: quickNote.topic,
+    handoffSection: quickNote.handoffSection,
     sourceType: quickNote.sourceType,
     text: quickNote.text,
     occurredAt: quickNote.occurredAt.toISOString(),
-    evidenceStatus: quickNote.evidenceStatus,
-    keywordCandidates: [...quickNote.keywordCandidates],
     audioFile:
       quickNote.audioFile === null ? null : toQuickNoteAttachmentDto(quickNote.audioFile),
     photoFiles: quickNote.photoFiles.map(toQuickNoteAttachmentDto),
+    keywords: [...quickNote.keywords],
+    evidenceStatus: quickNote.evidenceStatus,
+    structuredFacts: {
+      summary: quickNote.structuredFacts.summary,
+      text: quickNote.structuredFacts.text,
+      occurredAt: quickNote.structuredFacts.occurredAt,
+      sourceChannels: [...quickNote.structuredFacts.sourceChannels],
+      audioFileId: quickNote.structuredFacts.audioFileId,
+      photoFileIds: [...quickNote.structuredFacts.photoFileIds],
+    },
     createdAt: quickNote.createdAt.toISOString(),
     updatedAt: quickNote.updatedAt.toISOString(),
   };

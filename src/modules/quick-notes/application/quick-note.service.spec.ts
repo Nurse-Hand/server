@@ -52,13 +52,23 @@ describe('QuickNoteService', () => {
       expect.objectContaining({
         patientId: '10000000-0000-4000-8000-000000000401',
         noteType: 'OBSERVATION',
+        topic: 'OBSERVATION',
+        handoffSection: '관찰사항·특이사항',
         text: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
-        keywordCandidates: expect.arrayContaining([
+        keywords: expect.arrayContaining([
           '관찰',
           '보호자',
           '식사량',
           '걱정한다고',
         ]),
+        structuredFacts: {
+          summary: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
+          text: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
+          occurredAt: '2026-08-20T01:14:00.000Z',
+          sourceChannels: ['TEXT', 'AUDIO', 'PHOTO'],
+          audioFileId: '10000000-0000-4000-8000-000000000501',
+          photoFileIds: ['10000000-0000-4000-8000-000000000601'],
+        },
       }),
     );
     expect(result.id).toBe('10000000-0000-4000-8000-000000000701');
@@ -122,10 +132,20 @@ function createQuickNoteView(): QuickNoteView {
     id: '10000000-0000-4000-8000-000000000701',
     patientId: '10000000-0000-4000-8000-000000000401',
     noteType: 'OBSERVATION',
+    topic: 'OBSERVATION',
+    handoffSection: '관찰사항·특이사항',
     sourceType: 'QUICK_NOTE',
     text: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
     occurredAt: new Date('2026-08-20T01:14:00.000Z'),
-    keywordCandidates: ['관찰', '보호자'],
+    keywords: ['관찰', '보호자'],
+    structuredFacts: {
+      summary: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
+      text: '보호자가 식사량 감소를 걱정한다고 말했습니다.',
+      occurredAt: '2026-08-20T01:14:00.000Z',
+      sourceChannels: ['TEXT', 'AUDIO', 'PHOTO'],
+      audioFileId: '10000000-0000-4000-8000-000000000501',
+      photoFileIds: ['10000000-0000-4000-8000-000000000801'],
+    },
     evidenceStatus: 'PENDING',
     audioFile: createAttachment({
       id: '10000000-0000-4000-8000-000000000501',

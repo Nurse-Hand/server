@@ -25,11 +25,14 @@ model QuickNote {
   wardId            String                  @db.Uuid
   patientId         String                  @db.Uuid
   noteType          QuickNoteType
+  topic             QuickNoteType
+  handoffSection    String                  @db.VarChar(50)
   sourceType        QuickNoteSourceType     @default(QUICK_NOTE)
   text              String?                 @db.VarChar(2000)
   occurredAt        DateTime                @db.Timestamptz(3)
   audioFileId       String?                 @db.Uuid
-  keywordCandidates Json                    @default("[]")
+  keywords          String[]                @default([])
+  structuredFacts   Json
   evidenceStatus    QuickNoteEvidenceStatus @default(PENDING)
   createdAt         DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime                @updatedAt @db.Timestamptz(3)
@@ -44,13 +47,13 @@ model QuickNote {
 }
 
 model QuickNotePhoto {
-  id         String     @id @default(uuid()) @db.Uuid
-  datasetId  String     @db.Uuid
-  quickNoteId String    @db.Uuid
-  photoFileId String    @db.Uuid
-  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
-  quickNote  QuickNote  @relation(fields: [datasetId, quickNoteId], references: [datasetId, id], onDelete: Cascade)
-  photoFile  StoredFile @relation("QuickNotePhotoFile", fields: [datasetId, photoFileId], references: [datasetId, id], onDelete: Restrict)
+  id          String     @id @default(uuid()) @db.Uuid
+  datasetId   String     @db.Uuid
+  quickNoteId String     @db.Uuid
+  photoFileId String     @db.Uuid
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  quickNote   QuickNote  @relation(fields: [datasetId, quickNoteId], references: [datasetId, id], onDelete: Cascade)
+  photoFile   StoredFile @relation("QuickNotePhotoFile", fields: [datasetId, photoFileId], references: [datasetId, id], onDelete: Restrict)
 
   @@unique([datasetId, quickNoteId, photoFileId])
   @@index([datasetId, quickNoteId, createdAt, id])

@@ -8,6 +8,7 @@ import type {
   QuickNoteRepository,
   QuickNoteView,
 } from '../application/ports/quick-note.repository';
+import type { QuickNoteStructuredFacts } from '../domain/quick-note.types';
 
 @Injectable()
 export class PrismaQuickNoteRepository implements QuickNoteRepository {
@@ -89,9 +90,12 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
         wardId: input.context.wardId,
         patientId: input.patientId,
         noteType: input.noteType,
+        topic: input.topic,
+        handoffSection: input.handoffSection,
         text: input.text,
         occurredAt: input.occurredAt,
-        keywordCandidates: [...input.keywordCandidates],
+        keywords: [...input.keywords],
+        structuredFacts: input.structuredFacts,
         ...(input.audioFile === null ? {} : { audioFileId: input.audioFile.id }),
         ...(input.photoFiles.length === 0
           ? {}
@@ -108,10 +112,13 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
         id: true,
         patientId: true,
         noteType: true,
+        topic: true,
+        handoffSection: true,
         sourceType: true,
         text: true,
         occurredAt: true,
-        keywordCandidates: true,
+        keywords: true,
+        structuredFacts: true,
         evidenceStatus: true,
         createdAt: true,
         updatedAt: true,
@@ -149,10 +156,13 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
       id: created.id,
       patientId: created.patientId,
       noteType: created.noteType,
+      topic: created.topic,
+      handoffSection: created.handoffSection,
       sourceType: created.sourceType,
       text: created.text,
       occurredAt: created.occurredAt,
-      keywordCandidates: parseKeywordCandidates(created.keywordCandidates),
+      keywords: [...created.keywords],
+      structuredFacts: parseStructuredFacts(created.structuredFacts),
       evidenceStatus: created.evidenceStatus,
       audioFile:
         created.audioFile === null ? null : mapAttachment(created.audioFile),
@@ -185,8 +195,50 @@ function mapAttachment(file: {
   };
 }
 
-function parseKeywordCandidates(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
+function parseStructuredFacts(value: unknown): QuickNoteStructuredFacts {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('occurredAt' in value) ||
+    !('sourceChannels' in value) ||
+    !('photoFileIds' in value)
+  ) {
+    return {
+      summary: null,
+      text: null,
+      occurredAt: '',
+      sourceChannels: [],
+      audioFileId: null,
+      photoFileIds: [],
+    };
+  }
+
+  const candidate = value as {
+    summary?: unknown;
+    text?: unknown;
+    occurredAt?: unknown;
+    sourceChannels?: unknown;
+    audioFileId?: unknown;
+    photoFileIds?: unknown;
+  };
+
+  return {
+    summary: typeof candidate.summary === 'string' ? candidate.summary : null,
+    text: typeof candidate.text === 'string' ? candidate.text : null,
+    occurredAt:
+      typeof candidate.occurredAt === 'string' ? candidate.occurredAt : '',
+    sourceChannels: Array.isArray(candidate.sourceChannels)
+      ? candidate.sourceChannels.filter(
+          (item): item is 'TEXT' | 'AUDIO' | 'PHOTO' =>
+            item === 'TEXT' || item === 'AUDIO' || item === 'PHOTO',
+        )
+      : [],
+    audioFileId:
+      typeof candidate.audioFileId === 'string' ? candidate.audioFileId : null,
+    photoFileIds: Array.isArray(candidate.photoFileIds)
+      ? candidate.photoFileIds.filter(
+          (item): item is string => typeof item === 'string',
+        )
+      : [],
+  };
 }

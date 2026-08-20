@@ -1,5 +1,10 @@
 import type { DemoSessionContext } from '../../../demo/application/demo-session-context';
-import type { QuickNoteEvidenceStatus, QuickNoteSourceType, QuickNoteType } from '../../domain/quick-note.types';
+import type {
+  QuickNoteEvidenceStatus,
+  QuickNoteSourceType,
+  QuickNoteStructuredFacts,
+  QuickNoteType,
+} from '../../domain/quick-note.types';
 
 export type QuickNoteAttachmentReadModel = {
   id: string;
@@ -15,10 +20,13 @@ export type QuickNoteView = {
   id: string;
   patientId: string;
   noteType: QuickNoteType;
+  topic: QuickNoteType;
+  handoffSection: string;
   sourceType: QuickNoteSourceType;
   text: string | null;
   occurredAt: Date;
-  keywordCandidates: string[];
+  keywords: string[];
+  structuredFacts: QuickNoteStructuredFacts;
   evidenceStatus: QuickNoteEvidenceStatus;
   audioFile: QuickNoteAttachmentReadModel | null;
   photoFiles: QuickNoteAttachmentReadModel[];
@@ -32,9 +40,12 @@ export type CreateQuickNoteInput = {
   noteType: QuickNoteType;
   text: string | null;
   occurredAt: Date;
+  topic: QuickNoteType;
+  handoffSection: string;
   audioFile: QuickNoteAttachmentReadModel | null;
   photoFiles: readonly QuickNoteAttachmentReadModel[];
-  keywordCandidates: readonly string[];
+  keywords: readonly string[];
+  structuredFacts: QuickNoteStructuredFacts;
 };
 
 export const QUICK_NOTE_REPOSITORY = Symbol('QUICK_NOTE_REPOSITORY');

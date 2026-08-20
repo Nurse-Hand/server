@@ -3,7 +3,7 @@ import { isUUID } from 'class-validator';
 import { Clock } from '../../../common/time/clock';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
 import { PatientNotFoundError } from '../../patients/domain/patient.errors';
-import { deriveQuickNoteKeywords } from '../domain/quick-note-keywords';
+import { buildQuickNoteStructure } from '../domain/quick-note-structure';
 import {
   QuickNoteAttachmentNotFoundError,
   QuickNotePayloadEmptyError,
@@ -81,6 +81,13 @@ export class QuickNoteService {
       photoFileIds.length === 0
         ? []
         : await this.requireAttachments(context, photoFileIds, 'PHOTO');
+    const structure = buildQuickNoteStructure({
+      noteType: command.noteType,
+      text,
+      occurredAt,
+      audioFileId: audioFile?.id ?? null,
+      photoFileIds: photoFiles.map((file) => file.id),
+    });
 
     return this.repository.create({
       context,
@@ -88,12 +95,12 @@ export class QuickNoteService {
       noteType: command.noteType,
       text,
       occurredAt,
+      topic: structure.topic,
+      handoffSection: structure.handoffSection,
       audioFile,
       photoFiles,
-      keywordCandidates: deriveQuickNoteKeywords({
-        noteType: command.noteType,
-        text,
-      }),
+      keywords: structure.keywords,
+      structuredFacts: structure.structuredFacts,
     });
   }
 

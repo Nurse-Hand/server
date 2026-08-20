@@ -18,3 +18,17 @@ export const QUICK_NOTE_EVIDENCE_STATUSES = ['PENDING', 'CONVERTED'] as const;
 
 export type QuickNoteEvidenceStatus =
   (typeof QUICK_NOTE_EVIDENCE_STATUSES)[number];
+
+export const QUICK_NOTE_SOURCE_CHANNELS = ['TEXT', 'AUDIO', 'PHOTO'] as const;
+
+export type QuickNoteSourceChannel =
+  (typeof QUICK_NOTE_SOURCE_CHANNELS)[number];
+
+export type QuickNoteStructuredFacts = {
+  summary: string | null;
+  text: string | null;
+  occurredAt: string;
+  sourceChannels: QuickNoteSourceChannel[];
+  audioFileId: string | null;
+  photoFileIds: string[];
+};
