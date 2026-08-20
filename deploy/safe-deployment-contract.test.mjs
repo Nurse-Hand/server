@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 
 const [cdWorkflow, ciWorkflow, compose, deployScript] = await Promise.all([
   readFile('.github/workflows/cd.yml', 'utf8'),
@@ -24,6 +25,7 @@ assertIncludes(
 );
 assertIncludes(cdWorkflow, 'StrictHostKeyChecking=yes');
 assertIncludes(cdWorkflow, 'GABIA_SSH_KNOWN_HOSTS');
+assertIncludes(cdWorkflow, 'deploy_segment');
 assertNoMatch(
   cdWorkflow,
   /sshpass|SSH_PASSWORD|StrictHostKeyChecking=no|:latest/,
@@ -44,6 +46,7 @@ assertIncludes(
   "test: ['CMD', 'node', 'dist/src/worker-healthcheck.js']",
 );
 assertIncludes(compose, 'stop_grace_period: 30s');
+assertIncludes(compose, 'path: ${NURSE_HAND_ENV_FILE:-.env}');
 assertNoMatch(
   compose,
   /prisma migrate deploy/,
@@ -65,6 +68,32 @@ assertNoMatch(
   /\$\{status\}" == "running"/,
   'Worker readiness must require a successful heartbeat healthcheck',
 );
+assertNoMatch(
+  deployScript,
+  /--location|--max-redirs/,
+  'External readiness must reject redirects instead of following them',
+);
+assertIncludes(deployScript, "--write-out '%{http_code}'");
+assertIncludes(deployScript, 'health-envelope');
+assertIncludes(deployScript, 'patient-list-envelope');
+assertIncludes(deployScript, 'validate_deploy_root');
+
+const validatorMatch = deployScript.match(
+  /^READINESS_RESPONSE_VALIDATOR='([^']+)'$/m,
+);
+if (validatorMatch === null) {
+  throw new Error('Missing readiness response validator');
+}
+const validator = validatorMatch[1];
+assertValidatorResult(validator, 'health-envelope', {
+  data: { status: 'ok', timestamp: '2026-08-20T00:00:00.000Z' },
+  meta: { requestId: 'synthetic' },
+});
+assertValidatorResult(validator, 'patient-list-envelope', {
+  data: { items: [] },
+  meta: { requestId: 'synthetic' },
+});
+assertValidatorResult(validator, 'health-envelope', {}, 1);
 
 process.stdout.write('safe deployment contract tests passed\n');
 
@@ -84,5 +113,21 @@ function assertCount(source, expected, count, message) {
   const actual = source.split(expected).length - 1;
   if (actual !== count) {
     throw new Error(`${message}: expected ${count}, received ${actual}`);
+  }
+}
+
+function assertValidatorResult(validator, responseKind, body, status = 0) {
+  const result = spawnSync(process.execPath, ['-e', validator, responseKind], {
+    encoding: 'utf8',
+    input: JSON.stringify(body),
+  });
+  if (
+    result.status !== status ||
+    result.stdout !== '' ||
+    result.stderr !== ''
+  ) {
+    throw new Error(
+      `Readiness validator failed for ${responseKind}: expected ${status}, received ${result.status}`,
+    );
   }
 }

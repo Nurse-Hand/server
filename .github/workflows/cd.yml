@@ -175,10 +175,17 @@ jobs:
             echo "SSH_PORT must be between 1 and 65535." >&2
             exit 1
           fi
-          if [[ "${DEPLOY_ROOT}" == "/" || "${DEPLOY_ROOT}" == *".."* || ! "${DEPLOY_ROOT}" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
-            echo "DEPLOY_ROOT must be a narrow absolute path." >&2
+          if [[ "${DEPLOY_ROOT}" == "/" || "${DEPLOY_ROOT}" == */ || "${DEPLOY_ROOT}" == *//* || ! "${DEPLOY_ROOT}" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+            echo "DEPLOY_ROOT must be a narrow canonical absolute path." >&2
             exit 1
           fi
+          IFS='/' read -r -a deploy_segments <<< "${DEPLOY_ROOT#/}"
+          for deploy_segment in "${deploy_segments[@]}"; do
+            if [[ -z "${deploy_segment}" || "${deploy_segment}" == "." || "${deploy_segment}" == ".." ]]; then
+              echo "DEPLOY_ROOT must be a narrow canonical absolute path." >&2
+              exit 1
+            fi
+          done
           if [[ ! "${EXTERNAL_BASE_URL}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
             echo "EXTERNAL_BASE_URL must be an HTTPS origin without a path." >&2
             exit 1

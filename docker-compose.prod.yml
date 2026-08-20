@@ -99,7 +99,7 @@ services:
     container_name: nurse-hand-ai
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: ${NURSE_HAND_ENV_FILE:-.env}
         required: false
     environment:
       PORT: 8000

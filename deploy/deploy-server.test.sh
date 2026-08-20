@@ -151,6 +151,11 @@ case "${action:-}" in
     if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
       exit 1
     fi
+    if [[ "${FAKE_SCENARIO}" == "external-body-invalid" \
+      && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" \
+      && "$*" == *"health-envelope"* ]]; then
+      exit 1
+    fi
     ;;
   *)
     exit 91
@@ -162,6 +167,25 @@ FAKE_DOCKER
 #!/usr/bin/env bash
 set -Eeuo pipefail
 echo "curl $*" >> "${FAKE_COMMAND_LOG}"
+output_path=''
+url=''
+while (($# > 0)); do
+  case "$1" in
+    --header|--max-filesize|--max-time|--output|--proto|--write-out)
+      if [[ "$1" == '--output' ]]; then
+        output_path="$2"
+      fi
+      shift 2
+      ;;
+    --fail|--show-error|--silent|--tlsv1.2)
+      shift
+      ;;
+    *)
+      url="$1"
+      shift
+      ;;
+  esac
+done
 active_image="$(cat "${FAKE_API_ACTIVE_IMAGE_FILE}")"
 active_phase='baseline'
 if [[ "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
@@ -175,6 +199,22 @@ fi
 if [[ "${FAKE_SCENARIO}" == "external-health-fail" && "${active_phase}" == 'replacement' ]]; then
   exit 1
 fi
+if [[ -z "${output_path}" ]]; then
+  exit 92
+fi
+if [[ "${FAKE_SCENARIO}" == "external-redirect" && "${active_phase}" == 'replacement' ]]; then
+  printf '{"data":{"status":"ok","timestamp":"2026-08-20T00:00:00.000Z"},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+  printf '302'
+  exit 0
+fi
+if [[ "${FAKE_SCENARIO}" == "external-body-invalid" && "${active_phase}" == 'replacement' ]]; then
+  printf '{}' > "${output_path}"
+elif [[ "${url}" == */api/v1/health ]]; then
+  printf '{"data":{"status":"ok","timestamp":"2026-08-20T00:00:00.000Z"},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+else
+  printf '{"data":{"items":[]},"meta":{"requestId":"synthetic"}}' > "${output_path}"
+fi
+printf '200'
 FAKE_CURL
 
   cat > "${root}/bin/sleep" <<'FAKE_SLEEP'
@@ -190,6 +230,7 @@ run_deploy() {
   local root="$1"
   local scenario="$2"
   local run_id="${3:-101}"
+  local deploy_root="${4:-${root}/deploy-root}"
 
   PATH="${root}/bin:${PATH}" \
     FAKE_API_ACTIVE_IMAGE_FILE="${root}/api-active-image" \
@@ -198,7 +239,7 @@ run_deploy() {
     FAKE_SCENARIO="${scenario}" \
     DEPLOY_HEALTHCHECK_ATTEMPTS=2 \
     DEPLOY_HEALTHCHECK_INTERVAL_SECONDS=0 \
-    DEPLOY_ROOT="${root}/deploy-root" \
+    DEPLOY_ROOT="${deploy_root}" \
     DEPLOY_RUN_ID="${run_id}" \
     DEPLOY_SHA="${DEPLOY_SHA}" \
     EXTERNAL_BASE_URL="https://api.example.invalid" \
@@ -220,6 +261,9 @@ test_successful_order_and_state() {
   [[ "$(cat "${root}/deploy-root/deploy-state/current")" == "101|${DEPLOY_SHA}|${NEW_IMAGE}|${OLD_IMAGE}" ]]
   [[ "$(cat "${root}/api-active-image")" == "${NEW_IMAGE}" ]]
   [[ "$(cat "${root}/worker-active-image")" == "${NEW_IMAGE}" ]]
+  assert_not_contains "${root}/commands.log" '--location'
+  assert_contains "${root}/commands.log" '--max-filesize 1048576'
+  assert_contains "${root}/commands.log" '--write-out %{http_code}'
 }
 
 test_failure_before_replacement() {
@@ -284,7 +328,7 @@ test_missing_worker_stops_before_mutation() {
 
 test_readiness_failures_rollback() {
   local scenario root
-  for scenario in api-health-fail worker-health-fail storage-fail external-health-fail; do
+  for scenario in api-health-fail worker-health-fail storage-fail external-health-fail external-redirect external-body-invalid; do
     root="$(create_scenario "${scenario}")"
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"
@@ -295,6 +339,20 @@ test_readiness_failures_rollback() {
     [[ "$(cat "${root}/api-active-image")" == nurse-hand-server-local:rollback-* ]]
     [[ "$(cat "${root}/worker-active-image")" == nurse-hand-server-local:rollback-* ]]
     [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
+  done
+}
+
+test_root_equivalent_deploy_roots_are_rejected() {
+  local index=0 invalid_root root
+  for invalid_root in / // /. /./ /data/./nurse-hand /data//nurse-hand /data/nurse-hand/; do
+    root="$(create_scenario "invalid-root-${index}")"
+    index=$((index + 1))
+    if run_deploy "${root}" invalid-root 101 "${invalid_root}"; then
+      fail_test "root-equivalent DEPLOY_ROOT unexpectedly succeeded: ${invalid_root}"
+    fi
+    assert_not_contains "${root}/commands.log" 'docker image tag'
+    assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
+    assert_not_contains "${root}/commands.log" ' up -d --no-deps api worker'
   done
 }
 
@@ -336,6 +394,7 @@ test_mismatched_server_images_stop_before_mutation
 test_missing_worker_stops_before_mutation
 test_failure_before_replacement
 test_readiness_failures_rollback
+test_root_equivalent_deploy_roots_are_rejected
 test_stale_run_is_rejected
 test_server_lock_rejects_overlap
 
