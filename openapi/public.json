@@ -422,7 +422,7 @@
             }
           }
         },
-        "summary": "서버 liveness 확인",
+        "summary": "서버와 데이터베이스 readiness 확인",
         "tags": [
           "Health"
         ],
