@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../common/time/clock';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { HandoffDraftJobProcessor } from '../handoffs/application/handoff-draft-job.processor';
@@ -12,7 +7,6 @@ import { HANDOFF_JOB_OPERATIONS } from '../handoffs/domain/handoff.constants';
 import { TaskExtractionWorker } from '../tasks/application/task-extraction.worker';
 import { TASK_EXTRACTION_OPERATION } from '../tasks/domain/task.types';
 
-const DISPATCH_INTERVAL_MILLISECONDS = 1_000;
 const OPERATIONS = [
   TASK_EXTRACTION_OPERATION,
   HANDOFF_JOB_OPERATIONS.PRECHECK,
@@ -22,11 +16,8 @@ const OPERATIONS = [
 type JobScope = { datasetId: string; wardId: string };
 
 @Injectable()
-export class TaskHandoffJobDispatcher
-  implements OnApplicationBootstrap, OnApplicationShutdown
-{
+export class TaskHandoffJobDispatcher {
   private readonly logger = new Logger(TaskHandoffJobDispatcher.name);
-  private timer: NodeJS.Timeout | undefined;
   private activeDispatch: Promise<boolean> | undefined;
   private isShuttingDown = false;
 
@@ -38,21 +29,8 @@ export class TaskHandoffJobDispatcher
     private readonly clock: Clock,
   ) {}
 
-  onApplicationBootstrap(): void {
-    this.timer = setInterval(
-      () => void this.tick(),
-      DISPATCH_INTERVAL_MILLISECONDS,
-    );
-    this.timer.unref();
-  }
-
-  async onApplicationShutdown(): Promise<void> {
+  async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    if (this.timer !== undefined) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-
     try {
       await this.activeDispatch;
     } catch {
@@ -85,14 +63,6 @@ export class TaskHandoffJobDispatcher
       await this.processScope(scope);
     }
     return true;
-  }
-
-  private async tick(): Promise<void> {
-    try {
-      await this.runOnce();
-    } catch (error: unknown) {
-      this.logger.error(safeJobError('dispatch_cycle_failed', error));
-    }
   }
 
   private findRunnableScopes(): Promise<JobScope[]> {
@@ -138,7 +108,7 @@ export class TaskHandoffJobDispatcher
 }
 
 function safeJobError(
-  event: 'dispatch_cycle_failed' | 'processor_failed',
+  event: 'processor_failed',
   _error: unknown,
   operation?: (typeof OPERATIONS)[number],
 ): Record<string, string> {

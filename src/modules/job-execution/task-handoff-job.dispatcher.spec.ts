@@ -115,16 +115,6 @@ describe('TaskHandoffJobDispatcher', () => {
     expect(findMany).toHaveBeenCalledTimes(1);
   });
 
-  it('application lifecycle timer를 shutdown에서 정리한다', async () => {
-    jest.useFakeTimers();
-
-    dispatcher.onApplicationBootstrap();
-    expect(jest.getTimerCount()).toBe(1);
-
-    await dispatcher.onApplicationShutdown();
-    expect(jest.getTimerCount()).toBe(0);
-  });
-
   it('shutdown은 진행 중인 cycle을 기다리고 이후 실행을 차단한다', async () => {
     let release: (() => void) | undefined;
     findMany.mockImplementationOnce(
@@ -136,7 +126,7 @@ describe('TaskHandoffJobDispatcher', () => {
 
     const dispatch = dispatcher.runOnce();
     let shutdownCompleted = false;
-    const shutdown = dispatcher.onApplicationShutdown().then(() => {
+    const shutdown = dispatcher.shutdown().then(() => {
       shutdownCompleted = true;
     });
     await Promise.resolve();
@@ -159,7 +149,7 @@ describe('TaskHandoffJobDispatcher', () => {
     });
 
     const dispatch = dispatcher.runOnce();
-    const shutdown = dispatcher.onApplicationShutdown();
+    const shutdown = dispatcher.shutdown();
 
     await expect(dispatch).rejects.toBeDefined();
     await expect(shutdown).resolves.toBeUndefined();
