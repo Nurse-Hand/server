@@ -91,6 +91,7 @@ function aiResult(overrides: Record<string, unknown> = {}) {
     taskId: TASK_ID_A,
     score: 10,
     priority: 'CRITICAL',
+    confidence: 'HIGH',
     reasons: ['현재 업무 확인이 필요함'],
     ...overrides,
   };
