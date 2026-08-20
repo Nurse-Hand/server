@@ -1,0 +1,178 @@
+enum RoundingAnalysisJobStatus {
+  QUEUED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum RoundingUtteranceSpeakerRole {
+  NURSE
+  PATIENT_CANDIDATE
+  THIRD_PARTY
+  UNKNOWN
+}
+
+enum RoundingEvidenceSourceType {
+  ROUNDING_UTTERANCE
+}
+
+enum RoundingEvidenceTopic {
+  VITAL_SIGNS
+  RESPIRATION
+  MENTAL_STATUS
+  PAIN
+  TREATMENT
+  DIET
+  OBSERVATION
+}
+
+enum RoundingSpeakerProfileOwnerType {
+  PATIENT
+  NURSE
+}
+
+model RoundingAnalysisJob {
+  id                String                    @id @default(uuid()) @db.Uuid
+  datasetId         String                    @db.Uuid
+  actorId           String                    @db.Uuid
+  wardId            String                    @db.Uuid
+  roundingSessionId String                    @db.Uuid
+  audioFileId       String?                   @db.Uuid
+  status            RoundingAnalysisJobStatus @default(QUEUED)
+  failureCode       String?                   @db.VarChar(100)
+  inputSnapshot     Json
+  resultSnapshot    Json?
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                  @updatedAt @db.Timestamptz(3)
+  transcript        RoundingTranscript?
+  speakerMatches    RoundingSpeakerMatch[]
+
+  @@unique(name: "rounding_analysis_job_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_analysis_job_session_once", [datasetId, roundingSessionId])
+  @@index([datasetId, wardId, actorId, createdAt(sort: Desc), id])
+}
+
+model RoundingTranscript {
+  id                String              @id @default(uuid()) @db.Uuid
+  datasetId         String              @db.Uuid
+  actorId           String              @db.Uuid
+  wardId            String              @db.Uuid
+  roundingSessionId String              @db.Uuid
+  analysisJobId     String              @unique @db.Uuid
+  fullText          String              @db.Text
+  confirmedAt       DateTime?           @db.Timestamptz(3)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  analysisJob       RoundingAnalysisJob @relation(fields: [datasetId, analysisJobId], references: [datasetId, id], onDelete: Cascade)
+  utterances        RoundingUtterance[]
+
+  @@unique(name: "rounding_transcript_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_transcript_analysis_scope", [datasetId, analysisJobId])
+  @@index([datasetId, wardId, roundingSessionId, createdAt(sort: Desc), id])
+}
+
+model RoundingUtterance {
+  id                String                       @id @default(uuid()) @db.Uuid
+  datasetId         String                       @db.Uuid
+  actorId           String                       @db.Uuid
+  wardId            String                       @db.Uuid
+  transcriptId      String                       @db.Uuid
+  analysisJobId     String                       @db.Uuid
+  roundingSessionId String                       @db.Uuid
+  patientId         String?                      @db.Uuid
+  speakerLabel      String                       @db.VarChar(64)
+  speakerRole       RoundingUtteranceSpeakerRole @default(UNKNOWN)
+  startedAtMs       Int
+  endedAtMs         Int
+  text              String                       @db.Text
+  confidence        Float?
+  sourceAudioFileId String?                      @db.Uuid
+  important         Boolean                      @default(false)
+  confirmedAt       DateTime?                    @db.Timestamptz(3)
+  createdAt         DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                     @updatedAt @db.Timestamptz(3)
+  transcript        RoundingTranscript           @relation(fields: [datasetId, transcriptId], references: [datasetId, id], onDelete: Cascade)
+  evidenceLinks     RoundingEvidenceUtterance[]
+
+  @@unique(name: "rounding_utterance_dataset_id", [datasetId, id])
+  @@index([datasetId, analysisJobId, startedAtMs, id])
+  @@index([datasetId, wardId, patientId, startedAtMs, id])
+}
+
+model RoundingSpeakerMatch {
+  id                 String              @id @default(uuid()) @db.Uuid
+  datasetId          String              @db.Uuid
+  actorId            String              @db.Uuid
+  wardId             String              @db.Uuid
+  analysisJobId      String              @db.Uuid
+  roundingSessionId  String              @db.Uuid
+  speakerLabel       String              @db.VarChar(64)
+  rank               Int
+  candidatePatientId String?             @db.Uuid
+  displayName        String              @db.VarChar(100)
+  similarity         Float
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  analysisJob        RoundingAnalysisJob @relation(fields: [datasetId, analysisJobId], references: [datasetId, id], onDelete: Cascade)
+
+  @@unique(name: "rounding_speaker_match_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_speaker_match_rank", [datasetId, analysisJobId, speakerLabel, rank])
+  @@index([datasetId, analysisJobId, speakerLabel, rank])
+}
+
+model RoundingSpeakerProfile {
+  id                 String                          @id @default(uuid()) @db.Uuid
+  datasetId          String                          @db.Uuid
+  ownerType          RoundingSpeakerProfileOwnerType
+  patientId          String?                         @db.Uuid
+  nurseId            String?                         @db.Uuid
+  displayName        String                          @db.VarChar(100)
+  embedding          Json
+  sourceUtteranceIds String[]
+  createdAt          DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                        @updatedAt @db.Timestamptz(3)
+
+  @@unique(name: "rounding_speaker_profile_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_speaker_profile_patient", [datasetId, ownerType, patientId])
+  @@unique(name: "rounding_speaker_profile_nurse", [datasetId, ownerType, nurseId])
+}
+
+model RoundingEvidence {
+  id                        String                      @id @default(uuid()) @db.Uuid
+  datasetId                 String                      @db.Uuid
+  actorId                   String                      @db.Uuid
+  wardId                    String                      @db.Uuid
+  patientId                 String                      @db.Uuid
+  roundingSessionId         String                      @db.Uuid
+  analysisJobId             String                      @db.Uuid
+  sourceType                RoundingEvidenceSourceType
+  topic                     RoundingEvidenceTopic
+  handoffSection            String                      @db.VarChar(50)
+  keywords                  String[]
+  structuredFacts           Json
+  importanceFlags           String[]
+  requiresNurseConfirmation Boolean                     @default(false)
+  textForRetrieval          String                      @db.Text
+  embedding                 Json
+  timelineEventId           String?                     @db.Uuid
+  createdAt                 DateTime                    @default(now()) @db.Timestamptz(3)
+  utteranceLinks            RoundingEvidenceUtterance[]
+
+  @@unique(name: "rounding_evidence_dataset_id", [datasetId, id])
+  @@index([datasetId, wardId, patientId, topic, createdAt(sort: Desc), id])
+  @@index([datasetId, analysisJobId, createdAt, id])
+  @@index([datasetId, timelineEventId])
+}
+
+model RoundingEvidenceUtterance {
+  id          String            @id @default(uuid()) @db.Uuid
+  datasetId   String            @db.Uuid
+  evidenceId  String            @db.Uuid
+  utteranceId String            @db.Uuid
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  evidence    RoundingEvidence  @relation(fields: [datasetId, evidenceId], references: [datasetId, id], onDelete: Cascade)
+  utterance   RoundingUtterance @relation(fields: [datasetId, utteranceId], references: [datasetId, id], onDelete: Cascade)
+
+  @@unique(name: "rounding_evidence_utterance_dataset_id", [datasetId, id])
+  @@unique(name: "rounding_evidence_utterance_pair", [datasetId, evidenceId, utteranceId])
+  @@index([datasetId, utteranceId])
+}
