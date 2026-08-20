@@ -168,7 +168,9 @@ describe('HandoffDraftsService', () => {
           patients: [
             expect.objectContaining({
               patientId: PATIENT_ID,
-              timelineEvents: [expect.objectContaining({ id: TIMELINE_EVENT_ID })],
+              timelineEvents: [
+                expect.objectContaining({ id: TIMELINE_EVENT_ID }),
+              ],
             }),
           ],
           tasks: [expect.objectContaining({ id: TASK_ID })],
