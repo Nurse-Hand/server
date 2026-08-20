@@ -21,41 +21,79 @@ export class PrismaTaskExtractionEvidenceAdapter implements TaskExtractionEviden
     recordIds: readonly string[];
   }): Promise<TaskExtractionEvidenceSnapshot> {
     const recordIds = [...new Set(input.recordIds)];
-    const [timelineEvents, tasks] = await Promise.all([
-      this.prisma.timelineEvent.findMany({
-        where: {
-          datasetId: input.context.datasetId,
-          wardId: input.context.wardId,
-          id: { in: recordIds },
-        },
-        select: {
-          id: true,
-          patientId: true,
-          occurredAt: true,
-          summary: true,
-        },
-      }),
-      this.prisma.task.findMany({
-        where: {
-          datasetId: input.context.datasetId,
-          wardId: input.context.wardId,
-          actorId: input.context.actorId,
-          id: { in: recordIds },
-        },
-        select: {
-          id: true,
-          patientId: true,
-          workDate: true,
-          title: true,
-          description: true,
-        },
-      }),
-    ]);
+    const [timelineEvents, tasks, roundingRecords, quickNotes] =
+      await Promise.all([
+        this.prisma.timelineEvent.findMany({
+          where: {
+            datasetId: input.context.datasetId,
+            wardId: input.context.wardId,
+            id: { in: recordIds },
+          },
+          select: {
+            id: true,
+            patientId: true,
+            occurredAt: true,
+            summary: true,
+          },
+        }),
+        this.prisma.task.findMany({
+          where: {
+            datasetId: input.context.datasetId,
+            wardId: input.context.wardId,
+            actorId: input.context.actorId,
+            id: { in: recordIds },
+          },
+          select: {
+            id: true,
+            patientId: true,
+            workDate: true,
+            title: true,
+            description: true,
+          },
+        }),
+        this.prisma.roundingRecord.findMany({
+          where: {
+            datasetId: input.context.datasetId,
+            wardId: input.context.wardId,
+            actorId: input.context.actorId,
+            roundingSessionId: input.roundingSessionId,
+            id: { in: recordIds },
+          },
+          select: {
+            id: true,
+            patientId: true,
+            workDate: true,
+            note: true,
+            sequence: true,
+            startedAt: true,
+          },
+        }),
+        this.prisma.quickNote.findMany({
+          where: {
+            datasetId: input.context.datasetId,
+            wardId: input.context.wardId,
+            actorId: input.context.actorId,
+            evidenceStatus: 'CONVERTED',
+            id: { in: recordIds },
+          },
+          select: {
+            id: true,
+            patientId: true,
+            occurredAt: true,
+            text: true,
+            structuredFacts: true,
+          },
+        }),
+      ]);
 
     const timelineById = new Map(
       timelineEvents.map((event) => [event.id, event]),
     );
     const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const roundingRecordById = new Map(
+      roundingRecords.map((record) => [record.id, record]),
+    );
+    const quickNoteById = new Map(quickNotes.map((note) => [note.id, note]));
 
     return {
       roundingSessionId: input.roundingSessionId,
@@ -90,6 +128,41 @@ export class PrismaTaskExtractionEvidenceAdapter implements TaskExtractionEviden
           ];
         }
 
+        const roundingRecord = roundingRecordById.get(recordId);
+        if (roundingRecord) {
+          return [
+            {
+              recordId,
+              sourceType: 'TIMELINE_EVENT' as const,
+              sourceId: roundingRecord.id,
+              patientId: roundingRecord.patientId,
+              workDate: roundingRecord.workDate,
+              summary: clipSummary(
+                roundingRecord.note ??
+                  `라운딩 기록 ${roundingRecord.sequence}번`,
+              ),
+            },
+          ];
+        }
+
+        const quickNote = quickNoteById.get(recordId);
+        if (quickNote) {
+          return [
+            {
+              recordId,
+              sourceType: 'TIMELINE_EVENT' as const,
+              sourceId: quickNote.id,
+              patientId: quickNote.patientId,
+              workDate: deriveSeoulWorkDate(quickNote.occurredAt),
+              summary: clipSummary(
+                quickNote.text ??
+                  parseQuickNoteSummary(quickNote.structuredFacts) ??
+                  '빠른 기록',
+              ),
+            },
+          ];
+        }
+
         return [];
       }),
     };
@@ -101,4 +174,13 @@ function clipSummary(value: string): string {
   return normalized.length <= 500
     ? normalized
     : normalized.slice(0, 497) + '...';
+}
+
+function parseQuickNoteSummary(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null || !('summary' in value)) {
+    return null;
+  }
+
+  const candidate = value as { summary?: unknown };
+  return typeof candidate.summary === 'string' ? candidate.summary : null;
 }

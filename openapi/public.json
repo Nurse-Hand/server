@@ -7351,6 +7351,12 @@
               "OFF"
             ],
             "type": "string"
+          },
+          "shiftId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "해당 날짜·듀티에 매칭되는 현재 간호사 근무 ID. 인수인계 초안/사전검증 요청에 사용한다."
           }
         },
         "required": [
