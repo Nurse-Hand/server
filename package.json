@@ -34,7 +34,9 @@
     "openapi:generate": "npm run build && node dist/scripts/generate-openapi.js",
     "openapi:check": "npm run build && npm run openapi:check:built",
     "openapi:check:built": "node dist/scripts/check-openapi.js",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run prisma:validate && npm run build && npm run openapi:check:built"
+    "rounding-mvp-lab:generate": "node tools/rounding-mvp-lab/generate-embedded-mockdata.mjs",
+    "rounding-mvp-lab:smoke": "node tools/rounding-mvp-lab/smoke-test.mjs",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:e2e && npm run prisma:validate && npm run build && npm run openapi:check:built && npm run rounding-mvp-lab:smoke"
   },
   "dependencies": {
     "@nestjs/common": "11.2.1",
