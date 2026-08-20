@@ -33,11 +33,12 @@ export const HANDOFF_SOURCE_TYPES = ['TIMELINE_EVENT', 'TASK'] as const;
 export type HandoffSourceType = (typeof HANDOFF_SOURCE_TYPES)[number];
 
 export const HANDOFF_CLINICAL_SECTIONS = [
-  'PATIENT_STATUS',
+  'VITAL_SIGNS',
+  'RESPIRATION',
+  'MENTAL_STATUS',
   'PAIN',
   'TREATMENT',
   'DIET',
-  'ACTIVITY',
   'OBSERVATION',
 ] as const;
 

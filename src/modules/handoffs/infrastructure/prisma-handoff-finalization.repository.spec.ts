@@ -27,7 +27,7 @@ describe('PrismaHandoffFinalizationRepository', () => {
     );
   });
 
-  it('한 transaction에서 6개 section과 근거·답변·warning·task snapshot을 만들고 FINALIZED로 전이한다', async () => {
+  it('한 transaction에서 7개 section과 근거·답변·warning·task snapshot을 만들고 FINALIZED로 전이한다', async () => {
     const result = await repository.finalize(command());
 
     expect(result).toEqual({
@@ -69,7 +69,7 @@ describe('PrismaHandoffFinalizationRepository', () => {
           patientId: PATIENT_ID,
           sections: expect.arrayContaining([
             expect.objectContaining({
-              section: 'PATIENT_STATUS',
+              section: 'VITAL_SIGNS',
               aiOriginalContent: 'AI 환자 상태',
               currentContent: '간호사 수정 환자 상태',
               isModified: true,
@@ -349,11 +349,12 @@ function handoffFixture(
   } = {},
 ) {
   const sections = [
-    'PATIENT_STATUS',
+    'VITAL_SIGNS',
+    'RESPIRATION',
+    'MENTAL_STATUS',
     'PAIN',
     'TREATMENT',
     'DIET',
-    'ACTIVITY',
     'OBSERVATION',
   ] as const;
   return {
@@ -433,14 +434,14 @@ function handoffFixture(
           id: `section-${section}`,
           section,
           aiOriginalText:
-            section === 'PATIENT_STATUS' ? 'AI 환자 상태' : `AI ${section}`,
+            section === 'VITAL_SIGNS' ? 'AI 환자 상태' : `AI ${section}`,
           currentText:
-            section === 'PATIENT_STATUS'
+            section === 'VITAL_SIGNS'
               ? '간호사 수정 환자 상태'
               : `AI ${section}`,
-          isModified: section === 'PATIENT_STATUS',
+          isModified: section === 'VITAL_SIGNS',
           citations:
-            section === 'PATIENT_STATUS'
+            section === 'VITAL_SIGNS'
               ? [
                   {
                     id: 'citation-id',
