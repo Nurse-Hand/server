@@ -43,7 +43,13 @@ export function parseTaskPrioritySuggestionResponse(
   const resultTaskIds = new Set<string>();
   const suggestions = results.map((resultValue) => {
     const result = readObject(resultValue);
-    assertExactKeys(result, ['taskId', 'score', 'priority', 'reasons']);
+    assertAllowedKeys(result, [
+      'taskId',
+      'score',
+      'priority',
+      'confidence',
+      'reasons',
+    ]);
     const taskId = readUuid(result.taskId);
     if (!expectedTaskIds.has(taskId) || resultTaskIds.has(taskId)) {
       invalidResponse();
@@ -138,6 +144,16 @@ function assertExactKeys(
     actualKeys.length !== sortedExpectedKeys.length ||
     actualKeys.some((key, index) => key !== sortedExpectedKeys[index])
   ) {
+    invalidResponse();
+  }
+}
+
+function assertAllowedKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+): void {
+  const allowed = new Set(allowedKeys);
+  if (Object.keys(value).some((key) => !allowed.has(key))) {
     invalidResponse();
   }
 }
