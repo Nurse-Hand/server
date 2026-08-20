@@ -20,6 +20,7 @@ const DATASET_ID = '10000000-0000-4000-8000-000000000101';
 const ACTOR_ID = '10000000-0000-4000-8000-000000000201';
 const WARD_ID = '10000000-0000-4000-8000-000000000301';
 const PATIENT_ID = '10000000-0000-4000-8000-000000000401';
+const TIMELINE_EVENT_ID = '10000000-0000-4000-8000-000000000402';
 const REQUEST_ID = '10000000-0000-4000-8000-000000000501';
 const NOW = new Date('2026-08-20T02:00:00.000Z');
 
@@ -88,7 +89,23 @@ describe('Patients public API (isolated e2e)', () => {
       patient,
       workDate: '2026-08-20',
       daySummary: '호흡곤란 없음',
-      items: [],
+      items: [
+        {
+          id: TIMELINE_EVENT_ID,
+          patientId: PATIENT_ID,
+          occurredAt: NOW,
+          type: 'OBSERVATION',
+          clinicalCategory: 'PAIN',
+          source: 'MANUAL',
+          summary: '통증 NRS 4점으로 감소',
+          important: false,
+          confirmationStatus: 'CONFIRMED',
+          version: 1,
+          sourceReference: 'quick-note:10000000-0000-4000-8000-000000000701',
+          updatedAt: NOW,
+          updatedByActorId: ACTOR_ID,
+        },
+      ],
     });
     commandService.create.mockResolvedValue(patientReadModel({}));
     commandService.update.mockResolvedValue(
@@ -175,10 +192,18 @@ describe('Patients public API (isolated e2e)', () => {
       .get(`/api/v1/patients/${PATIENT_ID}`)
       .set('X-Demo-Session-Id', DEMO_SESSION_ID)
       .expect(200);
-    await request(app.getHttpServer())
+    const timeline = await request(app.getHttpServer())
       .get(`/api/v1/patients/${PATIENT_ID}/timeline?workDate=2026-08-20`)
       .set('X-Demo-Session-Id', DEMO_SESSION_ID)
       .expect(200);
+
+    expect(timeline.body.data.items).toEqual([
+      expect.objectContaining({
+        timelineEventId: TIMELINE_EVENT_ID,
+        type: 'OBSERVATION',
+        clinicalCategory: 'PAIN',
+      }),
+    ]);
 
     expect(queryService.list).toHaveBeenCalledWith(DEMO_CONTEXT);
     expect(queryService.get).toHaveBeenCalledWith({
