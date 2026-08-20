@@ -21,3 +21,25 @@ export class PatientTimelineQueryInvalidError extends ApplicationError {
     this.name = PatientTimelineQueryInvalidError.name;
   }
 }
+
+export class PatientCommandInvalidError extends ApplicationError {
+  constructor(message = '환자 정보 변경 요청이 올바르지 않습니다.') {
+    super({
+      code: 'PATIENT_COMMAND_INVALID',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: message,
+    });
+    this.name = PatientCommandInvalidError.name;
+  }
+}
+
+export class PatientCurrentShiftNotFoundError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'PATIENT_CURRENT_SHIFT_NOT_FOUND',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '현재 근무 배정을 찾을 수 없어 환자를 추가할 수 없습니다.',
+    });
+    this.name = PatientCurrentShiftNotFoundError.name;
+  }
+}

@@ -488,6 +488,113 @@
         "tags": [
           "Patients"
         ]
+      },
+      "post": {
+        "operationId": "PatientsController_create",
+        "parameters": [
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePatientRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "환자 추가",
+        "tags": [
+          "Patients"
+        ]
       }
     },
     "/api/v1/patients/{patientId}": {
@@ -592,6 +699,140 @@
           }
         },
         "summary": "환자 상세 기본정보 조회",
+        "tags": [
+          "Patients"
+        ]
+      },
+      "patch": {
+        "operationId": "PatientsController_update",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePatientRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "환자 기본정보 수정",
         "tags": [
           "Patients"
         ]
@@ -728,6 +969,142 @@
           }
         },
         "summary": "환자별 Timeline 조회",
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/api/v1/patients/{patientId}/discharge": {
+      "post": {
+        "operationId": "PatientsController_discharge",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DischargePatientRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "환자 퇴원 처리",
         "tags": [
           "Patients"
         ]
@@ -5835,6 +6212,55 @@
           "meta"
         ]
       },
+      "CreatePatientRequestDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "환자 C"
+          },
+          "roomLabel": {
+            "type": "string",
+            "maxLength": 32,
+            "example": "212호 1번 침상"
+          },
+          "patientCode": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "example": "P-212-01"
+          },
+          "statusLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 20,
+            "example": "주의"
+          },
+          "department": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 50,
+            "example": "정형외과"
+          },
+          "admittedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-08-20T09:00:00+09:00",
+            "format": "date-time"
+          },
+          "baselineSummary": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500,
+            "example": "CT 결과 대기 중이며 활력징후 안정적"
+          }
+        },
+        "required": [
+          "displayName",
+          "roomLabel"
+        ]
+      },
       "PatientResponseDto": {
         "type": "object",
         "properties": {
@@ -5974,6 +6400,62 @@
           "data",
           "meta"
         ]
+      },
+      "UpdatePatientRequestDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "환자 C"
+          },
+          "roomLabel": {
+            "type": "string",
+            "maxLength": 32,
+            "example": "212호 1번 침상"
+          },
+          "patientCode": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "example": "P-212-01"
+          },
+          "statusLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 20,
+            "example": "주의"
+          },
+          "department": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 50,
+            "example": "정형외과"
+          },
+          "admittedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-08-20T09:00:00+09:00",
+            "format": "date-time"
+          },
+          "baselineSummary": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500,
+            "example": "CT 결과 대기 중이며 활력징후 안정적"
+          }
+        }
+      },
+      "DischargePatientRequestDto": {
+        "type": "object",
+        "properties": {
+          "dischargedAt": {
+            "type": "string",
+            "description": "퇴원 처리 시각. 생략하면 서버 현재 시각을 사용합니다.",
+            "example": "2026-08-20T18:00:00+09:00",
+            "format": "date-time"
+          }
+        }
       },
       "UpdateTimelineEventRequestDto": {
         "type": "object",
