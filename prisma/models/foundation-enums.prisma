@@ -33,6 +33,11 @@ enum TimelineEventType {
   TASK
 }
 
+enum TimelineEventConfirmationStatus {
+  PENDING
+  CONFIRMED
+}
+
 enum AiJobStatus {
   QUEUED
   PROCESSING

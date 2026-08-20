@@ -100,8 +100,12 @@ export class PrismaTimelineReader implements TimelineReader {
         type: true,
         source: true,
         summary: true,
+        important: true,
+        confirmationStatus: true,
         version: true,
         sourceReference: true,
+        updatedAt: true,
+        updatedByActorId: true,
       },
     });
   }
