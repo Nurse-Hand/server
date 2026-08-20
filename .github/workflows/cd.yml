@@ -2,22 +2,61 @@ name: CD
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
+
+concurrency:
+  group: nurse-hand-production-server
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_SERVER_REPOSITORY || 'nursehand-server' }}
 
 jobs:
-  build-and-push:
+  validate-target:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
 
     steps:
-      - name: Checkout
+      - name: Checkout requested commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require current main commit
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Production deployment only accepts refs/heads/main." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          checkout_sha="$(git rev-parse HEAD)"
+
+          if [[ "${TARGET_SHA}" != "${checkout_sha}" || "${TARGET_SHA}" != "${main_sha}" ]]; then
+            echo "Deployment target must equal the current origin/main commit." >&2
+            exit 1
+          fi
+
+  quality-gate:
+    needs: validate-target
+    uses: ./.github/workflows/ci.yml
+
+  build-image:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+
+    steps:
+      - name: Checkout verified commit
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
@@ -29,7 +68,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push immutable image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -37,28 +76,46 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Deploy to Gabia server
+      - name: Export immutable image reference
+        id: image
         env:
+          SERVER_IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: echo "image=${SERVER_IMAGE}" >> "${GITHUB_OUTPUT}"
+
+  deploy:
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout deployment bundle
+        uses: actions/checkout@v4
+
+      - name: Validate production deployment inputs
+        env:
+          DEPLOY_ROOT: ${{ vars.GABIA_DEPLOY_ROOT || '/data/nurse-hand' }}
+          EXTERNAL_BASE_URL: ${{ vars.NURSE_HAND_EXTERNAL_BASE_URL || 'https://api.nursehand.com' }}
+          SERVER_IMAGE: ${{ needs.build-image.outputs.image }}
           SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GABIA_SSH_KNOWN_HOSTS }}
           SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
+          SSH_PRIVATE_KEY_BASE64: ${{ secrets.GABIA_SSH_PRIVATE_KEY_BASE64 }}
           SSH_USER: ${{ secrets.GABIA_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.GABIA_SSH_PRIVATE_KEY }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          SERVER_IMAGE: ${{ env.IMAGE_NAME }}:latest
         run: |
+          set -euo pipefail
+
           required_vars=(
-            SSH_HOST
-            SSH_PORT
-            SSH_USER
-            SSH_PRIVATE_KEY
-            DOCKERHUB_USERNAME
-            DOCKERHUB_TOKEN
+            DEPLOY_ROOT
+            EXTERNAL_BASE_URL
             SERVER_IMAGE
+            SSH_HOST
+            SSH_KNOWN_HOSTS
+            SSH_PORT
+            SSH_PRIVATE_KEY_BASE64
+            SSH_USER
           )
           for var_name in "${required_vars[@]}"; do
             if [[ -z "${!var_name}" ]]; then
@@ -67,15 +124,121 @@ jobs:
             fi
           done
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%b\n' "${SSH_PRIVATE_KEY}" \
-            | sed 's/\r$//' > ~/.ssh/gabia_deploy_key
-          chmod 600 ~/.ssh/gabia_deploy_key
+          if [[ "${SSH_USER}" == "root" ]]; then
+            echo "The production SSH user must not be root." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_HOST}" =~ ^[A-Za-z0-9.-]+$ ]]; then
+            echo "SSH_HOST contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_USER}" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]]; then
+            echo "SSH_USER contains unsupported characters." >&2
+            exit 1
+          fi
+          if [[ ! "${SSH_PORT}" =~ ^[0-9]+$ ]] || ((SSH_PORT < 1 || SSH_PORT > 65535)); then
+            echo "SSH_PORT must be between 1 and 65535." >&2
+            exit 1
+          fi
+          if [[ "${DEPLOY_ROOT}" == "/" || "${DEPLOY_ROOT}" == *".."* || ! "${DEPLOY_ROOT}" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+            echo "DEPLOY_ROOT must be a narrow absolute path." >&2
+            exit 1
+          fi
+          if [[ ! "${EXTERNAL_BASE_URL}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+            echo "EXTERNAL_BASE_URL must be an HTTPS origin without a path." >&2
+            exit 1
+          fi
+          if [[ "${SERVER_IMAGE}" != *":${GITHUB_SHA}" ]]; then
+            echo "SERVER_IMAGE must use the immutable Git commit tag." >&2
+            exit 1
+          fi
 
-          ssh -i ~/.ssh/gabia_deploy_key \
-            -p "${SSH_PORT}" \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "${SSH_USER}@${SSH_HOST}" \
-            "cd /data/nurse-hand && chmod +x deploy-server.sh && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE}' bash ./deploy-server.sh"
+          install -d -m 700 "${HOME}/.ssh"
+          printf '%s' "${SSH_PRIVATE_KEY_BASE64}" \
+            | base64 --decode > "${HOME}/.ssh/nurse_hand_deploy"
+          chmod 600 "${HOME}/.ssh/nurse_hand_deploy"
+          ssh-keygen -y -f "${HOME}/.ssh/nurse_hand_deploy" >/dev/null
+
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" \
+            | sed 's/\r$//' > "${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/known_hosts"
+          known_host="${SSH_HOST}"
+          if [[ "${SSH_PORT}" != "22" ]]; then
+            known_host="[${SSH_HOST}]:${SSH_PORT}"
+          fi
+          ssh-keygen -F "${known_host}" -f "${HOME}/.ssh/known_hosts" >/dev/null
+
+      - name: Copy exact deployment bundle
+        env:
+          DEPLOY_ROOT: ${{ vars.GABIA_DEPLOY_ROOT || '/data/nurse-hand' }}
+          SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
+          SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.GABIA_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh_options=(
+            -i "${HOME}/.ssh/nurse_hand_deploy"
+            -p "${SSH_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="${HOME}/.ssh/known_hosts"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          release_dir="${DEPLOY_ROOT}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}"
+
+          printf -v mkdir_command \
+            'install -d -m 750 -- %q %q' \
+            "${release_dir}" \
+            "${release_dir}/deploy"
+          ssh "${ssh_options[@]}" "${ssh_target}" "${mkdir_command}"
+          scp \
+            -i "${HOME}/.ssh/nurse_hand_deploy" \
+            -P "${SSH_PORT}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="${HOME}/.ssh/known_hosts" \
+            docker-compose.prod.yml \
+            "${ssh_target}:${release_dir}/"
+          scp \
+            -i "${HOME}/.ssh/nurse_hand_deploy" \
+            -P "${SSH_PORT}" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="${HOME}/.ssh/known_hosts" \
+            deploy/deploy-server.sh \
+            deploy/storage-permission-smoke.mjs \
+            "${ssh_target}:${release_dir}/deploy/"
+
+      - name: Deploy verified image
+        env:
+          DEPLOY_ROOT: ${{ vars.GABIA_DEPLOY_ROOT || '/data/nurse-hand' }}
+          EXTERNAL_BASE_URL: ${{ vars.NURSE_HAND_EXTERNAL_BASE_URL || 'https://api.nursehand.com' }}
+          SERVER_IMAGE: ${{ needs.build-image.outputs.image }}
+          SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
+          SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.GABIA_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh_options=(
+            -i "${HOME}/.ssh/nurse_hand_deploy"
+            -p "${SSH_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="${HOME}/.ssh/known_hosts"
+          )
+          ssh_target="${SSH_USER}@${SSH_HOST}"
+          release_dir="${DEPLOY_ROOT}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}"
+
+          printf -v deploy_command \
+            'cd -- %q && chmod 750 ./deploy/deploy-server.sh && NURSE_HAND_SERVER_IMAGE=%q DEPLOY_SHA=%q DEPLOY_RUN_ID=%q DEPLOY_ROOT=%q EXTERNAL_BASE_URL=%q bash ./deploy/deploy-server.sh' \
+            "${release_dir}" \
+            "${SERVER_IMAGE}" \
+            "${GITHUB_SHA}" \
+            "${GITHUB_RUN_ID}" \
+            "${DEPLOY_ROOT}" \
+            "${EXTERNAL_BASE_URL}"
+          ssh "${ssh_options[@]}" "${ssh_target}" "${deploy_command}"
