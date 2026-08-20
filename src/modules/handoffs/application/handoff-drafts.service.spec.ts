@@ -129,9 +129,10 @@ describe('HandoffDraftsService', () => {
         patients: [
           expect.objectContaining({
             sections: expect.objectContaining({
-              PATIENT_STATUS: '환자 상태',
+              VITAL_SIGNS: '활력징후',
+              RESPIRATION: '호흡',
+              MENTAL_STATUS: '의식상태',
               DIET: '식이',
-              ACTIVITY: '활동',
             }),
           }),
         ],
@@ -257,11 +258,12 @@ function draftDetail(): HandoffDraftDetail {
 
 function sectionRequest() {
   return {
-    patientStatus: '환자 상태',
+    vitalSigns: '활력징후',
+    respiration: '호흡',
+    mentalStatus: '의식상태',
     pain: '통증',
     treatment: '치료',
     diet: '식이',
-    activity: '활동',
     observation: '관찰',
   };
 }

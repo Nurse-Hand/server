@@ -252,7 +252,7 @@ function draftRow() {
         sections: [
           {
             id: '10000000-0000-4000-8000-000000000401',
-            section: 'PATIENT_STATUS',
+            section: 'VITAL_SIGNS',
             aiOriginalText: '환자 상태 원문',
             currentText: '환자 상태 현재본',
             isModified: true,

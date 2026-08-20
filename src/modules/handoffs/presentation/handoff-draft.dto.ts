@@ -115,7 +115,17 @@ export class UpdateHandoffClinicalSectionsRequestDto {
   @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
   @IsString()
   @MaxLength(MAX_HANDOFF_SECTION_LENGTH)
-  patientStatus!: string;
+  vitalSigns!: string;
+
+  @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
+  @IsString()
+  @MaxLength(MAX_HANDOFF_SECTION_LENGTH)
+  respiration!: string;
+
+  @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
+  @IsString()
+  @MaxLength(MAX_HANDOFF_SECTION_LENGTH)
+  mentalStatus!: string;
 
   @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
   @IsString()
@@ -131,11 +141,6 @@ export class UpdateHandoffClinicalSectionsRequestDto {
   @IsString()
   @MaxLength(MAX_HANDOFF_SECTION_LENGTH)
   diet!: string;
-
-  @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
-  @IsString()
-  @MaxLength(MAX_HANDOFF_SECTION_LENGTH)
-  activity!: string;
 
   @ApiProperty({ maxLength: MAX_HANDOFF_SECTION_LENGTH })
   @IsString()
@@ -282,11 +287,12 @@ export class HandoffDraftCitationDto {
 }
 
 export class HandoffDraftClinicalSectionsDto {
-  @ApiProperty() patientStatus!: string;
+  @ApiProperty() vitalSigns!: string;
+  @ApiProperty() respiration!: string;
+  @ApiProperty() mentalStatus!: string;
   @ApiProperty() pain!: string;
   @ApiProperty() treatment!: string;
   @ApiProperty() diet!: string;
-  @ApiProperty() activity!: string;
   @ApiProperty() observation!: string;
 }
 

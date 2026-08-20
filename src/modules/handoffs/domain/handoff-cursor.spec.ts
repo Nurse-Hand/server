@@ -9,14 +9,15 @@ const HANDOFF_ID = '00000000-0000-4000-8000-000000000101';
 const UPDATED_AT = new Date('2026-08-19T02:00:00.000Z');
 
 describe('handoff clinical section contract', () => {
-  it('NURSING_HANDOFF_V1과 6개 임상 섹션을 고정한다', () => {
+  it('NURSING_HANDOFF_V1과 7개 임상 섹션을 고정한다', () => {
     expect(HANDOFF_TEMPLATE_IDS).toEqual(['NURSING_HANDOFF_V1']);
     expect(HANDOFF_CLINICAL_SECTIONS).toEqual([
-      'PATIENT_STATUS',
+      'VITAL_SIGNS',
+      'RESPIRATION',
+      'MENTAL_STATUS',
       'PAIN',
       'TREATMENT',
       'DIET',
-      'ACTIVITY',
       'OBSERVATION',
     ]);
   });
