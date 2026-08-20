@@ -20,8 +20,8 @@ export class HealthController {
   @ApiOperation({ summary: '서버 liveness 확인' })
   @ApiOkResponse({ type: HealthResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  getHealth(): HealthDataDto {
-    const result = this.healthService.getHealth();
+  async getHealth(): Promise<HealthDataDto> {
+    const result = await this.healthService.getHealth();
 
     return {
       status: result.status,
