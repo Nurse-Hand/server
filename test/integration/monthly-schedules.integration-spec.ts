@@ -9,6 +9,10 @@ import { createPublicOpenApiDocument } from '../../src/openapi/create-public-ope
 import type { DemoSessionContext } from '../../src/modules/demo/application/demo-session-context';
 import { DemoSessionContextResolver } from '../../src/modules/demo/application/demo-session-context.resolver';
 import { DemoSessionService } from '../../src/modules/demo/application/demo-session.service';
+import {
+  seoulDateRange,
+  toSeoulDate,
+} from '../../src/modules/handoffs/domain/seoul-work-date';
 import { MonthlyScheduleService } from '../../src/modules/schedules/application/monthly-schedule.service';
 import {
   MONTHLY_SCHEDULE_REPOSITORY,
@@ -144,6 +148,78 @@ describe('Monthly schedules PostgreSQL integration', () => {
       .set('X-Demo-Session-Id', sessions.sender)
       .expect(200);
     expect(found.body.data).toEqual(second.body.data);
+  });
+
+  it('기존 seed shift와 assignment를 재사용해 현재 월 version 1을 2로 저장한다', async () => {
+    const sessionService = app.get(DemoSessionService);
+    const resolver = app.get(DemoSessionContextResolver);
+    const isolatedSessions = readSessionIds(
+      await sessionService.create('SYNTHETIC_MEDICAL_DAY_SHIFT'),
+    );
+    const isolatedContext = await resolver.resolve(isolatedSessions.sender);
+    const seededShift = await prisma.nurseShift.findUniqueOrThrow({
+      where: {
+        shift_dataset_logical_key: {
+          datasetId: isolatedContext.datasetId,
+          logicalKey: 'shift-sender-day-a',
+        },
+      },
+      select: { id: true, startsAt: true },
+    });
+    const currentDate = toSeoulDate(seededShift.startsAt);
+    const currentYearMonth = currentDate.slice(0, 7);
+    const currentDateRange = seoulDateRange(currentDate);
+
+    await putSchedule(
+      app,
+      isolatedSessions.sender,
+      currentYearMonth,
+      createKey('seeded-current-v1'),
+      { expectedVersion: 0, entries: [] },
+    ).expect(200);
+
+    const senderShiftWhere = {
+      datasetId: isolatedContext.datasetId,
+      nurseId: isolatedContext.actorId,
+      wardId: isolatedContext.wardId,
+      duty: 'DAY' as const,
+      startsAt: { gte: currentDateRange.from, lt: currentDateRange.to },
+    };
+    const assignmentWhere = {
+      datasetId: isolatedContext.datasetId,
+      nurseShiftId: seededShift.id,
+    };
+    const shiftCountBefore = await prisma.nurseShift.count({
+      where: senderShiftWhere,
+    });
+    const assignmentCountBefore = await prisma.patientAssignment.count({
+      where: assignmentWhere,
+    });
+    expect(shiftCountBefore).toBe(1);
+    expect(assignmentCountBefore).toBeGreaterThan(0);
+
+    const updated = await putSchedule(
+      app,
+      isolatedSessions.sender,
+      currentYearMonth,
+      createKey('seeded-current-v2'),
+      {
+        expectedVersion: 1,
+        entries: [{ date: currentDate, duty: 'DAY' }],
+      },
+    ).expect(200);
+
+    expect(updated.body.data).toMatchObject({
+      yearMonth: currentYearMonth,
+      version: 2,
+      entries: [{ date: currentDate, duty: 'DAY', shiftId: seededShift.id }],
+    });
+    await expect(
+      prisma.nurseShift.count({ where: senderShiftWhere }),
+    ).resolves.toBe(shiftCountBefore);
+    await expect(
+      prisma.patientAssignment.count({ where: assignmentWhere }),
+    ).resolves.toBe(assignmentCountBefore);
   });
 
   it('같은 idempotency key의 다른 payload와 stale version을 거부한다', async () => {
