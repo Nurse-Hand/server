@@ -199,6 +199,72 @@ export class PrismaHandoffDraftRepository implements HandoffDraftRepository {
           select: { id: true },
         });
 
+        if (input.precheckId === undefined) {
+          if (
+            input.scope === undefined ||
+            input.snapshot === undefined ||
+            input.date === undefined ||
+            input.targetDuty === undefined
+          ) {
+            throw new IdempotencyInvariantViolationError();
+          }
+          const serialized = serializeSourceSnapshot(input.snapshot);
+          const frozenHash = hashJson(serialized);
+          const handoff = await transaction.handoff.create({
+            data: {
+              datasetId: input.context.datasetId,
+              wardId: input.context.wardId,
+              senderActorId: input.context.actorId,
+              receiverActorId: input.scope.receiverActorId,
+              senderShiftId: input.scope.senderShiftId,
+              receiverShiftId: input.scope.receiverShiftId,
+              handoffDate: asDatabaseDate(input.date),
+              targetDuty: input.targetDuty,
+              precheckId: null,
+              precheckVersion: null,
+              templateKey: input.templateId,
+              includeUnverified: input.includeUnverified,
+              frozenInputPayload: toInputJson(serialized),
+              frozenInputHash: frozenHash,
+              createdAt: input.now,
+              updatedAt: input.now,
+            },
+            select: {
+              id: true,
+              senderActorId: true,
+              receiverActorId: true,
+            },
+          });
+          await transaction.handoffGenerationAttempt.create({
+            data: {
+              datasetId: input.context.datasetId,
+              handoffId: handoff.id,
+              aiJobId: job.id,
+              idempotencyRecordId: record.id,
+              requestHash: input.requestHash,
+              requestId: input.requestId,
+              sequence: 1,
+              createdAt: input.now,
+              updatedAt: input.now,
+            },
+          });
+          await createDraftAuditEvent(transaction, {
+            datasetId: input.context.datasetId,
+            wardId: input.context.wardId,
+            handoffId: handoff.id,
+            senderActorId: handoff.senderActorId,
+            receiverActorId: handoff.receiverActorId,
+            actorId: input.context.actorId,
+            eventType: 'HANDOFF_CREATED',
+            occurredAt: input.now,
+            payload: {
+              mode: 'DRAFT_FIRST',
+              templateId: input.templateId,
+            },
+          });
+          return { resourceId: handoff.id, jobId: job.id, isReplay: false };
+        }
+
         const locked = await lockPrecheckRow(
           transaction,
           input.context,

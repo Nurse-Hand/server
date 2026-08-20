@@ -165,7 +165,7 @@ export class PrismaHandoffFinalizationRepository implements HandoffFinalizationR
             finalizedByActorId: input.context.actorId,
             resolution: input.unverifiedHandling,
             sourceDraftVersion: input.version,
-            precheckVersion: handoff.precheckVersion,
+            precheckVersion: handoff.precheckVersion ?? 0,
             templateKey: handoff.templateKey,
             includeUnverified: handoff.includeUnverified,
             idempotencyRecordId: record.id,
@@ -390,7 +390,7 @@ function createFinalSnapshot(
   return {
     snapshotVersion: 1,
     sourceDraftVersion: input.version,
-    precheckVersion: handoff.precheckVersion,
+    precheckVersion: handoff.precheckVersion ?? 0,
     templateId: handoff.templateKey,
     includeUnverified: handoff.includeUnverified,
     unverifiedHandling: input.unverifiedHandling,

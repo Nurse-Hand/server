@@ -4,12 +4,14 @@ export {
   HANDOFF_ROOT_STATUSES,
   HANDOFF_CLINICAL_SECTIONS,
   HANDOFF_SOURCE_TYPES as HANDOFF_EVIDENCE_TYPES,
+  HANDOFF_TARGET_DUTIES,
   HANDOFF_TEMPLATE_IDS,
 } from '../domain/handoff.constants';
 export type {
   HandoffRootStatus,
   HandoffClinicalSection,
   HandoffSourceType as HandoffEvidenceType,
+  HandoffTargetDuty,
   HandoffTemplateId,
 } from '../domain/handoff.constants';
 

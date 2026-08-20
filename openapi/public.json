@@ -9058,7 +9058,28 @@
         "properties": {
           "precheckId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "기존 사전검증 결과로 초안을 생성할 때 사용합니다. MVP 초안 우선 흐름에서는 생략하고 shiftId/date/targetDuty를 전달합니다."
+          },
+          "shiftId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "precheckId 없이 초안을 먼저 생성할 때 사용할 현재 근무 ID"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-08-13",
+            "description": "precheckId 없이 초안을 먼저 생성할 때 사용할 인수인계 날짜"
+          },
+          "targetDuty": {
+            "enum": [
+              "DAY",
+              "EVENING",
+              "NIGHT"
+            ],
+            "type": "string",
+            "description": "precheckId 없이 초안을 먼저 생성할 때 받을 듀티"
           },
           "templateId": {
             "type": "string",
@@ -9072,7 +9093,6 @@
           }
         },
         "required": [
-          "precheckId",
           "templateId",
           "includeUnverified"
         ]
