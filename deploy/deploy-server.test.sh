@@ -148,10 +148,14 @@ case "${action:-}" in
   exec)
     cat >/dev/null
     active_image="$(cat "${FAKE_API_ACTIVE_IMAGE_FILE}")"
-    if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+    if [[ "$*" == *"--input-type=module"* \
+      && "${FAKE_SCENARIO}" == "storage-fail" \
+      && "${active_image}" == "${FAKE_NEW_IMAGE}" ]]; then
       exit 1
     fi
-    if [[ "${FAKE_SCENARIO}" == "baseline-storage-fail" && "${active_image}" != "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+    if [[ "$*" == *"--input-type=module"* \
+      && "${FAKE_SCENARIO}" == "baseline-storage-fail" \
+      && "${active_image}" != "${FAKE_NEW_IMAGE}" ]]; then
       exit 1
     fi
     if [[ "${FAKE_SCENARIO}" == "external-body-invalid" \
@@ -239,6 +243,7 @@ run_deploy() {
     FAKE_API_ACTIVE_IMAGE_FILE="${root}/api-active-image" \
     FAKE_WORKER_ACTIVE_IMAGE_FILE="${root}/worker-active-image" \
     FAKE_COMMAND_LOG="${root}/commands.log" \
+    FAKE_NEW_IMAGE="${NEW_IMAGE}" \
     FAKE_SCENARIO="${scenario}" \
     DEPLOY_HEALTHCHECK_ATTEMPTS=2 \
     DEPLOY_HEALTHCHECK_INTERVAL_SECONDS=0 \
