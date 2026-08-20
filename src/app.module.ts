@@ -14,6 +14,7 @@ import { DemoModule } from './modules/demo/demo.module';
 import { FilesModule } from './modules/files/files.module';
 import { HandoffsModule } from './modules/handoffs/handoffs.module';
 import { HealthModule } from './modules/health/health.module';
+import { JobExecutionModule } from './modules/job-execution/job-execution.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import { RoundingAnalysisModule } from './modules/rounding-analysis/rounding-analysis.module';
 import { RoundingModule } from './modules/rounding/rounding.module';
@@ -41,6 +42,7 @@ import { TimelineModule } from './modules/timeline/timeline.module';
     TimelineModule,
     TasksModule,
     HandoffsModule,
+    JobExecutionModule,
   ],
 })
 export class AppModule implements NestModule {
