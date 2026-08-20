@@ -13,6 +13,7 @@ model DemoDataset {
   timelineEvents     TimelineEvent[]
   roundingSessions   RoundingSession[]
   storedFiles        StoredFile[]
+  quickNotes         QuickNote[]
   aiJobs             AiJob[]
   idempotencyRecords IdempotencyRecord[]
   monthlySchedules   MonthlySchedule[]

@@ -1,0 +1,57 @@
+enum QuickNoteType {
+  VITAL_SIGNS
+  RESPIRATION
+  MENTAL_STATUS
+  PAIN
+  TREATMENT
+  DIET
+  OBSERVATION
+}
+
+enum QuickNoteSourceType {
+  QUICK_NOTE
+}
+
+enum QuickNoteEvidenceStatus {
+  PENDING
+  CONVERTED
+}
+
+model QuickNote {
+  id                String                  @id @default(uuid()) @db.Uuid
+  datasetId         String                  @db.Uuid
+  logicalKey        String                  @db.VarChar(64)
+  actorId           String                  @db.Uuid
+  wardId            String                  @db.Uuid
+  patientId         String                  @db.Uuid
+  noteType          QuickNoteType
+  sourceType        QuickNoteSourceType     @default(QUICK_NOTE)
+  text              String?                 @db.VarChar(2000)
+  occurredAt        DateTime                @db.Timestamptz(3)
+  audioFileId       String?                 @db.Uuid
+  keywordCandidates Json                    @default("[]")
+  evidenceStatus    QuickNoteEvidenceStatus @default(PENDING)
+  createdAt         DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                @updatedAt @db.Timestamptz(3)
+  dataset           DemoDataset             @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  patient           Patient                 @relation("QuickNotePatient", fields: [datasetId, patientId, wardId], references: [datasetId, id, wardId], onDelete: Restrict)
+  audioFile         StoredFile?             @relation("QuickNoteAudioFile", fields: [datasetId, audioFileId], references: [datasetId, id], onDelete: Restrict)
+  photoLinks        QuickNotePhoto[]
+
+  @@unique(name: "quick_note_dataset_id", [datasetId, id])
+  @@unique(name: "quick_note_dataset_logical_key", [datasetId, logicalKey])
+  @@index([datasetId, wardId, patientId, occurredAt(sort: Desc), id(sort: Desc)])
+}
+
+model QuickNotePhoto {
+  id         String     @id @default(uuid()) @db.Uuid
+  datasetId  String     @db.Uuid
+  quickNoteId String    @db.Uuid
+  photoFileId String    @db.Uuid
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
+  quickNote  QuickNote  @relation(fields: [datasetId, quickNoteId], references: [datasetId, id], onDelete: Cascade)
+  photoFile  StoredFile @relation("QuickNotePhotoFile", fields: [datasetId, photoFileId], references: [datasetId, id], onDelete: Restrict)
+
+  @@unique([datasetId, quickNoteId, photoFileId])
+  @@index([datasetId, quickNoteId, createdAt, id])
+}
