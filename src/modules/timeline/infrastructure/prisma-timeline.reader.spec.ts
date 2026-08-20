@@ -57,6 +57,7 @@ describe('PrismaTimelineReader', () => {
         patientId: PATIENT_B,
         occurredAt: NOW,
         type: 'TASK' as const,
+        clinicalCategory: null,
         source: 'AI_AUDIO' as const,
         summary: 'Synthetic B',
         version: 1,
@@ -67,6 +68,7 @@ describe('PrismaTimelineReader', () => {
         patientId: PATIENT_A,
         occurredAt: NOW,
         type: 'OBSERVATION' as const,
+        clinicalCategory: 'PAIN' as const,
         source: 'MANUAL' as const,
         summary: 'Synthetic A',
         version: 1,
@@ -99,6 +101,7 @@ describe('PrismaTimelineReader', () => {
           patientId: { in: [PATIENT_A, PATIENT_B] },
         }),
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        select: expect.objectContaining({ clinicalCategory: true }),
       }),
     );
     const patientAssignmentScope =

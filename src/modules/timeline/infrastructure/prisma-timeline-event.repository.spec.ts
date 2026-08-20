@@ -86,6 +86,7 @@ describe('PrismaTimelineEventRepository', () => {
       summary: '수술 부위 출혈 없음, 오후 재확인 필요',
       important: true,
       confirmationStatus: 'CONFIRMED',
+      clinicalCategory: 'RESPIRATION',
       version: 3,
       updatedByActorId: CONTEXT.actorId,
     });
@@ -186,6 +187,7 @@ function createEventRow(overrides?: Partial<Record<string, unknown>>) {
     patientId: PATIENT_ID,
     occurredAt: NOW,
     type: 'OBSERVATION',
+    clinicalCategory: 'RESPIRATION',
     source: 'AI_AUDIO',
     sourceReference: 'timeline:event:801',
     summary: '기침 호소',

@@ -16,6 +16,7 @@ import type { DemoSessionContext } from '../../src/modules/demo/application/demo
 import { digestDemoSessionToken } from '../../src/modules/demo/domain/demo-session-token';
 import { DemoScenarioSeeder } from '../../src/modules/demo/infrastructure/demo-scenario.seeder';
 import { DemoSessionContextParam } from '../../src/modules/demo/presentation/demo-session-context.decorator';
+import { QUICK_NOTE_TYPES } from '../../src/modules/quick-notes/domain/quick-note.types';
 import {
   TIMELINE_READER,
   type TimelineReader,
@@ -470,6 +471,77 @@ describe('Demo session and Timeline PostgreSQL integration', () => {
       version: 1,
       sourceReference: 'synthetic:boundary:higher',
     });
+  });
+
+  it('Quick Note 7종은 Timeline type을 유지하면서 clinicalCategory를 보존한다', async () => {
+    const patient = await prisma.patient.findFirstOrThrow({
+      where: {
+        datasetId: firstSession.context.datasetId,
+        wardId: firstSession.context.wardId,
+        patientAssignments: {
+          some: {
+            nurseId: firstSession.context.actorId,
+            wardId: firstSession.context.wardId,
+          },
+        },
+      },
+      select: { id: true },
+    });
+    const referenceTime = new Date();
+    const sourceReferences: string[] = [];
+
+    for (const [index, noteType] of QUICK_NOTE_TYPES.entries()) {
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/quick-notes')
+        .set('X-Demo-Session-Id', firstSession.sessionId)
+        .send({
+          patientId: patient.id,
+          noteType,
+          text: `Synthetic ${noteType}`,
+          occurredAt: new Date(referenceTime.getTime() - index).toISOString(),
+        })
+        .expect(201);
+
+      sourceReferences.push(`quick-note:${created.body.data.quickNoteId}`);
+    }
+
+    const stored = await prisma.timelineEvent.findMany({
+      where: {
+        datasetId: firstSession.context.datasetId,
+        wardId: firstSession.context.wardId,
+        patientId: patient.id,
+        sourceReference: { in: sourceReferences },
+      },
+      select: {
+        type: true,
+        clinicalCategory: true,
+        sourceReference: true,
+      },
+    });
+    const byReference = new Map(
+      stored.map((event) => [event.sourceReference, event]),
+    );
+
+    expect(stored).toHaveLength(QUICK_NOTE_TYPES.length);
+    for (const [index, noteType] of QUICK_NOTE_TYPES.entries()) {
+      expect(byReference.get(sourceReferences[index])).toMatchObject({
+        type: 'OBSERVATION',
+        clinicalCategory: noteType,
+      });
+    }
+
+    const timeline = await timelineReader.read({
+      context: firstSession.context,
+      patientId: patient.id,
+    });
+    expect(
+      timeline
+        .filter(({ sourceReference }) =>
+          sourceReferences.includes(sourceReference),
+        )
+        .map(({ clinicalCategory }) => clinicalCategory)
+        .sort(),
+    ).toEqual([...QUICK_NOTE_TYPES].sort());
   });
 
   it('다른 dataset, ward, 미배정 환자는 동일한 404로 숨긴다', async () => {

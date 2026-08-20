@@ -130,6 +130,7 @@ model TimelineEvent {
   wardId             String                          @db.Uuid
   occurredAt         DateTime                        @db.Timestamptz(3)
   type               TimelineEventType
+  clinicalCategory   TimelineClinicalCategory?
   source             TimelineEventSource
   sourceReference    String                          @db.VarChar(128)
   summary            String                          @db.VarChar(500)

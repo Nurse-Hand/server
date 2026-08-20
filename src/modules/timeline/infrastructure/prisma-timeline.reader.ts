@@ -98,6 +98,7 @@ export class PrismaTimelineReader implements TimelineReader {
         patientId: true,
         occurredAt: true,
         type: true,
+        clinicalCategory: true,
         source: true,
         summary: true,
         important: true,
