@@ -33,16 +33,17 @@ describe('PatientQueryService', () => {
         patientId: PATIENT_ID,
         displayName: '환자 A',
         roomLabel: '301호 1번 침상',
-        statusLabel: null,
-        department: null,
-        admittedAt: null,
-        baselineSummary: null,
+        patientCode: 'P-301-01',
+        statusLabel: '주의',
+        department: '정형외과',
+        admittedAt: new Date('2026-07-30T00:00:00.000Z'),
+        baselineSummary: '우측 대퇴골 골절 수술 후 통증 조절 및 보행 재활 중',
         createdAt: NOW,
       },
     ]);
   });
 
-  it('환자 상세 조회 결과는 현재 DB에 없는 화면 보조 필드를 null로 둔다', async () => {
+  it('환자 상세 조회 결과는 와이어프레임 기본정보 필드를 포함한다', async () => {
     const prisma = createPrisma();
     prisma.patient.findFirst.mockResolvedValue(patientRow({}));
 
@@ -50,10 +51,11 @@ describe('PatientQueryService', () => {
       createService(prisma).get({ context: CONTEXT, patientId: PATIENT_ID }),
     ).resolves.toMatchObject({
       patientId: PATIENT_ID,
-      statusLabel: null,
-      department: null,
-      admittedAt: null,
-      baselineSummary: null,
+      patientCode: 'P-301-01',
+      statusLabel: '주의',
+      department: '정형외과',
+      admittedAt: new Date('2026-07-30T00:00:00.000Z'),
+      baselineSummary: '우측 대퇴골 골절 수술 후 통증 조절 및 보행 재활 중',
     });
   });
 
@@ -68,11 +70,12 @@ describe('PatientQueryService', () => {
 
   it('환자별 timeline 조회는 내부 TimelineReader에 기간 조건을 전달한다', async () => {
     const prisma = createPrisma();
+    prisma.patient.findFirst.mockResolvedValue(patientRow({}));
     const timeline = createTimelineReader();
     const from = new Date('2026-08-19T00:00:00.000Z');
     const to = new Date('2026-08-19T23:59:59.000Z');
 
-    await createService(prisma, timeline).readTimeline({
+    const result = await createService(prisma, timeline).readTimeline({
       context: CONTEXT,
       patientId: PATIENT_ID,
       from,
@@ -84,6 +87,48 @@ describe('PatientQueryService', () => {
       patientId: PATIENT_ID,
       from,
       to,
+    });
+    expect(result.patient.patientId).toBe(PATIENT_ID);
+    expect(result.workDate).toBeNull();
+    expect(result.daySummary).toBeNull();
+  });
+
+  it('workDate가 있으면 Asia/Seoul 하루 범위로 timeline을 조회한다', async () => {
+    const prisma = createPrisma();
+    prisma.patient.findFirst.mockResolvedValue(patientRow({}));
+    const timeline = createTimelineReader();
+    timeline.read.mockResolvedValue([
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        patientId: PATIENT_ID,
+        occurredAt: new Date('2026-08-20T00:30:00.000Z'),
+        type: 'OBSERVATION',
+        source: 'AI_AUDIO',
+        summary: '야간 기침 증상이 잦아짐',
+        important: true,
+        confirmationStatus: 'CONFIRMED',
+        version: 1,
+        sourceReference: 'timeline:event:night-cough',
+        updatedAt: new Date('2026-08-20T00:30:00.000Z'),
+        updatedByActorId: null,
+      },
+    ]);
+
+    const result = await createService(prisma, timeline).readTimeline({
+      context: CONTEXT,
+      patientId: PATIENT_ID,
+      workDate: '2026-08-20',
+    });
+
+    expect(timeline.read).toHaveBeenCalledWith({
+      context: CONTEXT,
+      patientId: PATIENT_ID,
+      from: new Date('2026-08-19T15:00:00.000Z'),
+      to: new Date('2026-08-20T14:59:59.999Z'),
+    });
+    expect(result).toMatchObject({
+      workDate: '2026-08-20',
+      daySummary: '야간 기침 증상이 잦아짐',
     });
   });
 });
@@ -120,12 +165,22 @@ function patientRow(input: { displayName?: string; roomLabel?: string }): {
   id: string;
   displayName: string;
   roomLabel: string;
+  patientCode: string;
+  statusLabel: string;
+  department: string;
+  admittedAt: Date;
+  baselineSummary: string;
   createdAt: Date;
 } {
   return {
     id: PATIENT_ID,
     displayName: input.displayName ?? '환자 A',
     roomLabel: input.roomLabel ?? '301호',
+    patientCode: 'P-301-01',
+    statusLabel: '주의',
+    department: '정형외과',
+    admittedAt: new Date('2026-07-30T00:00:00.000Z'),
+    baselineSummary: '우측 대퇴골 골절 수술 후 통증 조절 및 보행 재활 중',
     createdAt: NOW,
   };
 }

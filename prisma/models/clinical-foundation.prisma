@@ -81,6 +81,11 @@ model Patient {
   wardId             String                   @db.Uuid
   displayName        String                   @db.VarChar(100)
   roomLabel          String                   @db.VarChar(32)
+  patientCode        String?                  @db.VarChar(32)
+  statusLabel        String?                  @db.VarChar(20)
+  department         String?                  @db.VarChar(50)
+  admittedAt         DateTime?                @db.Timestamptz(3)
+  baselineSummary    String?                  @db.VarChar(500)
   createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
   dataset            DemoDataset              @relation(fields: [datasetId], references: [id], onDelete: Cascade)
   ward               Ward                     @relation("PatientWard", fields: [datasetId, wardId], references: [datasetId, id], onDelete: Restrict)

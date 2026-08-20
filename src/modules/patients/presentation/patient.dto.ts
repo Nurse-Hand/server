@@ -1,12 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsOptional } from 'class-validator';
+import { IsISO8601, IsOptional, Matches } from 'class-validator';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
 import type {
   PatientReadModel,
-  PatientTimelineReadModel,
+  PatientTimelineReadResult,
 } from '../application/patient.models';
 
 export class ListPatientTimelineQueryDto {
+  @ApiPropertyOptional({
+    description: 'Asia/Seoul 기준 조회 날짜. 지정하면 from/to보다 우선합니다.',
+    example: '2026-08-20',
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    type: String,
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  workDate?: string;
+
   @ApiPropertyOptional({ format: 'date-time', type: String })
   @IsOptional()
   @IsISO8601({ strict: true })
@@ -27,6 +37,9 @@ export class PatientDataDto {
 
   @ApiProperty({ example: '301호 1번 침상' })
   roomLabel!: string;
+
+  @ApiProperty({ example: 'P-301-01', nullable: true, type: String })
+  patientCode!: string | null;
 
   @ApiProperty({ nullable: true, type: String })
   statusLabel!: string | null;
@@ -106,6 +119,23 @@ export class PatientTimelineEventDto {
 }
 
 export class PatientTimelineDataDto {
+  @ApiProperty({ type: PatientDataDto })
+  patient!: PatientDataDto;
+
+  @ApiProperty({
+    example: '2026-08-20',
+    nullable: true,
+    type: String,
+  })
+  workDate!: string | null;
+
+  @ApiProperty({
+    example: '오늘 통증 NRS가 감소했고, 보행기 사용 가능 상태입니다.',
+    nullable: true,
+    type: String,
+  })
+  daySummary!: string | null;
+
   @ApiProperty({ isArray: true, type: PatientTimelineEventDto })
   items!: PatientTimelineEventDto[];
 }
@@ -123,6 +153,7 @@ export function toPatientDataDto(patient: PatientReadModel): PatientDataDto {
     patientId: patient.patientId,
     displayName: patient.displayName,
     roomLabel: patient.roomLabel,
+    patientCode: patient.patientCode,
     statusLabel: patient.statusLabel,
     department: patient.department,
     admittedAt: patient.admittedAt?.toISOString() ?? null,
@@ -140,10 +171,13 @@ export function toPatientListDataDto(
 }
 
 export function toPatientTimelineDataDto(
-  timeline: readonly PatientTimelineReadModel[],
+  timeline: PatientTimelineReadResult,
 ): PatientTimelineDataDto {
   return {
-    items: timeline.map((event) => ({
+    patient: toPatientDataDto(timeline.patient),
+    workDate: timeline.workDate,
+    daySummary: timeline.daySummary,
+    items: timeline.items.map((event) => ({
       timelineEventId: event.id,
       patientId: event.patientId,
       occurredAt: event.occurredAt.toISOString(),
