@@ -8,6 +8,10 @@ import {
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import type { DemoSessionContext } from '../../demo/application/demo-session-context';
+import {
+  seoulDateRange,
+  toSeoulDate,
+} from '../../handoffs/domain/seoul-work-date';
 import type {
   MonthlyScheduleRepository,
   MonthlyScheduleView,
@@ -16,6 +20,7 @@ import type {
 } from '../application/ports/monthly-schedule.repository';
 import { MonthlyScheduleNotFoundError } from '../domain/monthly-schedule.errors';
 import {
+  daysInYearMonth,
   normalizeScheduleEntries,
   SCHEDULE_DUTIES,
   type ScheduleDuty,
@@ -302,15 +307,79 @@ export class PrismaMonthlyScheduleRepository implements MonthlyScheduleRepositor
       date: entry.dutyDate.toISOString().slice(0, 10),
       duty: entry.duty,
     }));
+    const shiftIds = await this.readShiftIdsByEntry(
+      client,
+      context,
+      row.yearMonth,
+      entries,
+    );
+    const entriesWithShiftIds = entries.map((entry) => ({
+      ...entry,
+      shiftId:
+        entry.duty === 'OFF'
+          ? null
+          : (shiftIds.get(`${entry.date}:${entry.duty}`) ?? null),
+    }));
+
     return {
       id: row.id,
       view: {
         yearMonth: row.yearMonth,
         version: row.version,
-        entries,
+        entries: entriesWithShiftIds,
         totals: countDuties(entries),
       },
     };
+  }
+
+  private async readShiftIdsByEntry(
+    client: DatabaseClient,
+    context: DemoSessionContext,
+    yearMonth: string,
+    entries: readonly ScheduleEntryInput[],
+  ): Promise<Map<string, string>> {
+    const shiftDuties = [
+      ...new Set(
+        entries
+          .map((entry) => entry.duty)
+          .filter(
+            (duty): duty is Exclude<ScheduleDuty, 'OFF'> => duty !== 'OFF',
+          ),
+      ),
+    ];
+
+    if (shiftDuties.length === 0) {
+      return new Map();
+    }
+
+    const from = seoulDateRange(`${yearMonth}-01`).from;
+    const lastDay = String(daysInYearMonth(yearMonth)).padStart(2, '0');
+    const to = seoulDateRange(`${yearMonth}-${lastDay}`).to;
+    const shifts = await client.nurseShift.findMany({
+      where: {
+        datasetId: context.datasetId,
+        nurseId: context.actorId,
+        wardId: context.wardId,
+        duty: { in: shiftDuties },
+        startsAt: { gte: from, lt: to },
+      },
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        duty: true,
+        startsAt: true,
+      },
+    });
+    const shiftIds = new Map<string, string>();
+
+    for (const shift of shifts) {
+      const key = `${toSeoulDate(shift.startsAt)}:${shift.duty}`;
+      if (!shiftIds.has(key)) {
+        shiftIds.set(key, shift.id);
+      }
+    }
+
+    return shiftIds;
   }
 }
 

@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiMetaDto } from '../../../common/http/api-response.dto';
 import type { MonthlyScheduleView } from '../application/ports/monthly-schedule.repository';
 import {
@@ -12,6 +12,14 @@ export class MonthlyScheduleEntryDto {
 
   @ApiProperty({ enum: SCHEDULE_DUTIES })
   duty!: ScheduleDuty;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      '해당 날짜·듀티에 매칭되는 현재 간호사 근무 ID. 인수인계 초안/사전검증 요청에 사용한다.',
+  })
+  shiftId?: string | null;
 }
 
 export class MonthlyScheduleTotalsDto {
