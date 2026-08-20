@@ -54,10 +54,7 @@ async function bootstrap(): Promise<void> {
 
   while (!shuttingDown) {
     try {
-      const cycleCompleted = await dispatcher.runOnce();
-      if (cycleCompleted) {
-        await writeWorkerHeartbeat();
-      }
+      await dispatcher.runOnce(writeWorkerHeartbeat);
     } catch {
       logger.error({
         event: 'worker_cycle_failed',

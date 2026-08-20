@@ -42,12 +42,12 @@ export class TaskHandoffJobDispatcher {
     return this.waitForActiveDispatch(activeDispatch, timeoutMilliseconds);
   }
 
-  async runOnce(): Promise<boolean> {
+  async runOnce(onProgress?: () => Promise<void>): Promise<boolean> {
     if (this.isShuttingDown || this.activeDispatch !== undefined) {
       return false;
     }
 
-    const dispatch = this.dispatch();
+    const dispatch = this.dispatch(onProgress);
     this.activeDispatch = dispatch;
     try {
       return await dispatch;
@@ -58,11 +58,13 @@ export class TaskHandoffJobDispatcher {
     }
   }
 
-  private async dispatch(): Promise<boolean> {
+  private async dispatch(onProgress?: () => Promise<void>): Promise<boolean> {
     const scopes = await this.findRunnableScopes();
+    await onProgress?.();
     for (const scope of scopes) {
       if (this.isShuttingDown) break;
       await this.processScope(scope);
+      if (!this.isShuttingDown) await onProgress?.();
     }
     return true;
   }

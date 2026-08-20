@@ -78,6 +78,24 @@ describe('TaskHandoffJobDispatcher', () => {
     expect(handoffDraft.processNext.mock.calls).toEqual([[SCOPE_A], [SCOPE_B]]);
   });
 
+  it('빈 poll도 DB 조회 성공 직후 progress를 한 번 기록한다', async () => {
+    const onProgress = jest.fn().mockResolvedValue(undefined);
+    findMany.mockResolvedValueOnce([]);
+
+    await expect(dispatcher.runOnce(onProgress)).resolves.toBe(true);
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(onProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it('실행 scope가 있으면 DB poll과 각 scope 완료 후 progress를 기록한다', async () => {
+    const onProgress = jest.fn().mockResolvedValue(undefined);
+
+    await expect(dispatcher.runOnce(onProgress)).resolves.toBe(true);
+
+    expect(onProgress).toHaveBeenCalledTimes(3);
+  });
+
   it('한 processor 예외가 다음 operation을 막거나 민감정보를 기록하지 않는다', async () => {
     const marker = 'SYNTHETIC_PATIENT_SUMMARY_1234';
     const logger = jest.spyOn(Logger.prototype, 'error').mockImplementation();
