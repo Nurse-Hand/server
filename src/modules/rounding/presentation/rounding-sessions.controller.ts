@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -150,6 +151,7 @@ export class RoundingSessionsController {
   }
 
   @Post(':sessionId/complete')
+  @HttpCode(200)
   @ApiOperation({ summary: '전체 라운딩 종료' })
   @ApiOkResponse({ type: RoundingSessionResponseDto })
   @ApiBadRequestResponse({ type: ApiErrorResponseDto })
