@@ -4,6 +4,8 @@ import type {
   TaskEvidenceSourceType,
   TaskListSort,
   TaskPriority,
+  TaskPrioritySignalLevel,
+  TaskScopeType,
   TaskSource,
   TaskStatus,
 } from '../../domain/task.types';
@@ -13,13 +15,18 @@ export const TASK_REPOSITORY = Symbol('TASK_REPOSITORY');
 
 export type TaskView = {
   id: string;
+  scopeType: TaskScopeType;
   patientId: string | null;
+  locationLabel: string | null;
   title: string;
   description: string | null;
   dueAt: Date | null;
   workDate: Date;
   status: TaskStatus;
   source: TaskSource;
+  isCarryOver: boolean;
+  dependencyTaskIds: readonly string[];
+  priorityMeta: TaskPriorityMeta;
   aiSuggestedPriority: TaskPriority | null;
   aiReasons: readonly string[];
   aiConfidence: TaskAiConfidence | null;
@@ -29,6 +36,13 @@ export type TaskView = {
   version: number;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type TaskPriorityMeta = {
+  patientStatusUrgency: TaskPrioritySignalLevel | null;
+  timeSensitivity: TaskPrioritySignalLevel | null;
+  taskCriticality: TaskPrioritySignalLevel | null;
+  isBlocking: boolean;
 };
 
 export type ListTasksInput = {
@@ -52,11 +66,16 @@ export type CreateTaskInput = {
   context: DemoSessionContext;
   idempotencyKey: string;
   requestHash: string;
+  scopeType: TaskScopeType;
   patientId: string | null;
+  locationLabel: string | null;
   title: string;
   description: string | null;
   dueAt: Date;
   workDate: Date;
+  isCarryOver: boolean;
+  dependencyTaskIds: readonly string[];
+  priorityMeta: TaskPriorityMeta;
   confirmedPriority: TaskPriority | null;
   now: Date;
 };
@@ -75,6 +94,12 @@ export type UpdateTaskInput = {
   dueAt?: Date;
   workDate?: Date;
   status?: TaskStatus;
+  scopeType?: TaskScopeType;
+  patientId?: string | null;
+  locationLabel?: string | null;
+  isCarryOver?: boolean;
+  dependencyTaskIds?: readonly string[];
+  priorityMeta?: TaskPriorityMeta;
   confirmedPriority?: TaskPriority | null;
   prioritySuggestionId?: string;
   now: Date;

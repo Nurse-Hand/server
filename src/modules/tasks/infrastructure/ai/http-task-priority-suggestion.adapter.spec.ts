@@ -21,7 +21,7 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
             {
               taskId: TASK_ID,
               score: 7.5,
-              priority: 'LOW',
+              priority: 'HIGH',
               reasons: ['정규 라운딩 확인'],
             },
           ],
@@ -42,7 +42,15 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
         },
         body: JSON.stringify({
           requestId: REQUEST_ID,
-          tasks: input().tasks,
+          tasks: [
+            {
+              taskId: TASK_ID,
+              patientId: '00000000-0000-4000-8000-000000000401',
+              title: '통증 재평가',
+              dueAt: '2026-08-19T01:00:00.000Z',
+              carriedOver: false,
+            },
+          ],
           patientRisk: [],
           now: '2026-08-19T00:00:00.000Z',
         }),
@@ -52,7 +60,7 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
       {
         taskId: TASK_ID,
         aiScore: 7.5,
-        aiSuggestedPriority: 'NORMAL',
+        aiSuggestedPriority: 'HIGH',
         reasons: ['정규 라운딩 확인'],
       },
     ]);
@@ -142,6 +150,70 @@ describe('HttpTaskPrioritySuggestionAdapter', () => {
     ).rejects.toBeInstanceOf(TaskAiUnavailableError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('병동 운영 업무는 현재 AI 계약에 맞는 sentinel patientId와 제목 prefix로 변환한다', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          requestId: REQUEST_ID,
+          results: [
+            {
+              taskId: TASK_ID,
+              score: 4.5,
+              priority: 'NORMAL',
+              reasons: ['병동 운영 업무'],
+            },
+          ],
+        }),
+        { status: 201, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await adapter().prioritize({
+      requestId: REQUEST_ID,
+      tasks: [
+        {
+          taskId: TASK_ID,
+          scopeType: 'WARD',
+          patientId: null,
+          locationLabel: '물품 창고',
+          title: '아세톤 재고 확인',
+          description: '인수인계 전 병동 소모품 수량을 확인합니다.',
+          dueAt: '2026-08-19T01:00:00.000Z',
+          isCarryOver: true,
+          dependencyTaskIds: [],
+          priorityMeta: {
+            patientStatusUrgency: null,
+            timeSensitivity: 'MEDIUM',
+            taskCriticality: 'LOW',
+            isBlocking: false,
+          },
+        },
+      ],
+      now: '2026-08-19T00:00:00.000Z',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          requestId: REQUEST_ID,
+          tasks: [
+            {
+              taskId: TASK_ID,
+              patientId: 'WARD:물품 창고',
+              title:
+                '[병동 운영] - 아세톤 재고 확인 - 인수인계 전 병동 소모품 수량을 확인합니다.',
+              dueAt: '2026-08-19T01:00:00.000Z',
+              carriedOver: true,
+            },
+          ],
+          patientRisk: [],
+          now: '2026-08-19T00:00:00.000Z',
+        }),
+      }),
+    );
+  });
 });
 
 function adapter(
@@ -164,10 +236,20 @@ function input() {
     tasks: [
       {
         taskId: TASK_ID,
+        scopeType: 'PATIENT' as const,
         patientId: '00000000-0000-4000-8000-000000000401',
+        locationLabel: null,
         title: '통증 재평가',
+        description: null,
         dueAt: '2026-08-19T01:00:00.000Z',
-        carriedOver: false,
+        isCarryOver: false,
+        dependencyTaskIds: [],
+        priorityMeta: {
+          patientStatusUrgency: 'HIGH' as const,
+          timeSensitivity: null,
+          taskCriticality: 'MEDIUM' as const,
+          isBlocking: false,
+        },
       },
     ],
     now: '2026-08-19T00:00:00.000Z',

@@ -45,6 +45,25 @@ describe('validateStoredFileUpload', () => {
     },
   );
 
+  it.each(['image/jpeg', 'image/jpg', 'image/pjpeg'])(
+    '모바일 JPEG MIME alias %s를 허용한다',
+    (mimeType) => {
+      expect(
+        validateStoredFileUpload({
+          kind: 'PHOTO',
+          mimeType,
+          originalName: 'photo.jpg',
+          sizeBytes: 2_048,
+        }),
+      ).toMatchObject({
+        extension: '.jpg',
+        kind: 'PHOTO',
+        mimeType,
+        originalName: 'photo.jpg',
+      });
+    },
+  );
+
   it('허용되지 않은 MIME type은 거부한다', () => {
     expect(() =>
       validateStoredFileUpload({

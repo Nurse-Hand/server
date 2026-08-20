@@ -4,11 +4,15 @@ import {
   TASK_AI_CONFIDENCES,
   TASK_EVIDENCE_SOURCE_TYPES,
   TASK_PRIORITIES,
+  TASK_PRIORITY_SIGNAL_LEVELS,
+  TASK_SCOPE_TYPES,
   TASK_SOURCES,
   TASK_STATUSES,
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
   type TaskSource,
   type TaskStatus,
 } from '../domain/task.types';
@@ -34,12 +38,32 @@ export class TaskAiSuggestionDto {
   confidence!: TaskAiConfidence;
 }
 
+export class TaskPriorityMetaDto {
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  patientStatusUrgency!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  timeSensitivity!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ enum: TASK_PRIORITY_SIGNAL_LEVELS, nullable: true })
+  taskCriticality!: TaskPrioritySignalLevel | null;
+
+  @ApiProperty({ type: Boolean })
+  isBlocking!: boolean;
+}
+
 export class TaskDataDto {
   @ApiProperty({ format: 'uuid' })
   taskId!: string;
 
+  @ApiProperty({ enum: TASK_SCOPE_TYPES })
+  scopeType!: TaskScopeType;
+
   @ApiProperty({ format: 'uuid', nullable: true, type: String })
   patientId!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  locationLabel!: string | null;
 
   @ApiProperty({ example: '통증 재평가' })
   title!: string;
@@ -58,6 +82,15 @@ export class TaskDataDto {
 
   @ApiProperty({ enum: TASK_SOURCES })
   source!: TaskSource;
+
+  @ApiProperty({ type: Boolean })
+  isCarryOver!: boolean;
+
+  @ApiProperty({ format: 'uuid', isArray: true, type: String })
+  dependencyTaskIds!: string[];
+
+  @ApiProperty({ type: () => TaskPriorityMetaDto })
+  priorityMeta!: TaskPriorityMetaDto;
 
   @ApiProperty({ nullable: true, type: TaskAiSuggestionDto })
   aiSuggestion!: TaskAiSuggestionDto | null;
@@ -186,7 +219,7 @@ export class TaskPrioritySuggestionItemDto {
   })
   aiScore!: number;
 
-  @ApiProperty({ enum: ['CRITICAL', 'NORMAL'] })
+  @ApiProperty({ enum: TASK_PRIORITIES })
   aiSuggestedPriority!: TaskPriority;
 
   @ApiProperty({

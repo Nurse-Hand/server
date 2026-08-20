@@ -10,7 +10,7 @@ describe('parseTaskPrioritySuggestionResponse', () => {
     const result = parseTaskPrioritySuggestionResponse(
       response({
         results: [
-          aiResult({ taskId: TASK_ID_B, score: 10, priority: 'LOW' }),
+          aiResult({ taskId: TASK_ID_B, score: 10, priority: 'NORMAL' }),
           aiResult({ taskId: TASK_ID_A, score: 10, priority: 'CRITICAL' }),
         ],
       }),
@@ -62,10 +62,7 @@ describe('parseTaskPrioritySuggestionResponse', () => {
       '무한 score',
       response({ results: results({ score: Number.POSITIVE_INFINITY }) }),
     ],
-    [
-      '지원하지 않는 enum',
-      response({ results: results({ priority: 'HIGH' }) }),
-    ],
+    ['지원하지 않는 enum', response({ results: results({ priority: 'LOW' }) })],
     [
       'reason 6개',
       response({ results: results({ reasons: Array(6).fill('reason') }) }),

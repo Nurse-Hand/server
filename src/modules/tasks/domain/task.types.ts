@@ -7,6 +7,13 @@ export type TaskSource = (typeof TASK_SOURCES)[number];
 export const TASK_PRIORITIES = ['CRITICAL', 'HIGH', 'NORMAL'] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 
+export const TASK_SCOPE_TYPES = ['PATIENT', 'WARD'] as const;
+export type TaskScopeType = (typeof TASK_SCOPE_TYPES)[number];
+
+export const TASK_PRIORITY_SIGNAL_LEVELS = ['LOW', 'MEDIUM', 'HIGH'] as const;
+export type TaskPrioritySignalLevel =
+  (typeof TASK_PRIORITY_SIGNAL_LEVELS)[number];
+
 export const TASK_AI_CONFIDENCES = ['HIGH', 'MEDIUM', 'LOW'] as const;
 export type TaskAiConfidence = (typeof TASK_AI_CONFIDENCES)[number];
 
@@ -33,7 +40,11 @@ export const TASK_PRIORITY_SUGGESTION_BATCH_STATUSES = [
 export type TaskPrioritySuggestionBatchStatus =
   (typeof TASK_PRIORITY_SUGGESTION_BATCH_STATUSES)[number];
 
-export const TASK_PRIORITY_AI_PRIORITIES = ['CRITICAL', 'LOW'] as const;
+export const TASK_PRIORITY_AI_PRIORITIES = [
+  'CRITICAL',
+  'HIGH',
+  'NORMAL',
+] as const;
 export type TaskPriorityAiPriority =
   (typeof TASK_PRIORITY_AI_PRIORITIES)[number];
 

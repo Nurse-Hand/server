@@ -5867,6 +5867,47 @@
           "meta"
         ]
       },
+      "TaskPriorityMetaDto": {
+        "type": "object",
+        "properties": {
+          "patientStatusUrgency": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "timeSensitivity": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "taskCriticality": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "isBlocking": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "patientStatusUrgency",
+          "timeSensitivity",
+          "taskCriticality",
+          "isBlocking"
+        ]
+      },
       "TaskAiSuggestionDto": {
         "type": "object",
         "properties": {
@@ -5906,10 +5947,21 @@
             "type": "string",
             "format": "uuid"
           },
+          "scopeType": {
+            "enum": [
+              "PATIENT",
+              "WARD"
+            ],
+            "type": "string"
+          },
           "patientId": {
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true
           },
           "title": {
             "type": "string",
@@ -5943,6 +5995,19 @@
               "AI_EXTRACTED"
             ],
             "type": "string"
+          },
+          "isCarryOver": {
+            "type": "boolean"
+          },
+          "dependencyTaskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "priorityMeta": {
+            "$ref": "#/components/schemas/TaskPriorityMetaDto"
           },
           "aiSuggestion": {
             "nullable": true,
@@ -5993,13 +6058,18 @@
         },
         "required": [
           "taskId",
+          "scopeType",
           "patientId",
+          "locationLabel",
           "title",
           "description",
           "dueAt",
           "workDate",
           "status",
           "source",
+          "isCarryOver",
+          "dependencyTaskIds",
+          "priorityMeta",
           "aiSuggestion",
           "rulePriority",
           "confirmedPriority",
@@ -6043,13 +6113,63 @@
           "meta"
         ]
       },
+      "TaskPriorityMetaRequestDto": {
+        "type": "object",
+        "properties": {
+          "patientStatusUrgency": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "timeSensitivity": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "taskCriticality": {
+            "nullable": true,
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "isBlocking": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
       "CreateTaskRequestDto": {
         "type": "object",
         "properties": {
+          "scopeType": {
+            "enum": [
+              "PATIENT",
+              "WARD"
+            ],
+            "type": "string"
+          },
           "patientId": {
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100,
+            "description": "병동 운영 업무 위치 또는 표시 라벨",
+            "example": "물품 창고"
           },
           "title": {
             "type": "string",
@@ -6075,6 +6195,23 @@
               "NORMAL"
             ],
             "type": "string"
+          },
+          "isCarryOver": {
+            "type": "boolean",
+            "default": false
+          },
+          "dependencyTaskIds": {
+            "uniqueItems": true,
+            "description": "이 업무보다 먼저 완료되어야 하는 업무 ID 목록",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "priorityMeta": {
+            "$ref": "#/components/schemas/TaskPriorityMetaRequestDto"
           }
         },
         "required": [
@@ -6130,6 +6267,7 @@
           "aiSuggestedPriority": {
             "enum": [
               "CRITICAL",
+              "HIGH",
               "NORMAL"
             ],
             "type": "string"
@@ -6435,6 +6573,23 @@
       "UpdateTaskRequestDto": {
         "type": "object",
         "properties": {
+          "scopeType": {
+            "enum": [
+              "PATIENT",
+              "WARD"
+            ],
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
           "title": {
             "type": "string",
             "maxLength": 200,
@@ -6468,6 +6623,21 @@
               "NORMAL"
             ],
             "type": "string"
+          },
+          "isCarryOver": {
+            "type": "boolean"
+          },
+          "dependencyTaskIds": {
+            "uniqueItems": true,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "priorityMeta": {
+            "$ref": "#/components/schemas/TaskPriorityMetaRequestDto"
           },
           "prioritySuggestionId": {
             "type": "string",

@@ -52,7 +52,7 @@ export type TaskPrioritySuggestionOrderingValue = {
 export function mapAiTaskPriority(
   priority: TaskPriorityAiPriority,
 ): TaskPriority {
-  return priority === 'CRITICAL' ? 'CRITICAL' : 'NORMAL';
+  return priority;
 }
 
 export function compareTaskPrioritySuggestions(

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Clock } from '../../../common/time/clock';
 import { PrismaService } from '../../../infrastructure/database/prisma.service';
 import {
+  RoundingSessionCompletedAtInvalidError,
   RoundingPatientNotFoundError,
   RoundingSegmentPeriodInvalidError,
   RoundingSessionAlreadyCompletedError,
@@ -75,7 +76,7 @@ export class RoundingSessionService {
           actorId: input.context.actorId,
           wardId: input.context.wardId,
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, startedAt: true },
       });
 
       if (!session) {
@@ -159,7 +160,7 @@ export class RoundingSessionService {
           actorId: input.context.actorId,
           wardId: input.context.wardId,
         },
-        select: { id: true, status: true },
+        select: { id: true, status: true, startedAt: true },
       });
 
       if (!session) {
@@ -168,6 +169,12 @@ export class RoundingSessionService {
 
       if (session.status === 'COMPLETED') {
         throw new RoundingSessionAlreadyCompletedError();
+      }
+
+      const completedAt = input.completedAt ?? this.clock.now();
+
+      if (completedAt.getTime() < session.startedAt.getTime()) {
+        throw new RoundingSessionCompletedAtInvalidError();
       }
 
       const completed = await transaction.roundingSession.update({
@@ -179,7 +186,7 @@ export class RoundingSessionService {
         },
         data: {
           status: 'COMPLETED',
-          completedAt: input.completedAt ?? this.clock.now(),
+          completedAt,
           version: { increment: 1 },
         },
         select: roundingSessionSelect,

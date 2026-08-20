@@ -27,6 +27,7 @@ import type {
   ReserveTaskExtractionResult,
   TaskExtractionJobView,
   TaskExtractionWorkItem,
+  TaskPriorityMeta,
   TaskRepository,
   TaskView,
   UpdateTaskInput,
@@ -63,18 +64,25 @@ import {
   type TaskAiConfidence,
   type TaskEvidenceSourceType,
   type TaskPriority,
+  type TaskPrioritySignalLevel,
+  type TaskScopeType,
 } from '../domain/task.types';
 import { deriveSeoulWorkDate } from '../domain/task-work-date';
 
 const TASK_SELECT = {
   id: true,
+  scopeType: true,
   patientId: true,
+  locationLabel: true,
   title: true,
   description: true,
   dueAt: true,
   workDate: true,
   status: true,
   source: true,
+  isCarryOver: true,
+  dependencyTaskIds: true,
+  priorityMeta: true,
   aiSuggestedPriority: true,
   aiReasons: true,
   aiConfidence: true,
@@ -193,9 +201,15 @@ export class PrismaTaskRepository
       orderBy: { id: 'asc' },
       select: {
         id: true,
+        scopeType: true,
         patientId: true,
+        locationLabel: true,
         title: true,
+        description: true,
         dueAt: true,
+        isCarryOver: true,
+        dependencyTaskIds: true,
+        priorityMeta: true,
         version: true,
       },
     });
@@ -220,7 +234,11 @@ export class PrismaTaskRepository
           patientId === null || accessiblePatientIds.has(patientId),
       )
       .slice(0, 51)
-      .map(({ id, ...row }) => ({ taskId: id, ...row }));
+      .map(({ id, priorityMeta, ...row }) => ({
+        taskId: id,
+        ...row,
+        priorityMeta: parsePriorityMeta(priorityMeta),
+      }));
   }
 
   async reserve(input: {
@@ -451,6 +469,7 @@ export class PrismaTaskRepository
           input.now,
           input.patientId === null ? [] : [input.patientId],
         );
+        assertStoredTaskScope(input.scopeType, input.patientId);
         const currentDutyEndsAt = await this.resolveCurrentDutyEndsAt(
           transaction,
           input.context,
@@ -474,12 +493,17 @@ export class PrismaTaskRepository
         const created = await transaction.task.create({
           data: {
             ...input.context,
+            scopeType: input.scopeType,
             patientId: input.patientId,
+            locationLabel: input.locationLabel,
             title: input.title,
             description: input.description,
             dueAt: input.dueAt,
             workDate: input.workDate,
             source: 'MANUAL',
+            isCarryOver: input.isCarryOver,
+            dependencyTaskIds: [...input.dependencyTaskIds],
+            priorityMeta: serializePriorityMeta(input.priorityMeta),
             aiReasons: [],
             rulePriority,
             confirmedPriority: input.confirmedPriority,
@@ -622,6 +646,16 @@ export class PrismaTaskRepository
         input.now,
       );
       const dueAt = input.dueAt ?? current.dueAt;
+      const nextScopeType = input.scopeType ?? current.scopeType;
+      const nextPatientId =
+        input.patientId === undefined ? current.patientId : input.patientId;
+      assertStoredTaskScope(nextScopeType, nextPatientId);
+      await this.assertPatientsAccessible(
+        transaction,
+        input.context,
+        input.now,
+        nextPatientId === null ? [] : [nextPatientId],
+      );
       const rulePriority = calculateTaskRulePriority({
         dueAt,
         now: input.now,
@@ -645,6 +679,24 @@ export class PrismaTaskRepository
             ? {}
             : { dueAt: input.dueAt, workDate: input.workDate }),
           ...(input.status === undefined ? {} : { status: input.status }),
+          ...(input.scopeType === undefined
+            ? {}
+            : { scopeType: input.scopeType }),
+          ...(input.patientId === undefined
+            ? {}
+            : { patientId: input.patientId }),
+          ...(input.locationLabel === undefined
+            ? {}
+            : { locationLabel: input.locationLabel }),
+          ...(input.isCarryOver === undefined
+            ? {}
+            : { isCarryOver: input.isCarryOver }),
+          ...(input.dependencyTaskIds === undefined
+            ? {}
+            : { dependencyTaskIds: [...input.dependencyTaskIds] }),
+          ...(input.priorityMeta === undefined
+            ? {}
+            : { priorityMeta: serializePriorityMeta(input.priorityMeta) }),
           ...(input.confirmedPriority === undefined
             ? {}
             : { confirmedPriority: input.confirmedPriority }),
@@ -1765,6 +1817,8 @@ export class PrismaTaskRepository
 
     return {
       ...row,
+      dependencyTaskIds: [...row.dependencyTaskIds],
+      priorityMeta: parsePriorityMeta(row.priorityMeta),
       aiReasons: row.aiReasons,
       rulePriority,
       effectivePriority: getEffectiveTaskPriority(
@@ -1852,9 +1906,12 @@ function serializeTaskView(task: TaskView): Prisma.InputJsonObject {
   return {
     ...task,
     patientId: task.patientId,
+    locationLabel: task.locationLabel,
     description: task.description,
     dueAt: task.dueAt?.toISOString() ?? null,
     workDate: task.workDate.toISOString(),
+    dependencyTaskIds: [...task.dependencyTaskIds],
+    priorityMeta: serializePriorityMeta(task.priorityMeta),
     aiSuggestedPriority: task.aiSuggestedPriority,
     aiConfidence: task.aiConfidence,
     confirmedPriority: task.confirmedPriority,
@@ -1868,9 +1925,15 @@ function serializePrioritySuggestionInput(
 ): Prisma.InputJsonArray {
   return tasks.map((task) => ({
     taskId: task.taskId,
+    scopeType: task.scopeType,
     patientId: task.patientId,
+    locationLabel: task.locationLabel,
     title: task.title,
+    description: task.description,
     dueAt: task.dueAt?.toISOString() ?? null,
+    isCarryOver: task.isCarryOver,
+    dependencyTaskIds: [...task.dependencyTaskIds],
+    priorityMeta: serializePriorityMeta(task.priorityMeta),
     version: task.version,
   }));
 }
@@ -1912,6 +1975,7 @@ function deserializePrioritySuggestionResult(
       !Number.isFinite(suggestion.aiScore) ||
       suggestion.aiScore < 0 ||
       (suggestion.aiSuggestedPriority !== 'CRITICAL' &&
+        suggestion.aiSuggestedPriority !== 'HIGH' &&
         suggestion.aiSuggestedPriority !== 'NORMAL')
     ) {
       throw new IdempotencyInvariantViolationError();
@@ -2026,13 +2090,25 @@ function deserializeTaskView(value: Prisma.JsonValue): TaskView {
 
   return {
     id: snapshot.id,
+    scopeType: readTaskScope(snapshot.scopeType, snapshot.patientId),
     patientId: snapshot.patientId,
+    locationLabel:
+      typeof snapshot.locationLabel === 'string'
+        ? snapshot.locationLabel
+        : null,
     title: snapshot.title,
     description: snapshot.description,
     dueAt,
     workDate,
     status: snapshot.status as TaskView['status'],
     source: snapshot.source as TaskView['source'],
+    isCarryOver:
+      typeof snapshot.isCarryOver === 'boolean' ? snapshot.isCarryOver : false,
+    dependencyTaskIds:
+      snapshot.dependencyTaskIds === undefined
+        ? []
+        : readStringArray(snapshot.dependencyTaskIds),
+    priorityMeta: parsePriorityMeta(snapshot.priorityMeta),
     aiSuggestedPriority:
       (snapshot.aiSuggestedPriority as TaskView['aiSuggestedPriority']) ?? null,
     aiReasons,
@@ -2045,6 +2121,76 @@ function deserializeTaskView(value: Prisma.JsonValue): TaskView {
     createdAt,
     updatedAt,
   };
+}
+
+function readTaskScope(
+  value: Prisma.JsonValue | undefined,
+  patientId: Prisma.JsonValue | undefined,
+): TaskScopeType {
+  if (value === 'PATIENT' || value === 'WARD') {
+    return value;
+  }
+  return patientId === null ? 'WARD' : 'PATIENT';
+}
+
+function serializePriorityMeta(
+  priorityMeta: TaskPriorityMeta,
+): Prisma.InputJsonObject {
+  return {
+    patientStatusUrgency: priorityMeta.patientStatusUrgency,
+    timeSensitivity: priorityMeta.timeSensitivity,
+    taskCriticality: priorityMeta.taskCriticality,
+    isBlocking: priorityMeta.isBlocking,
+  };
+}
+
+function parsePriorityMeta(
+  value: Prisma.JsonValue | null | undefined,
+): TaskPriorityMeta {
+  if (value === undefined || value === null) {
+    return emptyPriorityMeta();
+  }
+
+  const meta = readJsonObject(value);
+  return {
+    patientStatusUrgency: parseSignal(meta.patientStatusUrgency),
+    timeSensitivity: parseSignal(meta.timeSensitivity),
+    taskCriticality: parseSignal(meta.taskCriticality),
+    isBlocking: typeof meta.isBlocking === 'boolean' ? meta.isBlocking : false,
+  };
+}
+
+function emptyPriorityMeta(): TaskPriorityMeta {
+  return {
+    patientStatusUrgency: null,
+    timeSensitivity: null,
+    taskCriticality: null,
+    isBlocking: false,
+  };
+}
+
+function parseSignal(
+  value: Prisma.JsonValue | undefined,
+): TaskPrioritySignalLevel | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (value === 'LOW' || value === 'MEDIUM' || value === 'HIGH') {
+    return value;
+  }
+  throw new IdempotencyInvariantViolationError();
+}
+
+function assertStoredTaskScope(
+  scopeType: TaskScopeType,
+  patientId: string | null,
+): void {
+  if (
+    (scopeType === 'PATIENT' && patientId === null) ||
+    (scopeType === 'WARD' && patientId !== null)
+  ) {
+    throw new TaskPersistenceInvariantError();
+  }
 }
 
 function readDate(value: Prisma.JsonValue | undefined): Date {
