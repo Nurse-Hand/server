@@ -57,6 +57,8 @@ jobs:
 
           sshpass -p "${SSH_PASSWORD}" ssh \
             -p "${SSH_PORT}" \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=no \
             "${SSH_USER}@${SSH_HOST}" \
             "set -euo pipefail; \
