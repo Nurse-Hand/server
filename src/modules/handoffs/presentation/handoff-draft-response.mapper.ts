@@ -110,11 +110,12 @@ function toSectionValues(
   key: 'currentContent' | 'aiOriginalContent',
 ) {
   return {
-    patientStatus: sections.PATIENT_STATUS[key],
+    vitalSigns: sections.VITAL_SIGNS[key],
+    respiration: sections.RESPIRATION[key],
+    mentalStatus: sections.MENTAL_STATUS[key],
     pain: sections.PAIN[key],
     treatment: sections.TREATMENT[key],
     diet: sections.DIET[key],
-    activity: sections.ACTIVITY[key],
     observation: sections.OBSERVATION[key],
   };
 }
@@ -123,11 +124,12 @@ function readSections(
   patient: HandoffPatientDraft,
 ): Record<HandoffClinicalSection, HandoffDraftSection> {
   return {
-    PATIENT_STATUS: requireSection(patient, 'PATIENT_STATUS'),
+    VITAL_SIGNS: requireSection(patient, 'VITAL_SIGNS'),
+    RESPIRATION: requireSection(patient, 'RESPIRATION'),
+    MENTAL_STATUS: requireSection(patient, 'MENTAL_STATUS'),
     PAIN: requireSection(patient, 'PAIN'),
     TREATMENT: requireSection(patient, 'TREATMENT'),
     DIET: requireSection(patient, 'DIET'),
-    ACTIVITY: requireSection(patient, 'ACTIVITY'),
     OBSERVATION: requireSection(patient, 'OBSERVATION'),
   };
 }

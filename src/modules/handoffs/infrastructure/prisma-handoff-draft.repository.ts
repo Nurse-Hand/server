@@ -1194,8 +1194,8 @@ function validateDraftResult(
       patient.sections.map(({ section }) => section),
     );
     if (
-      patient.sections.length !== 6 ||
-      sectionNames.size !== 6 ||
+      patient.sections.length !== HANDOFF_CLINICAL_SECTIONS.length ||
+      sectionNames.size !== HANDOFF_CLINICAL_SECTIONS.length ||
       !HANDOFF_CLINICAL_SECTIONS.every((section) => sectionNames.has(section))
     ) {
       throw new HandoffAiResultInvalidError();

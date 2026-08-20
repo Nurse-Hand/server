@@ -105,11 +105,12 @@ function createSectionContent(
   unverifiedCount: number,
 ): string {
   const prefix: Readonly<Record<HandoffClinicalSection, string>> = {
-    PATIENT_STATUS: '현재 환자 상태',
+    VITAL_SIGNS: '활력징후',
+    RESPIRATION: '호흡 상태',
+    MENTAL_STATUS: '의식 상태',
     PAIN: '통증 상태',
-    TREATMENT: '치료 및 투약',
+    TREATMENT: '처치 및 치료',
     DIET: '식이 및 섭취',
-    ACTIVITY: '활동 및 이동',
     OBSERVATION: '다음 근무의 관찰 사항',
   };
   const warning =

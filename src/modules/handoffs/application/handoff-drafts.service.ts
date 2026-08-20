@@ -38,11 +38,12 @@ type CreateHandoffRequest = {
 };
 
 type ClinicalSectionsRequest = {
-  patientStatus: string;
+  vitalSigns: string;
+  respiration: string;
+  mentalStatus: string;
   pain: string;
   treatment: string;
   diet: string;
-  activity: string;
   observation: string;
 };
 
@@ -205,11 +206,12 @@ export class HandoffDraftsService {
       patients: body.patients.map(({ patientId, sections }) => ({
         patientId,
         sections: {
-          PATIENT_STATUS: sections.patientStatus,
+          VITAL_SIGNS: sections.vitalSigns,
+          RESPIRATION: sections.respiration,
+          MENTAL_STATUS: sections.mentalStatus,
           PAIN: sections.pain,
           TREATMENT: sections.treatment,
           DIET: sections.diet,
-          ACTIVITY: sections.activity,
           OBSERVATION: sections.observation,
         },
       })),

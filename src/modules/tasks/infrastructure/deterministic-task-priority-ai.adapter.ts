@@ -14,7 +14,7 @@ export class DeterministicTaskPriorityAiAdapter implements TaskPriorityAiGateway
       input.candidates.map((candidate) => ({
         candidateKey: candidate.candidateKey,
         suggestedPriority: 'NORMAL' as const,
-        reasons: ['라운딩 기록에서 후속 업무 후보로 확인됨'],
+        reasons: ['테스트 환경의 결정론적 업무 우선순위 제안입니다.'],
         confidence: 'MEDIUM' as const,
         evidenceSourceIds: [...candidate.evidenceSourceIds],
       })),
