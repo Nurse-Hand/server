@@ -23,3 +23,4 @@ const data = Object.fromEntries(
 const output = `window.__ROUNDING_MVP_LAB_DATA__ = ${JSON.stringify(data, null, 2)};\n`;
 
 fs.writeFileSync(path.join(mockdataDir, 'embedded-mockdata.js'), output);
+fs.writeFileSync(path.join(toolDir, 'public', 'embedded-mockdata.js'), output);

@@ -12,8 +12,10 @@
       "startSession": "/api/v1/rounding-sessions",
       "createRecord": "/api/v1/rounding-sessions/{sessionId}/patient-segments",
       "completeSession": "/api/v1/rounding-sessions/{sessionId}/complete",
-      "audioAnalyze": "/api/v1/rounding-sessions/{sessionId}/audio-chunks",
-      "tasksExtract": "/api/v1/task-extraction-jobs",
+      "audioUpload": "/api/v1/files/audio",
+      "analysisStart": "/api/v1/rounding-sessions/{sessionId}/analysis-jobs",
+      "analysisConfirm": "/api/v1/rounding-sessions/{sessionId}/analysis-confirmation",
+      "tasksList": "/api/v1/tasks",
       "handoffPrecheck": "/api/v1/handoff-prechecks",
       "handoffDraft": "/api/v1/handoffs"
     }

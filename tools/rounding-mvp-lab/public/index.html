@@ -76,12 +76,48 @@
                 </button>
               </div>
               <div class="quick-tags">
-                <button type="button" class="quick-chip" data-nav-target="quick-note">낙상</button>
-                <button type="button" class="quick-chip" data-nav-target="quick-note">응급 상황</button>
-                <button type="button" class="quick-chip" data-nav-target="quick-note">의사 호출</button>
-                <button type="button" class="quick-chip" data-nav-target="quick-note">보호자 요청</button>
-                <button type="button" class="quick-chip" data-nav-target="quick-note">처치 요청</button>
-                <button type="button" class="quick-chip" data-nav-target="quick-note">기타</button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  낙상
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  응급 상황
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  의사 호출
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  보호자 요청
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  처치 요청
+                </button>
+                <button
+                  type="button"
+                  class="quick-chip"
+                  data-nav-target="quick-note"
+                >
+                  기타
+                </button>
               </div>
             </section>
 
@@ -170,7 +206,9 @@
                 data-action="toggle-quick-note-recording"
               >
                 <span class="quick-note-mic-icon">●</span>
-                <span id="quick-note-mic-status">마이크 켜고 바로 녹음 시작</span>
+                <span id="quick-note-mic-status"
+                  >마이크 켜고 바로 녹음 시작</span
+                >
               </button>
 
               <div class="quick-note-placeholder">
@@ -180,7 +218,10 @@
                 </span>
               </div>
 
-              <div class="quick-note-preview-list" id="quick-note-preview-list"></div>
+              <div
+                class="quick-note-preview-list"
+                id="quick-note-preview-list"
+              ></div>
             </section>
           </section>
 
@@ -191,7 +232,9 @@
           >
             <div class="mobile-page-title-row">
               <h2>환자</h2>
-              <button type="button" class="text-link accent">담당표 갱신 +</button>
+              <button type="button" class="text-link accent">
+                담당표 갱신 +
+              </button>
             </div>
             <label class="patient-search">
               <img src="./assets/figma/patient-search.svg" alt="" />
@@ -242,7 +285,10 @@
               </div>
               <span class="mini-status" id="patient-detail-badge">주의</span>
             </header>
-            <section class="app-card patient-detail-card" id="patient-detail-card"></section>
+            <section
+              class="app-card patient-detail-card"
+              id="patient-detail-card"
+            ></section>
             <section class="app-card patient-timeline-card">
               <div class="card-title-row">
                 <div>
@@ -269,7 +315,10 @@
               </div>
               <div class="divider"></div>
               <div class="timeline-summary" id="patient-timeline-summary"></div>
-              <div class="patient-timeline-feed" id="patient-timeline-feed"></div>
+              <div
+                class="patient-timeline-feed"
+                id="patient-timeline-feed"
+              ></div>
               <button type="button" class="timeline-link">
                 원문 기록 보러가기
                 <img src="./assets/figma/patient-arrow.svg" alt="" />
@@ -373,7 +422,7 @@
                 class="action-button primary"
                 data-action="analyze-server"
               >
-                서버 분석
+                오디오 업로드·분석
               </button>
             </div>
           </section>
@@ -426,9 +475,9 @@
                 <button
                   type="button"
                   class="tab-button"
-                  data-action="extract-tasks"
+                  data-action="show-tasks"
                 >
-                  업무
+                  업무 목록
                 </button>
               </div>
               <div class="detail-snapshot" id="detail-snapshot"></div>
@@ -526,8 +575,8 @@
                     id="base-url"
                     type="text"
                     spellcheck="false"
-                    value="http://localhost:3000"
-                    placeholder="http://localhost:3000"
+                    value="http://localhost:5173"
+                    placeholder="http://localhost:5173"
                   />
                 </label>
 
@@ -537,12 +586,7 @@
                   aria-label="Active persona"
                 >
                   <label class="segment">
-                    <input
-                      type="radio"
-                      name="persona"
-                      value="SENDER"
-                      checked
-                    />
+                    <input type="radio" name="persona" value="SENDER" checked />
                     <span>Sender</span>
                   </label>
                   <label class="segment">
@@ -572,6 +616,22 @@
                   </label>
                 </div>
 
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Sender shift UUID</span>
+                    <input
+                      id="sender-shift-id"
+                      type="text"
+                      spellcheck="false"
+                      placeholder="precheck에 사용할 sender NurseShift.id"
+                    />
+                  </label>
+                  <label class="field">
+                    <span>인수인계 날짜</span>
+                    <input id="handoff-date" type="date" />
+                  </label>
+                </div>
+
                 <div class="inline-actions wrap">
                   <button
                     type="button"
@@ -598,7 +658,6 @@
               </div>
             </details>
           </section>
-
         </div>
 
         <nav class="bottom-nav" aria-label="앱 하단 메뉴">
@@ -643,7 +702,7 @@
               <div class="upload-card-head">
                 <div>
                   <p class="eyebrow">라운딩</p>
-                  <h3>환자 방문 파일</h3>
+                  <h3>세션 전체 녹음</h3>
                 </div>
                 <label class="upload-button">
                   파일 업로드
@@ -651,15 +710,17 @@
                     id="rounding-upload"
                     type="file"
                     accept="audio/*,.m4a,.wav,.mp3"
-                    multiple
                   />
                 </label>
               </div>
               <p class="upload-help">
-                선택한 파일은 방문 순서대로 자동 배치되고, 아래에서 환자별로 다시
-                연결할 수 있습니다.
+                라운딩 세션 전체 녹음 파일 1개를 선택합니다. 같은 파일이 아래
+                방문 기록의 분석 근거로 표시됩니다.
               </p>
-              <div class="upload-assignment-list" id="rounding-upload-list"></div>
+              <div
+                class="upload-assignment-list"
+                id="rounding-upload-list"
+              ></div>
             </section>
 
             <section class="upload-card">
@@ -695,9 +756,13 @@
                 </label>
               </div>
               <p class="upload-help">
-                빠른 기록은 환자 식별이 먼저 필요하므로 업로드 전에 환자를 지정합니다.
+                빠른 기록은 환자 식별이 먼저 필요하므로 업로드 전에 환자를
+                지정합니다.
               </p>
-              <div class="upload-assignment-list" id="quicknote-upload-list"></div>
+              <div
+                class="upload-assignment-list"
+                id="quicknote-upload-list"
+              ></div>
             </section>
           </div>
         </section>
@@ -738,7 +803,8 @@
       </section>
     </main>
 
-    <script src="../mockdata/embedded-mockdata.js"></script>
+    <script src="./embedded-mockdata.js"></script>
+    <script src="./api-client.js"></script>
     <script defer src="./app.js"></script>
   </body>
 </html>
