@@ -10,6 +10,7 @@
 - GitHub `production` Environment와 workflow concurrency를 사용하며 진행 중 실행을 취소하지 않습니다.
 - 원격 서버에서는 `flock`과 마지막 성공 `GITHUB_RUN_ID`를 함께 검사합니다.
 - image pull과 one-shot `prisma migrate deploy`가 성공할 때까지 현재 API container를 유지합니다.
+- 현재 API의 container readiness와 외부 health·무로그인 MVP 환자 조회가 먼저 성공해야 pull과 migration을 시작합니다.
 - migration 뒤에는 API service만 교체합니다. DB, AI, Nginx, Certbot은 일상 API 배포에서 pull하거나 재기동하지 않습니다.
 - 새 API의 container readiness, storage create/rename/delete, 외부 health, 무로그인 MVP 환자 조회가 모두 성공해야 배포 상태를 기록합니다.
 - readiness 실패 시 배포 직전 container image ID를 붙인 로컬 rollback tag로 API를 복구하고 health를 다시 확인합니다.
@@ -88,15 +89,17 @@ INTERNAL_API_TOKEN=
 4. production Environment 승인을 거친 뒤 현재 main exact SHA를 다시 검사하고 SSH key와 known_hosts를 검증합니다.
 5. 해당 commit의 compose와 deploy scripts를 SHA/run별 release directory로 복사합니다.
 6. 서버 lock과 last run ID를 검사합니다.
-7. 현재 container image ID에 run별 rollback tag를 붙입니다.
-8. 새 image를 pull하고 임시 container에서 migration을 수행합니다.
-9. API만 교체하고 container health를 기다립니다.
-10. UID 10001 container가 bind mount에서 create/rename/delete 가능한지 확인합니다.
-11. 외부 `/api/v1/health`와 `/api/v1/patients`를 확인합니다.
-12. 성공한 image, SHA, run ID를 작은 상태 파일에 원자적으로 기록합니다.
+7. 현재 API의 container readiness와 외부 `/api/v1/health`, `/api/v1/patients` 기준선을 확인합니다.
+8. 현재 container image ID에 run별 rollback tag를 붙입니다.
+9. 새 image를 pull하고 임시 container에서 migration을 수행합니다.
+10. API만 교체하고 container health를 기다립니다.
+11. UID 10001 container가 bind mount에서 create/rename/delete 가능한지 확인합니다.
+12. 외부 `/api/v1/health`와 `/api/v1/patients`를 다시 확인합니다.
+13. 성공한 image, SHA, run ID를 작은 상태 파일에 원자적으로 기록합니다.
 
 ## 실패와 복구
 
+- 기존 API의 배포 전 container 또는 외부 readiness 실패: image tag, pull, migration, 교체, 상태 기록 없이 실패합니다.
 - pull 또는 migration 실패: 기존 API를 교체하지 않고 실패합니다.
 - API 교체, container health, storage smoke, 외부 readiness 실패: 직전 image ID의 로컬 rollback tag로 API를 복구합니다.
 - rollback health도 실패: 자동 성공으로 처리하지 않고 수동 복구가 필요한 실패로 종료합니다.
@@ -115,7 +118,7 @@ npm run verify
 npm run test:integration
 ```
 
-`deploy-server.test.sh`는 fake Docker/curl을 사용해 pull 실패, migration 실패, container/storage/external readiness 실패 rollback, 오래된 run 거부, server lock을 결정론적으로 검증합니다. Linux non-root 환경에서 실행해야 합니다.
+`deploy-server.test.sh`는 fake Docker/curl을 사용해 배포 전 baseline 실패의 무변경 종료, pull 실패, migration 실패, 교체 후 container/storage/external readiness 실패 rollback, 오래된 run 거부, server lock을 결정론적으로 검증합니다. Linux non-root 환경에서 실행해야 합니다.
 
 ## 별도 결정·운영 작업
 

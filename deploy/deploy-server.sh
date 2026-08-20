@@ -218,6 +218,12 @@ fi
 if [[ ! "${previous_image_reference}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; then
   fail "the existing API container image reference is invalid"
 fi
+if ! wait_for_container_readiness; then
+  fail "the existing API container is not healthy before deployment"
+fi
+if ! check_external_readiness; then
+  fail "the existing API external readiness failed before deployment"
+fi
 
 rollback_image="nurse-hand-server-local:rollback-${DEPLOY_RUN_ID}"
 docker image tag "${previous_image_id}" "${rollback_image}"

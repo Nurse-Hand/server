@@ -58,7 +58,15 @@ if [[ "$1" == "inspect" ]]; then
       ;;
     *)
       active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
-      if [[ "${FAKE_SCENARIO}" == "container-health-fail" && "${active_image}" != nurse-hand-server-local:rollback-* ]]; then
+      active_phase='baseline'
+      if [[ "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+        active_phase='replacement'
+      elif [[ "${active_image}" == nurse-hand-server-local:rollback-* ]]; then
+        active_phase='rollback'
+      fi
+      if [[ "${FAKE_SCENARIO}" == "baseline-container-health-fail" && "${active_phase}" == 'baseline' ]]; then
+        echo 'unhealthy'
+      elif [[ "${FAKE_SCENARIO}" == "container-health-fail" && "${active_phase}" == 'replacement' ]]; then
         echo 'unhealthy'
       else
         echo 'healthy'
@@ -109,7 +117,7 @@ case "${action:-}" in
   exec)
     cat >/dev/null
     active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
-    if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" != nurse-hand-server-local:rollback-* ]]; then
+    if [[ "${FAKE_SCENARIO}" == "storage-fail" && "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
       exit 1
     fi
     ;;
@@ -124,7 +132,16 @@ FAKE_DOCKER
 set -Eeuo pipefail
 echo "curl $*" >> "${FAKE_COMMAND_LOG}"
 active_image="$(cat "${FAKE_ACTIVE_IMAGE_FILE}")"
-if [[ "${FAKE_SCENARIO}" == "external-health-fail" && "${active_image}" != nurse-hand-server-local:rollback-* ]]; then
+active_phase='baseline'
+if [[ "${active_image}" == "${NURSE_HAND_SERVER_IMAGE}" ]]; then
+  active_phase='replacement'
+elif [[ "${active_image}" == nurse-hand-server-local:rollback-* ]]; then
+  active_phase='rollback'
+fi
+if [[ "${FAKE_SCENARIO}" == "baseline-external-health-fail" && "${active_phase}" == 'baseline' ]]; then
+  exit 1
+fi
+if [[ "${FAKE_SCENARIO}" == "external-health-fail" && "${active_phase}" == 'replacement' ]]; then
   exit 1
 fi
 FAKE_CURL
@@ -183,6 +200,22 @@ test_failure_before_replacement() {
   done
 }
 
+test_unhealthy_baseline_stops_before_mutation() {
+  local scenario root
+  for scenario in baseline-container-health-fail baseline-external-health-fail; do
+    root="$(create_scenario "${scenario}")"
+    if run_deploy "${root}" "${scenario}"; then
+      fail_test "${scenario} unexpectedly succeeded"
+    fi
+    assert_not_contains "${root}/commands.log" 'docker image tag'
+    assert_not_contains "${root}/commands.log" "docker pull ${NEW_IMAGE}"
+    assert_not_contains "${root}/commands.log" ' run --rm --no-deps --entrypoint npx api prisma migrate deploy'
+    assert_not_contains "${root}/commands.log" ' up -d --no-deps api'
+    [[ "$(cat "${root}/active-image")" == "${OLD_IMAGE}" ]]
+    [[ ! -f "${root}/deploy-root/deploy-state/current" ]]
+  done
+}
+
 test_readiness_failures_rollback() {
   local scenario root
   for scenario in container-health-fail storage-fail external-health-fail; do
@@ -231,6 +264,7 @@ if [[ "$(id -u)" == '0' ]]; then
 fi
 
 test_successful_order_and_state
+test_unhealthy_baseline_stops_before_mutation
 test_failure_before_replacement
 test_readiness_failures_rollback
 test_stale_run_is_rejected
