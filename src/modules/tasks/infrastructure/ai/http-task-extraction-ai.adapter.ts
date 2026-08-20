@@ -122,7 +122,9 @@ export class HttpTaskExtractionAiAdapter implements TaskExtractionAiGateway {
   }
 }
 
-function parseExtractionResponse(body: unknown): readonly ExtractedTaskCandidate[] {
+function parseExtractionResponse(
+  body: unknown,
+): readonly ExtractedTaskCandidate[] {
   if (
     typeof body !== 'object' ||
     body === null ||

@@ -8,9 +8,7 @@ import type {
 import { deriveSeoulWorkDate } from '../domain/task-work-date';
 
 @Injectable()
-export class PrismaTaskExtractionEvidenceAdapter
-  implements TaskExtractionEvidencePort
-{
+export class PrismaTaskExtractionEvidenceAdapter implements TaskExtractionEvidencePort {
   constructor(private readonly prisma: PrismaService) {}
 
   async read(input: {
@@ -54,13 +52,14 @@ export class PrismaTaskExtractionEvidenceAdapter
       }),
     ]);
 
-    const timelineById = new Map(timelineEvents.map((event) => [event.id, event]));
+    const timelineById = new Map(
+      timelineEvents.map((event) => [event.id, event]),
+    );
     const taskById = new Map(tasks.map((task) => [task.id, task]));
 
     return {
       roundingSessionId: input.roundingSessionId,
-      evidence: recordIds.flatMap(
-        (recordId): TaskExtractionEvidence[] => {
+      evidence: recordIds.flatMap((recordId): TaskExtractionEvidence[] => {
         const timeline = timelineById.get(recordId);
         if (timeline) {
           return [
@@ -84,19 +83,22 @@ export class PrismaTaskExtractionEvidenceAdapter
               sourceId: task.id,
               patientId: task.patientId,
               workDate: task.workDate,
-              summary: clipSummary([task.title, task.description].filter(Boolean).join(' - ')),
+              summary: clipSummary(
+                [task.title, task.description].filter(Boolean).join(' - '),
+              ),
             },
           ];
         }
 
         return [];
-        },
-      ),
+      }),
     };
   }
 }
 
 function clipSummary(value: string): string {
   const normalized = value.trim();
-  return normalized.length <= 500 ? normalized : normalized.slice(0, 497) + '...';
+  return normalized.length <= 500
+    ? normalized
+    : normalized.slice(0, 497) + '...';
 }

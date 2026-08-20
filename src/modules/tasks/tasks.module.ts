@@ -86,6 +86,6 @@ export class TasksModule {}
 function hasTaskAiConfiguration(configService: ConfigService): boolean {
   return Boolean(
     configService.get<string>('AI_BASE_URL')?.trim() &&
-      configService.get<string>('AI_INTERNAL_API_TOKEN')?.trim(),
+    configService.get<string>('AI_INTERNAL_API_TOKEN')?.trim(),
   );
 }
