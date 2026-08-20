@@ -28,6 +28,18 @@ import {
 } from '../domain/monthly-schedule.policy';
 
 const MONTHLY_SCHEDULE_SAVE_OPERATION = 'monthly-schedules.put';
+const IDEMPOTENCY_KEY_UNIQUE_FIELDS = [
+  'datasetId',
+  'actorId',
+  'operation',
+  'idempotencyKey',
+] as const;
+const MONTHLY_SCHEDULE_SCOPE_UNIQUE_FIELDS = [
+  'datasetId',
+  'actorId',
+  'wardId',
+  'yearMonth',
+] as const;
 
 type DatabaseClient = Prisma.TransactionClient | PrismaService;
 type ActiveScheduleDuty = Exclude<ScheduleDuty, 'OFF'>;
@@ -179,9 +191,17 @@ export class PrismaMonthlyScheduleRepository implements MonthlyScheduleRepositor
         throw error;
       }
 
-      const concurrentReplay = await this.findReplay(this.prisma, input);
-      if (concurrentReplay !== null) {
-        return concurrentReplay;
+      if (hasPrismaUniqueTarget(error, IDEMPOTENCY_KEY_UNIQUE_FIELDS)) {
+        const concurrentReplay = await this.findReplay(this.prisma, input);
+        if (concurrentReplay !== null) {
+          return concurrentReplay;
+        }
+
+        throw error;
+      }
+
+      if (!hasPrismaUniqueTarget(error, MONTHLY_SCHEDULE_SCOPE_UNIQUE_FIELDS)) {
+        throw error;
       }
 
       const concurrentSchedule = await this.prisma.monthlySchedule.findUnique({
@@ -526,9 +546,10 @@ async function ensureDemoShiftData(
       const assignmentLogicalKey = `mas:${senderShift.id.slice(0, 12)}:${patient.id.slice(0, 12)}`;
       await client.patientAssignment.upsert({
         where: {
-          assignment_dataset_logical_key: {
+          assignment_dataset_patient_shift: {
             datasetId: context.datasetId,
-            logicalKey: assignmentLogicalKey,
+            patientId: patient.id,
+            nurseShiftId: senderShift.id,
           },
         },
         create: {
@@ -652,8 +673,64 @@ function isJsonObject(value: unknown): value is Prisma.JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function hasPrismaErrorCode(error: unknown, code: string): boolean {
+function hasPrismaErrorCode(
+  error: unknown,
+  code: string,
+): error is Prisma.PrismaClientKnownRequestError {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError && error.code === code
   );
+}
+
+function hasPrismaUniqueTarget(
+  error: unknown,
+  expectedFields: readonly string[],
+): boolean {
+  if (!hasPrismaErrorCode(error, 'P2002')) return false;
+
+  const fields = readPrismaUniqueTarget(error);
+  return (
+    fields !== null &&
+    fields.length === expectedFields.length &&
+    fields.every(
+      (field, index) =>
+        normalizePrismaUniqueField(field) === expectedFields[index],
+    )
+  );
+}
+
+function readPrismaUniqueTarget(
+  error: Prisma.PrismaClientKnownRequestError,
+): readonly string[] | null {
+  if (!isUnknownRecord(error.meta)) return null;
+
+  const directTarget = readStringArray(error.meta.target);
+  if (directTarget !== null) return directTarget;
+
+  const driverAdapterError = error.meta.driverAdapterError;
+  if (!isUnknownRecord(driverAdapterError)) return null;
+
+  const cause = driverAdapterError.cause;
+  if (!isUnknownRecord(cause)) return null;
+
+  const constraint = cause.constraint;
+  if (!isUnknownRecord(constraint)) return null;
+
+  return readStringArray(constraint.fields);
+}
+
+function readStringArray(value: unknown): readonly string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? value
+    : null;
+}
+
+function normalizePrismaUniqueField(field: string): string {
+  return field.startsWith('"') && field.endsWith('"')
+    ? field.slice(1, -1).replaceAll('""', '"')
+    : field;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
