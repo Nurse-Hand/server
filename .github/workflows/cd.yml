@@ -69,12 +69,47 @@ jobs:
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%b\n' "${SSH_PRIVATE_KEY}" \
-            | sed 's/\r$//' > ~/.ssh/gabia_deploy_key
+          export SSH_PRIVATE_KEY
+          python3 <<'PY'
+          import base64
+          import os
+          import pathlib
+          import sys
+
+          raw = os.environ["SSH_PRIVATE_KEY"].strip()
+          candidate = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+          if "\\n" in candidate and "-----BEGIN" in candidate:
+              candidate = candidate.replace("\\n", "\n")
+
+          def looks_like_private_key(value: str) -> bool:
+              return "-----BEGIN " in value and "PRIVATE KEY-----" in value
+
+          if not looks_like_private_key(candidate):
+              try:
+                  decoded = base64.b64decode(raw).decode("utf-8")
+              except Exception:
+                  decoded = ""
+              decoded = decoded.replace("\r\n", "\n").replace("\r", "\n")
+              if looks_like_private_key(decoded):
+                  candidate = decoded
+
+          if not looks_like_private_key(candidate):
+              print(
+                  "GABIA_SSH_PRIVATE_KEY is not a valid raw or base64-encoded private key.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          path = pathlib.Path.home() / ".ssh" / "gabia_deploy_key"
+          path.write_text(candidate.rstrip("\n") + "\n", encoding="utf-8")
+          PY
           chmod 600 ~/.ssh/gabia_deploy_key
+          ssh-keygen -y -f ~/.ssh/gabia_deploy_key >/dev/null
 
           ssh -i ~/.ssh/gabia_deploy_key \
             -p "${SSH_PORT}" \
+            -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             "${SSH_USER}@${SSH_HOST}" \
