@@ -98,11 +98,23 @@ describe('Monthly schedules PostgreSQL integration', () => {
       yearMonth: '2026-08',
       version: 1,
       entries: [
-        { date: '2026-08-01', duty: 'DAY' },
+        { date: '2026-08-01', duty: 'DAY', shiftId: expect.any(String) },
         { date: '2026-08-02', duty: 'OFF' },
       ],
       totals: { DAY: 1, EVENING: 0, NIGHT: 0, OFF: 1 },
     });
+    const generatedShiftId = first.body.data.entries[0].shiftId;
+    if (typeof generatedShiftId !== 'string') {
+      throw new Error('시연용 근무 shiftId가 필요합니다.');
+    }
+    await expect(
+      prisma.patientAssignment.count({
+        where: {
+          datasetId: context.datasetId,
+          nurseShiftId: generatedShiftId,
+        },
+      }),
+    ).resolves.toBeGreaterThan(0);
 
     const second = await putSchedule(
       app,

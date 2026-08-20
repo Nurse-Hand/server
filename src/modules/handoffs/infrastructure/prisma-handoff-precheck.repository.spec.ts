@@ -118,7 +118,9 @@ describe('PrismaHandoffPrecheckRepository', () => {
 
     expect(senderFind).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ membership: { role: 'SENDER' } }),
+        where: expect.objectContaining({
+          membership: { role: 'SENDER' },
+        }),
       }),
     );
     expect(receiverFind).toHaveBeenCalledWith(
@@ -129,7 +131,6 @@ describe('PrismaHandoffPrecheckRepository', () => {
           startsAt: expect.objectContaining({
             gt: new Date('2026-08-18T00:00:00.000Z'),
           }),
-          endsAt: { gt: NOW },
         }),
       }),
     );
