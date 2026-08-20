@@ -46,7 +46,7 @@ jobs:
           SSH_HOST: ${{ secrets.GABIA_SSH_HOST }}
           SSH_PORT: ${{ secrets.GABIA_SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.GABIA_SSH_USER }}
-          SSH_PRIVATE_KEY: ${{ secrets.GABIA_SSH_PRIVATE_KEY }}
+          SSH_PASSWORD: ${{ secrets.GABIA_SSH_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           SERVER_IMAGE: ${{ env.IMAGE_NAME }}:latest
@@ -55,7 +55,7 @@ jobs:
             SSH_HOST
             SSH_PORT
             SSH_USER
-            SSH_PRIVATE_KEY
+            SSH_PASSWORD
             DOCKERHUB_USERNAME
             DOCKERHUB_TOKEN
             SERVER_IMAGE
@@ -69,48 +69,17 @@ jobs:
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          export SSH_PRIVATE_KEY
-          python3 <<'PY'
-          import base64
-          import os
-          import pathlib
-          import sys
 
-          raw = os.environ["SSH_PRIVATE_KEY"].strip()
-          candidate = raw.replace("\r\n", "\n").replace("\r", "\n")
+          remote_command="cd /data/nurse-hand && chmod +x deploy-server.sh && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE}' bash ./deploy-server.sh"
 
-          if "\\n" in candidate and "-----BEGIN" in candidate:
-              candidate = candidate.replace("\\n", "\n")
-
-          def looks_like_private_key(value: str) -> bool:
-              return "-----BEGIN " in value and "PRIVATE KEY-----" in value
-
-          if not looks_like_private_key(candidate):
-              try:
-                  decoded = base64.b64decode(raw).decode("utf-8")
-              except Exception:
-                  decoded = ""
-              decoded = decoded.replace("\r\n", "\n").replace("\r", "\n")
-              if looks_like_private_key(decoded):
-                  candidate = decoded
-
-          if not looks_like_private_key(candidate):
-              print(
-                  "GABIA_SSH_PRIVATE_KEY is not a valid raw or base64-encoded private key.",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-
-          path = pathlib.Path.home() / ".ssh" / "gabia_deploy_key"
-          path.write_text(candidate.rstrip("\n") + "\n", encoding="utf-8")
-          PY
-          chmod 600 ~/.ssh/gabia_deploy_key
-          ssh-keygen -y -f ~/.ssh/gabia_deploy_key >/dev/null
-
-          ssh -i ~/.ssh/gabia_deploy_key \
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          sshpass -p "${SSH_PASSWORD}" \
+            ssh \
             -p "${SSH_PORT}" \
-            -o IdentitiesOnly=yes \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             "${SSH_USER}@${SSH_HOST}" \
-            "cd /data/nurse-hand && chmod +x deploy-server.sh && DOCKERHUB_USERNAME='${DOCKERHUB_USERNAME}' DOCKERHUB_TOKEN='${DOCKERHUB_TOKEN}' NURSE_HAND_SERVER_IMAGE='${SERVER_IMAGE}' bash ./deploy-server.sh"
+            "${remote_command}"
