@@ -6,7 +6,10 @@ import {
   QuickNotePayloadEmptyError,
 } from '../domain/quick-note.errors';
 import { QuickNoteService } from './quick-note.service';
-import type { QuickNoteRepository, QuickNoteView } from './ports/quick-note.repository';
+import type {
+  QuickNoteRepository,
+  QuickNoteView,
+} from './ports/quick-note.repository';
 
 const DEMO_CONTEXT: DemoSessionContext = {
   datasetId: '10000000-0000-4000-8000-000000000101',
@@ -31,10 +34,16 @@ describe('QuickNoteService', () => {
     repository.isAccessiblePatient.mockResolvedValue(true);
     repository.findStoredFiles
       .mockResolvedValueOnce([
-        createAttachment({ id: '10000000-0000-4000-8000-000000000501', kind: 'AUDIO' }),
+        createAttachment({
+          id: '10000000-0000-4000-8000-000000000501',
+          kind: 'AUDIO',
+        }),
       ])
       .mockResolvedValueOnce([
-        createAttachment({ id: '10000000-0000-4000-8000-000000000601', kind: 'PHOTO' }),
+        createAttachment({
+          id: '10000000-0000-4000-8000-000000000601',
+          kind: 'PHOTO',
+        }),
       ]);
     repository.create.mockResolvedValue(createQuickNoteView());
 
@@ -114,7 +123,9 @@ describe('QuickNoteService', () => {
   });
 });
 
-function createAttachment(overrides: Partial<QuickNoteView['photoFiles'][number]> = {}) {
+function createAttachment(
+  overrides: Partial<QuickNoteView['photoFiles'][number]> = {},
+) {
   return {
     id: '10000000-0000-4000-8000-000000000801',
     kind: 'PHOTO' as const,

@@ -120,7 +120,9 @@ export function toQuickNoteDataDto(quickNote: QuickNoteView): QuickNoteDataDto {
     text: quickNote.text,
     occurredAt: quickNote.occurredAt.toISOString(),
     audioFile:
-      quickNote.audioFile === null ? null : toQuickNoteAttachmentDto(quickNote.audioFile),
+      quickNote.audioFile === null
+        ? null
+        : toQuickNoteAttachmentDto(quickNote.audioFile),
     photoFiles: quickNote.photoFiles.map(toQuickNoteAttachmentDto),
     keywords: [...quickNote.keywords],
     evidenceStatus: quickNote.evidenceStatus,

@@ -11,7 +11,10 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { QUICK_NOTE_TYPES, type QuickNoteType } from '../domain/quick-note.types';
+import {
+  QUICK_NOTE_TYPES,
+  type QuickNoteType,
+} from '../domain/quick-note.types';
 
 const NON_WHITESPACE_PATTERN = /\S/;
 const TIME_ZONE_SUFFIX_PATTERN = /(?:Z|[+-]\d{2}:\d{2})$/;

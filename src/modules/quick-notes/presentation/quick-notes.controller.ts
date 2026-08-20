@@ -37,6 +37,8 @@ export class QuickNotesController {
     @Req() _request: RequestWithContext,
     @Body() body: CreateQuickNoteRequestDto,
   ): Promise<QuickNoteDataDto> {
-    return toQuickNoteDataDto(await this.quickNoteService.create(context, body));
+    return toQuickNoteDataDto(
+      await this.quickNoteService.create(context, body),
+    );
   }
 }

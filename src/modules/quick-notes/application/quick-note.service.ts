@@ -8,7 +8,10 @@ import {
   QuickNoteAttachmentNotFoundError,
   QuickNotePayloadEmptyError,
 } from '../domain/quick-note.errors';
-import { QUICK_NOTE_TYPES, type QuickNoteType } from '../domain/quick-note.types';
+import {
+  QUICK_NOTE_TYPES,
+  type QuickNoteType,
+} from '../domain/quick-note.types';
 import {
   QUICK_NOTE_REPOSITORY,
   type QuickNoteRepository,

@@ -96,7 +96,9 @@ export class PrismaQuickNoteRepository implements QuickNoteRepository {
         occurredAt: input.occurredAt,
         keywords: [...input.keywords],
         structuredFacts: input.structuredFacts,
-        ...(input.audioFile === null ? {} : { audioFileId: input.audioFile.id }),
+        ...(input.audioFile === null
+          ? {}
+          : { audioFileId: input.audioFile.id }),
         ...(input.photoFiles.length === 0
           ? {}
           : {
