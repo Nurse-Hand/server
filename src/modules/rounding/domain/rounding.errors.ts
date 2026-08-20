@@ -33,6 +33,17 @@ export class RoundingSegmentPeriodInvalidError extends ApplicationError {
   }
 }
 
+export class RoundingSessionCompletedAtInvalidError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'ROUNDING_SESSION_COMPLETED_AT_INVALID',
+      kind: 'UNPROCESSABLE_ENTITY',
+      publicMessage: '라운딩 종료 시각이 시작 시각보다 이를 수 없습니다.',
+    });
+    this.name = RoundingSessionCompletedAtInvalidError.name;
+  }
+}
+
 export class RoundingPatientNotFoundError extends ApplicationError {
   constructor() {
     super({
