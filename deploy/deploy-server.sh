@@ -7,7 +7,8 @@ set -Eeuo pipefail
 : "${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
 : "${EXTERNAL_BASE_URL:?EXTERNAL_BASE_URL is required}"
 
-CONTAINER_NAME="${NURSE_HAND_API_CONTAINER_NAME:-nurse-hand-server}"
+API_CONTAINER_NAME="${NURSE_HAND_API_CONTAINER_NAME:-nurse-hand-server}"
+WORKER_CONTAINER_NAME="${NURSE_HAND_WORKER_CONTAINER_NAME:-nurse-hand-worker}"
 HEALTHCHECK_ATTEMPTS="${DEPLOY_HEALTHCHECK_ATTEMPTS:-30}"
 HEALTHCHECK_INTERVAL_SECONDS="${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS:-2}"
 BUNDLE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -127,16 +128,23 @@ write_deployment_state() {
 }
 
 wait_for_container_readiness() {
-  local attempt status
+  local container_name="$1"
+  local required_successes="${2:-1}"
+  local attempt status consecutive_successes=0
   for ((attempt = 1; attempt <= HEALTHCHECK_ATTEMPTS; attempt += 1)); do
     status="$(
       docker inspect \
         --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-        "${CONTAINER_NAME}" 2>/dev/null || true
+        "${container_name}" 2>/dev/null || true
     )"
 
-    if [[ "${status}" == "healthy" ]]; then
-      return 0
+    if [[ "${status}" == "healthy" || "${status}" == "running" ]]; then
+      consecutive_successes=$((consecutive_successes + 1))
+      if ((consecutive_successes >= required_successes)); then
+        return 0
+      fi
+      sleep "${HEALTHCHECK_INTERVAL_SECONDS}"
+      continue
     fi
     if [[ "${status}" == "unhealthy" || "${status}" == "exited" || "${status}" == "dead" ]]; then
       return 1
@@ -175,11 +183,14 @@ rollback() {
   local reason="$2"
 
   echo "Deployment readiness failed (${reason}); restoring the previous image." >&2
-  if ! compose "${rollback_image}" up -d --no-deps api; then
-    fail "rollback container replacement failed"
+  if ! compose "${rollback_image}" up -d --no-deps api worker; then
+    fail "rollback API and worker replacement failed"
   fi
-  if ! wait_for_container_readiness; then
-    fail "rollback container did not become healthy"
+  if ! wait_for_container_readiness "${API_CONTAINER_NAME}"; then
+    fail "rollback API container did not become healthy"
+  fi
+  if ! wait_for_container_readiness "${WORKER_CONTAINER_NAME}" 2; then
+    fail "rollback worker container did not become ready"
   fi
   if ! check_external_readiness; then
     fail "rollback external readiness failed"
@@ -205,21 +216,39 @@ if [[ -n "${STORED_RUN_ID}" ]]; then
   fi
 fi
 
-previous_image_id="$(docker inspect --format '{{.Image}}' "${CONTAINER_NAME}")"
-previous_image_reference="$(
-  docker inspect --format '{{.Config.Image}}' "${CONTAINER_NAME}"
+previous_image_id="$(
+  docker inspect --format '{{.Image}}' "${API_CONTAINER_NAME}" 2>/dev/null || true
 )"
-if [[ -z "${previous_image_id}" || -z "${previous_image_reference}" ]]; then
-  fail "an existing healthy API container is required for safe deployment"
+previous_image_reference="$(
+  docker inspect --format '{{.Config.Image}}' "${API_CONTAINER_NAME}" 2>/dev/null || true
+)"
+previous_worker_image_id="$(
+  docker inspect --format '{{.Image}}' "${WORKER_CONTAINER_NAME}" 2>/dev/null || true
+)"
+previous_worker_image_reference="$(
+  docker inspect --format '{{.Config.Image}}' "${WORKER_CONTAINER_NAME}" 2>/dev/null || true
+)"
+if [[ -z "${previous_image_id}" || -z "${previous_image_reference}" \
+  || -z "${previous_worker_image_id}" || -z "${previous_worker_image_reference}" ]]; then
+  fail "existing API and worker containers are required for safe deployment"
 fi
-if [[ ! "${previous_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  fail "the existing API container image ID is invalid"
+if [[ ! "${previous_image_id}" =~ ^sha256:[0-9a-f]{64}$ \
+  || ! "${previous_worker_image_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  fail "an existing server container image ID is invalid"
 fi
-if [[ ! "${previous_image_reference}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; then
-  fail "the existing API container image reference is invalid"
+if [[ ! "${previous_image_reference}" =~ ^[A-Za-z0-9._/:@-]+$ \
+  || ! "${previous_worker_image_reference}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; then
+  fail "an existing server container image reference is invalid"
 fi
-if ! wait_for_container_readiness; then
+if [[ "${previous_image_id}" != "${previous_worker_image_id}" \
+  || "${previous_image_reference}" != "${previous_worker_image_reference}" ]]; then
+  fail "existing API and worker images must match before deployment"
+fi
+if ! wait_for_container_readiness "${API_CONTAINER_NAME}"; then
   fail "the existing API container is not healthy before deployment"
+fi
+if ! wait_for_container_readiness "${WORKER_CONTAINER_NAME}" 2; then
+  fail "the existing worker container is not ready before deployment"
 fi
 if ! check_external_readiness; then
   fail "the existing API external readiness failed before deployment"
@@ -228,7 +257,7 @@ fi
 rollback_image="nurse-hand-server-local:rollback-${DEPLOY_RUN_ID}"
 docker image tag "${previous_image_id}" "${rollback_image}"
 
-# Pull and migrate while the current API container remains online.
+# Pull and migrate while the current API and worker containers remain online.
 docker pull "${NURSE_HAND_SERVER_IMAGE}"
 compose "${NURSE_HAND_SERVER_IMAGE}" run \
   --rm \
@@ -237,11 +266,14 @@ compose "${NURSE_HAND_SERVER_IMAGE}" run \
   api \
   prisma migrate deploy
 
-if ! compose "${NURSE_HAND_SERVER_IMAGE}" up -d --no-deps api; then
-  rollback "${rollback_image}" "container replacement"
+if ! compose "${NURSE_HAND_SERVER_IMAGE}" up -d --no-deps api worker; then
+  rollback "${rollback_image}" "API and worker replacement"
 fi
-if ! wait_for_container_readiness; then
-  rollback "${rollback_image}" "container readiness"
+if ! wait_for_container_readiness "${API_CONTAINER_NAME}"; then
+  rollback "${rollback_image}" "API container readiness"
+fi
+if ! wait_for_container_readiness "${WORKER_CONTAINER_NAME}" 2; then
+  rollback "${rollback_image}" "worker container readiness"
 fi
 if ! check_storage_permissions; then
   rollback "${rollback_image}" "storage permission smoke"
