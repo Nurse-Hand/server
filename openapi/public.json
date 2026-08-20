@@ -1115,6 +1115,436 @@
         ]
       }
     },
+    "/api/v1/rounding-sessions/{sessionId}/analysis-jobs": {
+      "post": {
+        "operationId": "RoundingAnalysisController_startAnalysis",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartRoundingAnalysisJobRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingAnalysisJobResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "전체 라운딩 종료 후 STT·화자분리·환자 후보 분석 시작",
+        "tags": [
+          "Rounding Analysis"
+        ]
+      }
+    },
+    "/api/v1/rounding-analysis-jobs/{jobId}": {
+      "get": {
+        "description": "인식 결과 확인 화면에서 전체 스크립트, 발화, 화자 후보를 조회한다.",
+        "operationId": "RoundingAnalysisController_readAnalysis",
+        "parameters": [
+          {
+            "name": "jobId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingAnalysisJobResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "라운딩 분석 결과 조회",
+        "tags": [
+          "Rounding Analysis"
+        ]
+      }
+    },
+    "/api/v1/rounding-sessions/{sessionId}/analysis-confirmation": {
+      "post": {
+        "operationId": "RoundingAnalysisController_confirmAnalysis",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRoundingAnalysisRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingAnalysisConfirmationResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "간호사 확인 완료 후 transcript·Evidence·Timeline 확정 저장",
+        "tags": [
+          "Rounding Analysis"
+        ]
+      }
+    },
+    "/api/v1/evidence": {
+      "get": {
+        "description": "확정 저장된 라운딩 발화 근거를 patientId, topic, query 기준으로 조회한다.",
+        "operationId": "RoundingAnalysisController_listEvidence",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "VITAL_SIGNS",
+                "RESPIRATION",
+                "MENTAL_STATUS",
+                "PAIN",
+                "TREATMENT",
+                "DIET",
+                "OBSERVATION"
+              ]
+            }
+          },
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoundingEvidenceListResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "인수인계·Timeline 근거 Evidence 검색",
+        "tags": [
+          "Rounding Analysis"
+        ]
+      }
+    },
     "/api/v1/me/schedules/{yearMonth}": {
       "put": {
         "operationId": "MonthlySchedulesController_put",
@@ -4940,6 +5370,362 @@
             "description": "생략하면 서버 현재 시각을 사용한다."
           }
         }
+      },
+      "StartRoundingAnalysisJobRequestDto": {
+        "type": "object",
+        "properties": {
+          "audioFileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "전체 라운딩 녹음 파일 ID. 생략하면 세션 구간만으로 mock 분석한다."
+          }
+        }
+      },
+      "RoundingAnalysisUtteranceDto": {
+        "type": "object",
+        "properties": {
+          "utteranceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "speakerLabel": {
+            "type": "string"
+          },
+          "speakerRole": {
+            "enum": [
+              "NURSE",
+              "PATIENT_CANDIDATE",
+              "THIRD_PARTY",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "startedAtMs": {
+            "type": "number"
+          },
+          "endedAtMs": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true
+          },
+          "important": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "utteranceId",
+          "speakerLabel",
+          "speakerRole",
+          "patientId",
+          "startedAtMs",
+          "endedAtMs",
+          "text",
+          "confidence",
+          "important"
+        ]
+      },
+      "RoundingSpeakerMatchDto": {
+        "type": "object",
+        "properties": {
+          "speakerLabel": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "number"
+          },
+          "candidatePatientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "similarity": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "speakerLabel",
+          "rank",
+          "candidatePatientId",
+          "displayName",
+          "similarity"
+        ]
+      },
+      "RoundingAnalysisJobDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": [
+              "QUEUED",
+              "PROCESSING",
+              "SUCCEEDED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "roundingSessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "audioFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "fullText": {
+            "type": "string",
+            "nullable": true
+          },
+          "utterances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundingAnalysisUtteranceDto"
+            }
+          },
+          "speakerMatches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundingSpeakerMatchDto"
+            }
+          },
+          "failureCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "jobId",
+          "status",
+          "roundingSessionId",
+          "audioFileId",
+          "fullText",
+          "utterances",
+          "speakerMatches",
+          "failureCode",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "RoundingAnalysisJobResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoundingAnalysisJobDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "ConfirmRoundingUtteranceRequestDto": {
+        "type": "object",
+        "properties": {
+          "utteranceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "간호사가 확정한 환자 ID. 간호사/제3자 발화는 null 가능."
+          },
+          "speakerRole": {
+            "enum": [
+              "NURSE",
+              "PATIENT_CANDIDATE",
+              "THIRD_PARTY",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "important": {
+            "type": "boolean",
+            "description": "인수인계 근거로 반드시 남길 발화 여부"
+          }
+        },
+        "required": [
+          "utteranceId"
+        ]
+      },
+      "ConfirmRoundingAnalysisRequestDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "utterances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfirmRoundingUtteranceRequestDto"
+            }
+          }
+        },
+        "required": [
+          "jobId",
+          "utterances"
+        ]
+      },
+      "RoundingEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "evidenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "topic": {
+            "enum": [
+              "VITAL_SIGNS",
+              "RESPIRATION",
+              "MENTAL_STATUS",
+              "PAIN",
+              "TREATMENT",
+              "DIET",
+              "OBSERVATION"
+            ],
+            "type": "string"
+          },
+          "handoffSection": {
+            "type": "string"
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "importanceFlags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiresNurseConfirmation": {
+            "type": "boolean"
+          },
+          "textForRetrieval": {
+            "type": "string"
+          },
+          "sourceUtteranceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timelineEventId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "evidenceId",
+          "patientId",
+          "topic",
+          "handoffSection",
+          "keywords",
+          "importanceFlags",
+          "requiresNurseConfirmation",
+          "textForRetrieval",
+          "sourceUtteranceIds",
+          "timelineEventId",
+          "createdAt"
+        ]
+      },
+      "RoundingAnalysisConfirmationDto": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/RoundingAnalysisJobDto"
+          },
+          "evidences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundingEvidenceDto"
+            }
+          },
+          "timelineEventIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "job",
+          "evidences",
+          "timelineEventIds"
+        ]
+      },
+      "RoundingAnalysisConfirmationResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoundingAnalysisConfirmationDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "RoundingEvidenceListResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundingEvidenceDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       },
       "MonthlyScheduleEntryRequestDto": {
         "type": "object",
