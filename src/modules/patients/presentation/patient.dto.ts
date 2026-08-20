@@ -86,11 +86,23 @@ export class PatientTimelineEventDto {
   @ApiProperty({ example: '통증 NRS 5점으로 감소' })
   summary!: string;
 
+  @ApiProperty({ type: Boolean, default: false })
+  important!: boolean;
+
+  @ApiProperty({ enum: ['PENDING', 'CONFIRMED'] })
+  confirmationStatus!: 'PENDING' | 'CONFIRMED';
+
   @ApiProperty({ minimum: 1 })
   version!: number;
 
   @ApiProperty({ example: 'timeline:event:801' })
   sourceReference!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  updatedByActorId!: string | null;
 }
 
 export class PatientTimelineDataDto {
@@ -138,8 +150,12 @@ export function toPatientTimelineDataDto(
       type: event.type,
       source: event.source,
       summary: event.summary,
+      important: event.important ?? false,
+      confirmationStatus: event.confirmationStatus ?? 'PENDING',
       version: event.version,
       sourceReference: event.sourceReference,
+      updatedAt: (event.updatedAt ?? event.occurredAt).toISOString(),
+      updatedByActorId: event.updatedByActorId ?? null,
     })),
   };
 }

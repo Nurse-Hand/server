@@ -1,11 +1,11 @@
 import type { DemoSessionContext } from '../../../demo/application/demo-session-context';
+import type {
+  TimelineEventConfirmationStatus,
+  TimelineEventSource,
+  TimelineEventType,
+} from '../../domain/timeline.types';
 
 export const TIMELINE_READER = Symbol('TIMELINE_READER');
-
-export type TimelineEventType =
-  'OBSERVATION' | 'MEDICATION' | 'PROCEDURE' | 'REPORT' | 'TASK';
-
-export type TimelineEventSource = 'MANUAL' | 'AI_AUDIO';
 
 export type TimelineEventReadModel = {
   id: string;
@@ -14,8 +14,12 @@ export type TimelineEventReadModel = {
   type: TimelineEventType;
   source: TimelineEventSource;
   summary: string;
+  important?: boolean;
+  confirmationStatus?: TimelineEventConfirmationStatus;
   version: number;
   sourceReference: string;
+  updatedAt?: Date;
+  updatedByActorId?: string | null;
 };
 
 export type ReadTimelineInput = {

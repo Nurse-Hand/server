@@ -105,9 +105,7 @@
           }
         },
         "summary": "격리된 synthetic demo session 생성",
-        "tags": [
-          "Demo"
-        ],
+        "tags": ["Demo"],
         "security": []
       }
     },
@@ -234,9 +232,7 @@
           }
         },
         "summary": "오디오 파일 저장",
-        "tags": [
-          "Files"
-        ]
+        "tags": ["Files"]
       }
     },
     "/api/v1/files/photos": {
@@ -362,9 +358,7 @@
           }
         },
         "summary": "사진 파일 저장",
-        "tags": [
-          "Files"
-        ]
+        "tags": ["Files"]
       }
     },
     "/api/v1/health": {
@@ -423,9 +417,7 @@
           }
         },
         "summary": "서버 liveness 확인",
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "security": []
       }
     },
@@ -485,9 +477,7 @@
           }
         },
         "summary": "담당 환자 목록 조회",
-        "tags": [
-          "Patients"
-        ]
+        "tags": ["Patients"]
       }
     },
     "/api/v1/patients/{patientId}": {
@@ -592,9 +582,7 @@
           }
         },
         "summary": "환자 상세 기본정보 조회",
-        "tags": [
-          "Patients"
-        ]
+        "tags": ["Patients"]
       }
     },
     "/api/v1/patients/{patientId}/timeline": {
@@ -717,9 +705,247 @@
           }
         },
         "summary": "환자별 Timeline 조회",
-        "tags": [
-          "Patients"
-        ]
+        "tags": ["Patients"]
+      }
+    },
+    "/api/v1/timeline-events/{eventId}": {
+      "patch": {
+        "operationId": "TimelineEventsController_update",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTimelineEventRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Timeline 이벤트 수정",
+        "tags": ["Timeline"]
+      }
+    },
+    "/api/v1/timeline-events/{eventId}/history": {
+      "get": {
+        "operationId": "TimelineEventsController_history",
+        "parameters": [
+          {
+            "name": "eventId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "선택적 요청 추적 UUID. 없거나 유효하지 않으면 서버가 생성합니다.",
+            "in": "header",
+            "name": "X-Request-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEventHistoryResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponseDto"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "description": "요청 추적 ID",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Timeline 이벤트 변경 이력 조회",
+        "tags": ["Timeline"]
       }
     },
     "/api/v1/rounding-sessions": {
@@ -807,9 +1033,7 @@
           }
         },
         "summary": "라운딩 세션 시작",
-        "tags": [
-          "Rounding"
-        ]
+        "tags": ["Rounding"]
       }
     },
     "/api/v1/rounding-sessions/{sessionId}/patient-segments": {
@@ -924,9 +1148,7 @@
           }
         },
         "summary": "현재 환자 라운딩 구간 저장",
-        "tags": [
-          "Rounding"
-        ]
+        "tags": ["Rounding"]
       }
     },
     "/api/v1/rounding-sessions/{sessionId}/complete": {
@@ -1041,9 +1263,7 @@
           }
         },
         "summary": "전체 라운딩 종료",
-        "tags": [
-          "Rounding"
-        ]
+        "tags": ["Rounding"]
       }
     },
     "/api/v1/rounding-sessions/{sessionId}": {
@@ -1110,9 +1330,7 @@
           }
         },
         "summary": "라운딩 세션 상세 조회",
-        "tags": [
-          "Rounding"
-        ]
+        "tags": ["Rounding"]
       }
     },
     "/api/v1/rounding-sessions/{sessionId}/analysis-jobs": {
@@ -1227,9 +1445,7 @@
           }
         },
         "summary": "전체 라운딩 종료 후 STT·화자분리·환자 후보 분석 시작",
-        "tags": [
-          "Rounding Analysis"
-        ]
+        "tags": ["Rounding Analysis"]
       }
     },
     "/api/v1/rounding-analysis-jobs/{jobId}": {
@@ -1316,9 +1532,7 @@
           }
         },
         "summary": "라운딩 분석 결과 조회",
-        "tags": [
-          "Rounding Analysis"
-        ]
+        "tags": ["Rounding Analysis"]
       }
     },
     "/api/v1/rounding-sessions/{sessionId}/analysis-confirmation": {
@@ -1433,9 +1647,7 @@
           }
         },
         "summary": "간호사 확인 완료 후 transcript·Evidence·Timeline 확정 저장",
-        "tags": [
-          "Rounding Analysis"
-        ]
+        "tags": ["Rounding Analysis"]
       }
     },
     "/api/v1/evidence": {
@@ -1540,9 +1752,7 @@
           }
         },
         "summary": "인수인계·Timeline 근거 Evidence 검색",
-        "tags": [
-          "Rounding Analysis"
-        ]
+        "tags": ["Rounding Analysis"]
       }
     },
     "/api/v1/me/schedules/{yearMonth}": {
@@ -1710,9 +1920,7 @@
           }
         },
         "summary": "확정한 월별 근무표 전체 교체 저장",
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       },
       "get": {
         "operationId": "MonthlySchedulesController_find",
@@ -1818,9 +2026,7 @@
           }
         },
         "summary": "내 월별 근무표와 근무 유형별 합계 조회",
-        "tags": [
-          "Schedules"
-        ]
+        "tags": ["Schedules"]
       }
     },
     "/api/v1/tasks": {
@@ -1844,11 +2050,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "TODO",
-                "IN_PROGRESS",
-                "DONE"
-              ]
+              "enum": ["TODO", "IN_PROGRESS", "DONE"]
             }
           },
           {
@@ -1867,10 +2069,7 @@
             "schema": {
               "default": "priority",
               "type": "string",
-              "enum": [
-                "priority",
-                "dueAt"
-              ]
+              "enum": ["priority", "dueAt"]
             }
           },
           {
@@ -2003,9 +2202,7 @@
           }
         },
         "summary": "업무 목록 조회",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       },
       "post": {
         "operationId": "TasksController_create",
@@ -2160,9 +2357,7 @@
           }
         },
         "summary": "업무 직접 생성",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/task-priority-suggestions": {
@@ -2357,9 +2552,7 @@
           }
         },
         "summary": "수동 업무 AI 우선순위 참고 제안 batch 생성",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/task-extraction-jobs": {
@@ -2535,9 +2728,7 @@
           }
         },
         "summary": "라운딩 근거에서 업무 후보 추출 작업 접수",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/task-extraction-jobs/{jobId}": {
@@ -2642,9 +2833,7 @@
           }
         },
         "summary": "업무 후보 추출 작업 상태와 결과 조회",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/tasks/{taskId}": {
@@ -2797,9 +2986,7 @@
           }
         },
         "summary": "업무 내용·마감·상태·확정 우선순위 수정",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/task-extraction-jobs/{jobId}/apply": {
@@ -2964,9 +3151,7 @@
           }
         },
         "summary": "선택한 업무 후보를 원자적으로 반영",
-        "tags": [
-          "Tasks"
-        ]
+        "tags": ["Tasks"]
       }
     },
     "/api/v1/handoff-prechecks": {
@@ -3159,9 +3344,7 @@
           }
         },
         "summary": "인수인계 사전검증 작업 접수",
-        "tags": [
-          "Handoff Prechecks"
-        ]
+        "tags": ["Handoff Prechecks"]
       }
     },
     "/api/v1/handoff-prechecks/{precheckId}": {
@@ -3305,9 +3488,7 @@
           }
         },
         "summary": "인수인계 사전검증 결과 조회",
-        "tags": [
-          "Handoff Prechecks"
-        ]
+        "tags": ["Handoff Prechecks"]
       }
     },
     "/api/v1/handoff-prechecks/{precheckId}/items/{itemId}": {
@@ -3508,9 +3689,7 @@
           }
         },
         "summary": "인수인계 역질문 답변 저장",
-        "tags": [
-          "Handoff Prechecks"
-        ]
+        "tags": ["Handoff Prechecks"]
       }
     },
     "/api/v1/handoffs": {
@@ -3533,10 +3712,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "DRAFT",
-                "FINALIZED"
-              ]
+              "enum": ["DRAFT", "FINALIZED"]
             }
           },
           {
@@ -3670,9 +3846,7 @@
           }
         },
         "summary": "인수인계 목록 조회",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       },
       "post": {
         "operationId": "HandoffDraftsController_create",
@@ -3863,9 +4037,7 @@
           }
         },
         "summary": "인수인계 6개 임상 섹션 초안 생성 작업 접수",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       }
     },
     "/api/v1/handoffs/{handoffId}": {
@@ -4009,9 +4181,7 @@
           }
         },
         "summary": "인수인계 생성 상태와 초안 상세 조회",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       },
       "patch": {
         "operationId": "HandoffDraftsController_update",
@@ -4201,9 +4371,7 @@
           }
         },
         "summary": "DRAFT 인수인계 임상 섹션과 연결 업무 수정",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       }
     },
     "/api/v1/handoffs/{handoffId}/finalize": {
@@ -4405,9 +4573,7 @@
           }
         },
         "summary": "인수인계 초안을 불변 snapshot으로 최종 확정",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       }
     },
     "/api/v1/handoffs/{handoffId}/acknowledgements": {
@@ -4609,9 +4775,7 @@
           }
         },
         "summary": "수신 간호사의 질문 또는 수신 확인 기록",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       }
     },
     "/api/v1/handoffs/{handoffId}/history": {
@@ -4777,9 +4941,7 @@
           }
         },
         "summary": "인수인계 변경 및 수신 이력 조회",
-        "tags": [
-          "Handoffs"
-        ]
+        "tags": ["Handoffs"]
       }
     }
   },
@@ -4806,23 +4968,16 @@
         "properties": {
           "scenarioKey": {
             "type": "string",
-            "enum": [
-              "SYNTHETIC_MEDICAL_DAY_SHIFT"
-            ]
+            "enum": ["SYNTHETIC_MEDICAL_DAY_SHIFT"]
           }
         },
-        "required": [
-          "scenarioKey"
-        ]
+        "required": ["scenarioKey"]
       },
       "DemoSessionCredentialDto": {
         "type": "object",
         "properties": {
           "persona": {
-            "enum": [
-              "SENDER",
-              "RECEIVER"
-            ],
+            "enum": ["SENDER", "RECEIVER"],
             "type": "string"
           },
           "sessionId": {
@@ -4831,19 +4986,14 @@
             "example": "syntheticOpaqueSessionValueNotPersistedAsPlaintext"
           }
         },
-        "required": [
-          "persona",
-          "sessionId"
-        ]
+        "required": ["persona", "sessionId"]
       },
       "DemoSessionDataDto": {
         "type": "object",
         "properties": {
           "scenarioKey": {
             "type": "string",
-            "enum": [
-              "SYNTHETIC_MEDICAL_DAY_SHIFT"
-            ]
+            "enum": ["SYNTHETIC_MEDICAL_DAY_SHIFT"]
           },
           "expiresAt": {
             "type": "string",
@@ -4857,11 +5007,7 @@
             }
           }
         },
-        "required": [
-          "scenarioKey",
-          "expiresAt",
-          "sessions"
-        ]
+        "required": ["scenarioKey", "expiresAt", "sessions"]
       },
       "ApiMetaDto": {
         "type": "object",
@@ -4871,9 +5017,7 @@
             "format": "uuid"
           }
         },
-        "required": [
-          "requestId"
-        ]
+        "required": ["requestId"]
       },
       "DemoSessionResponseDto": {
         "type": "object",
@@ -4885,10 +5029,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "ApiErrorDto": {
         "type": "object",
@@ -4906,10 +5047,7 @@
             "description": "클라이언트가 수정 가능한 구조화 오류 정보"
           }
         },
-        "required": [
-          "code",
-          "message"
-        ]
+        "required": ["code", "message"]
       },
       "ApiErrorResponseDto": {
         "type": "object",
@@ -4921,10 +5059,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "error",
-          "meta"
-        ]
+        "required": ["error", "meta"]
       },
       "UploadFileRequestDto": {
         "type": "object",
@@ -4935,9 +5070,7 @@
             "format": "binary"
           }
         },
-        "required": [
-          "file"
-        ]
+        "required": ["file"]
       },
       "StoredFileDataDto": {
         "type": "object",
@@ -4947,10 +5080,7 @@
             "format": "uuid"
           },
           "kind": {
-            "enum": [
-              "AUDIO",
-              "PHOTO"
-            ],
+            "enum": ["AUDIO", "PHOTO"],
             "type": "string"
           },
           "mimeType": {
@@ -4995,19 +5125,14 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "HealthDataDto": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "ok"
-            ],
+            "enum": ["ok"],
             "example": "ok"
           },
           "timestamp": {
@@ -5016,10 +5141,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "status",
-          "timestamp"
-        ]
+        "required": ["status", "timestamp"]
       },
       "HealthResponseDto": {
         "type": "object",
@@ -5031,10 +5153,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "PatientDataDto": {
         "type": "object",
@@ -5094,9 +5213,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "PatientListResponseDto": {
         "type": "object",
@@ -5108,10 +5225,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "PatientResponseDto": {
         "type": "object",
@@ -5123,10 +5237,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "PatientTimelineEventDto": {
         "type": "object",
@@ -5154,15 +5265,20 @@
             "type": "string"
           },
           "source": {
-            "enum": [
-              "MANUAL",
-              "AI_AUDIO"
-            ],
+            "enum": ["MANUAL", "AI_AUDIO"],
             "type": "string"
           },
           "summary": {
             "type": "string",
             "example": "통증 NRS 5점으로 감소"
+          },
+          "important": {
+            "type": "boolean",
+            "default": false
+          },
+          "confirmationStatus": {
+            "enum": ["PENDING", "CONFIRMED"],
+            "type": "string"
           },
           "version": {
             "type": "number",
@@ -5171,6 +5287,15 @@
           "sourceReference": {
             "type": "string",
             "example": "timeline:event:801"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedByActorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
           }
         },
         "required": [
@@ -5180,8 +5305,12 @@
           "type",
           "source",
           "summary",
+          "important",
+          "confirmationStatus",
           "version",
-          "sourceReference"
+          "sourceReference",
+          "updatedAt",
+          "updatedByActorId"
         ]
       },
       "PatientTimelineDataDto": {
@@ -5194,9 +5323,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "PatientTimelineResponseDto": {
         "type": "object",
@@ -5208,10 +5335,221 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
+        "required": ["data", "meta"]
+      },
+      "UpdateTimelineEventRequestDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "통증 NRS 4점으로 감소, 오후 재평가 필요"
+          },
+          "important": {
+            "type": "boolean"
+          },
+          "confirmationStatus": {
+            "enum": ["PENDING", "CONFIRMED"],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": ["version"]
+      },
+      "TimelineEventDataDto": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "patientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "enum": [
+              "OBSERVATION",
+              "MEDICATION",
+              "PROCEDURE",
+              "REPORT",
+              "TASK"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "enum": ["MANUAL", "AI_AUDIO"],
+            "type": "string"
+          },
+          "sourceReference": {
+            "type": "string",
+            "example": "timeline:event:801"
+          },
+          "summary": {
+            "type": "string",
+            "example": "통증 NRS 4점으로 감소"
+          },
+          "important": {
+            "type": "boolean"
+          },
+          "confirmationStatus": {
+            "enum": ["PENDING", "CONFIRMED"],
+            "type": "string"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedByActorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
         "required": [
-          "data",
-          "meta"
+          "eventId",
+          "patientId",
+          "occurredAt",
+          "type",
+          "source",
+          "sourceReference",
+          "summary",
+          "important",
+          "confirmationStatus",
+          "version",
+          "updatedAt",
+          "updatedByActorId"
         ]
+      },
+      "TimelineEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TimelineEventDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": ["data", "meta"]
+      },
+      "TimelineEventHistoryChangeTextDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        },
+        "required": ["before", "after"]
+      },
+      "TimelineEventHistoryChangeBooleanDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "boolean"
+          },
+          "after": {
+            "type": "boolean"
+          }
+        },
+        "required": ["before", "after"]
+      },
+      "TimelineEventHistoryChangeStatusDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "enum": ["PENDING", "CONFIRMED"],
+            "type": "string"
+          },
+          "after": {
+            "enum": ["PENDING", "CONFIRMED"],
+            "type": "string"
+          }
+        },
+        "required": ["before", "after"]
+      },
+      "TimelineEventHistoryChangesDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeTextDto"
+          },
+          "important": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeBooleanDto"
+          },
+          "confirmationStatus": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangeStatusDto"
+          }
+        }
+      },
+      "TimelineEventHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "historyEntryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "editedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "number",
+            "minimum": 1
+          },
+          "changes": {
+            "$ref": "#/components/schemas/TimelineEventHistoryChangesDto"
+          }
+        },
+        "required": [
+          "historyEntryId",
+          "actorId",
+          "editedAt",
+          "version",
+          "changes"
+        ]
+      },
+      "TimelineEventHistoryDataDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEventHistoryItemDto"
+            }
+          }
+        },
+        "required": ["items"]
+      },
+      "TimelineEventHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TimelineEventHistoryDataDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMetaDto"
+          }
+        },
+        "required": ["data", "meta"]
       },
       "StartRoundingSessionRequestDto": {
         "type": "object",
@@ -5271,10 +5609,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "RECORDING",
-              "COMPLETED"
-            ],
+            "enum": ["RECORDING", "COMPLETED"],
             "type": "string"
           },
           "actorId": {
@@ -5330,10 +5665,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "AddRoundingPatientSegmentRequestDto": {
         "type": "object",
@@ -5355,11 +5687,7 @@
             "maxLength": 500
           }
         },
-        "required": [
-          "patientId",
-          "startedAt",
-          "endedAt"
-        ]
+        "required": ["patientId", "startedAt", "endedAt"]
       },
       "CompleteRoundingSessionRequestDto": {
         "type": "object",
@@ -5392,12 +5720,7 @@
             "type": "string"
           },
           "speakerRole": {
-            "enum": [
-              "NURSE",
-              "PATIENT_CANDIDATE",
-              "THIRD_PARTY",
-              "UNKNOWN"
-            ],
+            "enum": ["NURSE", "PATIENT_CANDIDATE", "THIRD_PARTY", "UNKNOWN"],
             "type": "string"
           },
           "patientId": {
@@ -5471,12 +5794,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUEUED",
-              "PROCESSING",
-              "SUCCEEDED",
-              "FAILED"
-            ],
+            "enum": ["QUEUED", "PROCESSING", "SUCCEEDED", "FAILED"],
             "type": "string"
           },
           "roundingSessionId": {
@@ -5540,10 +5858,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "ConfirmRoundingUtteranceRequestDto": {
         "type": "object",
@@ -5559,12 +5874,7 @@
             "description": "간호사가 확정한 환자 ID. 간호사/제3자 발화는 null 가능."
           },
           "speakerRole": {
-            "enum": [
-              "NURSE",
-              "PATIENT_CANDIDATE",
-              "THIRD_PARTY",
-              "UNKNOWN"
-            ],
+            "enum": ["NURSE", "PATIENT_CANDIDATE", "THIRD_PARTY", "UNKNOWN"],
             "type": "string"
           },
           "important": {
@@ -5572,9 +5882,7 @@
             "description": "인수인계 근거로 반드시 남길 발화 여부"
           }
         },
-        "required": [
-          "utteranceId"
-        ]
+        "required": ["utteranceId"]
       },
       "ConfirmRoundingAnalysisRequestDto": {
         "type": "object",
@@ -5590,10 +5898,7 @@
             }
           }
         },
-        "required": [
-          "jobId",
-          "utterances"
-        ]
+        "required": ["jobId", "utterances"]
       },
       "RoundingEvidenceDto": {
         "type": "object",
@@ -5688,11 +5993,7 @@
             }
           }
         },
-        "required": [
-          "job",
-          "evidences",
-          "timelineEventIds"
-        ]
+        "required": ["job", "evidences", "timelineEventIds"]
       },
       "RoundingAnalysisConfirmationResponseDto": {
         "type": "object",
@@ -5704,10 +6005,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "RoundingEvidenceListResponseDto": {
         "type": "object",
@@ -5722,10 +6020,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "MonthlyScheduleEntryRequestDto": {
         "type": "object",
@@ -5737,19 +6032,11 @@
             "format": "date"
           },
           "duty": {
-            "enum": [
-              "DAY",
-              "EVENING",
-              "NIGHT",
-              "OFF"
-            ],
+            "enum": ["DAY", "EVENING", "NIGHT", "OFF"],
             "type": "string"
           }
         },
-        "required": [
-          "date",
-          "duty"
-        ]
+        "required": ["date", "duty"]
       },
       "PutMonthlyScheduleRequestDto": {
         "type": "object",
@@ -5768,10 +6055,7 @@
             }
           }
         },
-        "required": [
-          "expectedVersion",
-          "entries"
-        ]
+        "required": ["expectedVersion", "entries"]
       },
       "MonthlyScheduleEntryDto": {
         "type": "object",
@@ -5782,19 +6066,11 @@
             "format": "date"
           },
           "duty": {
-            "enum": [
-              "DAY",
-              "EVENING",
-              "NIGHT",
-              "OFF"
-            ],
+            "enum": ["DAY", "EVENING", "NIGHT", "OFF"],
             "type": "string"
           }
         },
-        "required": [
-          "date",
-          "duty"
-        ]
+        "required": ["date", "duty"]
       },
       "MonthlyScheduleTotalsDto": {
         "type": "object",
@@ -5816,12 +6092,7 @@
             "minimum": 0
           }
         },
-        "required": [
-          "DAY",
-          "EVENING",
-          "NIGHT",
-          "OFF"
-        ]
+        "required": ["DAY", "EVENING", "NIGHT", "OFF"]
       },
       "MonthlyScheduleDataDto": {
         "type": "object",
@@ -5845,12 +6116,7 @@
             "$ref": "#/components/schemas/MonthlyScheduleTotalsDto"
           }
         },
-        "required": [
-          "yearMonth",
-          "version",
-          "entries",
-          "totals"
-        ]
+        "required": ["yearMonth", "version", "entries", "totals"]
       },
       "MonthlyScheduleResponseDto": {
         "type": "object",
@@ -5862,39 +6128,24 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "TaskPriorityMetaDto": {
         "type": "object",
         "properties": {
           "patientStatusUrgency": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "timeSensitivity": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "taskCriticality": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "isBlocking": {
@@ -5912,11 +6163,7 @@
         "type": "object",
         "properties": {
           "suggestedPriority": {
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "reasons": {
@@ -5926,19 +6173,11 @@
             }
           },
           "confidence": {
-            "enum": [
-              "HIGH",
-              "MEDIUM",
-              "LOW"
-            ],
+            "enum": ["HIGH", "MEDIUM", "LOW"],
             "type": "string"
           }
         },
-        "required": [
-          "suggestedPriority",
-          "reasons",
-          "confidence"
-        ]
+        "required": ["suggestedPriority", "reasons", "confidence"]
       },
       "TaskDataDto": {
         "type": "object",
@@ -5948,10 +6187,7 @@
             "format": "uuid"
           },
           "scopeType": {
-            "enum": [
-              "PATIENT",
-              "WARD"
-            ],
+            "enum": ["PATIENT", "WARD"],
             "type": "string"
           },
           "patientId": {
@@ -5982,18 +6218,11 @@
             "format": "date"
           },
           "status": {
-            "enum": [
-              "TODO",
-              "IN_PROGRESS",
-              "DONE"
-            ],
+            "enum": ["TODO", "IN_PROGRESS", "DONE"],
             "type": "string"
           },
           "source": {
-            "enum": [
-              "MANUAL",
-              "AI_EXTRACTED"
-            ],
+            "enum": ["MANUAL", "AI_EXTRACTED"],
             "type": "string"
           },
           "isCarryOver": {
@@ -6019,28 +6248,16 @@
             ]
           },
           "rulePriority": {
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "confirmedPriority": {
             "nullable": true,
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "effectivePriority": {
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "version": {
@@ -6093,10 +6310,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "items",
-          "nextCursor"
-        ]
+        "required": ["items", "nextCursor"]
       },
       "TaskListResponseDto": {
         "type": "object",
@@ -6108,39 +6322,24 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "TaskPriorityMetaRequestDto": {
         "type": "object",
         "properties": {
           "patientStatusUrgency": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "timeSensitivity": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "taskCriticality": {
             "nullable": true,
-            "enum": [
-              "LOW",
-              "MEDIUM",
-              "HIGH"
-            ],
+            "enum": ["LOW", "MEDIUM", "HIGH"],
             "type": "string"
           },
           "isBlocking": {
@@ -6153,10 +6352,7 @@
         "type": "object",
         "properties": {
           "scopeType": {
-            "enum": [
-              "PATIENT",
-              "WARD"
-            ],
+            "enum": ["PATIENT", "WARD"],
             "type": "string"
           },
           "patientId": {
@@ -6189,11 +6385,7 @@
           },
           "priorityOverride": {
             "nullable": true,
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "isCarryOver": {
@@ -6214,10 +6406,7 @@
             "$ref": "#/components/schemas/TaskPriorityMetaRequestDto"
           }
         },
-        "required": [
-          "title",
-          "dueAt"
-        ]
+        "required": ["title", "dueAt"]
       },
       "TaskResponseDto": {
         "type": "object",
@@ -6229,10 +6418,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "CreateTaskPrioritySuggestionRequestDto": {
         "type": "object",
@@ -6244,9 +6430,7 @@
             "format": "date"
           }
         },
-        "required": [
-          "date"
-        ]
+        "required": ["date"]
       },
       "TaskPrioritySuggestionItemDto": {
         "type": "object",
@@ -6265,11 +6449,7 @@
             "minimum": 0
           },
           "aiSuggestedPriority": {
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "reasons": {
@@ -6340,10 +6520,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "ReserveTaskExtractionRequestDto": {
         "type": "object",
@@ -6367,10 +6544,7 @@
             }
           }
         },
-        "required": [
-          "roundingSessionId",
-          "recordIds"
-        ]
+        "required": ["roundingSessionId", "recordIds"]
       },
       "TaskExtractionReservationDataDto": {
         "type": "object",
@@ -6380,19 +6554,11 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUEUED",
-              "PROCESSING",
-              "SUCCEEDED",
-              "FAILED"
-            ],
+            "enum": ["QUEUED", "PROCESSING", "SUCCEEDED", "FAILED"],
             "type": "string"
           }
         },
-        "required": [
-          "jobId",
-          "status"
-        ]
+        "required": ["jobId", "status"]
       },
       "TaskExtractionReservationResponseDto": {
         "type": "object",
@@ -6404,10 +6570,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "TaskExtractionFailureDto": {
         "type": "object",
@@ -6420,19 +6583,13 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "code",
-          "retryable"
-        ]
+        "required": ["code", "retryable"]
       },
       "TaskExtractionEvidenceDto": {
         "type": "object",
         "properties": {
           "sourceType": {
-            "enum": [
-              "TIMELINE_EVENT",
-              "TASK"
-            ],
+            "enum": ["TIMELINE_EVENT", "TASK"],
             "type": "string"
           },
           "sourceId": {
@@ -6440,10 +6597,7 @@
             "format": "uuid"
           }
         },
-        "required": [
-          "sourceType",
-          "sourceId"
-        ]
+        "required": ["sourceType", "sourceId"]
       },
       "TaskExtractionCandidateDto": {
         "type": "object",
@@ -6514,12 +6668,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUEUED",
-              "PROCESSING",
-              "SUCCEEDED",
-              "FAILED"
-            ],
+            "enum": ["QUEUED", "PROCESSING", "SUCCEEDED", "FAILED"],
             "type": "string"
           },
           "failure": {
@@ -6565,19 +6714,13 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "UpdateTaskRequestDto": {
         "type": "object",
         "properties": {
           "scopeType": {
-            "enum": [
-              "PATIENT",
-              "WARD"
-            ],
+            "enum": ["PATIENT", "WARD"],
             "type": "string"
           },
           "patientId": {
@@ -6608,20 +6751,12 @@
             "format": "date-time"
           },
           "status": {
-            "enum": [
-              "TODO",
-              "IN_PROGRESS",
-              "DONE"
-            ],
+            "enum": ["TODO", "IN_PROGRESS", "DONE"],
             "type": "string"
           },
           "priorityOverride": {
             "nullable": true,
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "isCarryOver": {
@@ -6649,9 +6784,7 @@
             "minimum": 1
           }
         },
-        "required": [
-          "version"
-        ]
+        "required": ["version"]
       },
       "ApplyTaskCandidateRequestDto": {
         "type": "object",
@@ -6677,18 +6810,11 @@
           },
           "priorityOverride": {
             "nullable": true,
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           }
         },
-        "required": [
-          "candidateId",
-          "selected"
-        ]
+        "required": ["candidateId", "selected"]
       },
       "ApplyTaskCandidatesRequestDto": {
         "type": "object",
@@ -6702,9 +6828,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "ApplyTaskCandidatesDataDto": {
         "type": "object",
@@ -6732,10 +6856,7 @@
             }
           }
         },
-        "required": [
-          "createdTaskIds",
-          "skippedCandidateIds"
-        ]
+        "required": ["createdTaskIds", "skippedCandidateIds"]
       },
       "ApplyTaskCandidatesResponseDto": {
         "type": "object",
@@ -6747,10 +6868,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "CreateHandoffPrecheckRequestDto": {
         "type": "object",
@@ -6760,11 +6878,7 @@
             "format": "uuid"
           },
           "targetDuty": {
-            "enum": [
-              "DAY",
-              "EVENING",
-              "NIGHT"
-            ],
+            "enum": ["DAY", "EVENING", "NIGHT"],
             "type": "string",
             "example": "EVENING"
           },
@@ -6775,11 +6889,7 @@
             "example": "2026-08-13"
           }
         },
-        "required": [
-          "shiftId",
-          "targetDuty",
-          "date"
-        ]
+        "required": ["shiftId", "targetDuty", "date"]
       },
       "CreatedHandoffPrecheckDataDto": {
         "type": "object",
@@ -6790,15 +6900,10 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "QUEUED"
-            ]
+            "enum": ["QUEUED"]
           }
         },
-        "required": [
-          "precheckId",
-          "status"
-        ]
+        "required": ["precheckId", "status"]
       },
       "CreatedHandoffPrecheckResponseDto": {
         "type": "object",
@@ -6810,10 +6915,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "HandoffPrecheckSummaryDto": {
         "type": "object",
@@ -6827,19 +6929,13 @@
             "minimum": 0
           }
         },
-        "required": [
-          "critical",
-          "recommended"
-        ]
+        "required": ["critical", "recommended"]
       },
       "HandoffPrecheckEvidenceDto": {
         "type": "object",
         "properties": {
           "sourceType": {
-            "enum": [
-              "TIMELINE_EVENT",
-              "TASK"
-            ],
+            "enum": ["TIMELINE_EVENT", "TASK"],
             "type": "string"
           },
           "sourceId": {
@@ -6856,11 +6952,7 @@
             "format": "date-time"
           },
           "excerptKind": {
-            "enum": [
-              "UTTERANCE",
-              "SUMMARY",
-              "TASK_TITLE"
-            ],
+            "enum": ["UTTERANCE", "SUMMARY", "TASK_TITLE"],
             "type": "string"
           },
           "excerpt": {
@@ -6888,10 +6980,7 @@
             "format": "uuid"
           },
           "severity": {
-            "enum": [
-              "CRITICAL",
-              "RECOMMENDED"
-            ],
+            "enum": ["CRITICAL", "RECOMMENDED"],
             "type": "string"
           },
           "question": {
@@ -6952,12 +7041,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUEUED",
-              "PROCESSING",
-              "SUCCEEDED",
-              "FAILED"
-            ],
+            "enum": ["QUEUED", "PROCESSING", "SUCCEEDED", "FAILED"],
             "type": "string"
           },
           "failureCode": {
@@ -6991,12 +7075,7 @@
             }
           }
         },
-        "required": [
-          "precheckId",
-          "version",
-          "jobId",
-          "status"
-        ]
+        "required": ["precheckId", "version", "jobId", "status"]
       },
       "HandoffPrecheckResponseDto": {
         "type": "object",
@@ -7008,10 +7087,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "AnswerHandoffPrecheckItemRequestDto": {
         "type": "object",
@@ -7036,10 +7112,7 @@
             "maximum": 2147483647
           }
         },
-        "required": [
-          "answer",
-          "version"
-        ]
+        "required": ["answer", "version"]
       },
       "AnsweredHandoffPrecheckItemDataDto": {
         "type": "object",
@@ -7062,11 +7135,7 @@
             "minimum": 1
           }
         },
-        "required": [
-          "itemId",
-          "answer",
-          "version"
-        ]
+        "required": ["itemId", "answer", "version"]
       },
       "AnsweredHandoffPrecheckItemResponseDto": {
         "type": "object",
@@ -7078,10 +7147,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "HandoffDraftListItemDto": {
         "type": "object",
@@ -7091,10 +7157,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "DRAFT",
-              "FINALIZED"
-            ],
+            "enum": ["DRAFT", "FINALIZED"],
             "type": "string"
           },
           "patientCount": {
@@ -7128,9 +7191,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "HandoffDraftListPageMetaDto": {
         "type": "object",
@@ -7140,9 +7201,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "nextCursor"
-        ]
+        "required": ["nextCursor"]
       },
       "HandoffDraftListMetaDto": {
         "type": "object",
@@ -7155,10 +7214,7 @@
             "$ref": "#/components/schemas/HandoffDraftListPageMetaDto"
           }
         },
-        "required": [
-          "requestId",
-          "page"
-        ]
+        "required": ["requestId", "page"]
       },
       "HandoffDraftListResponseDto": {
         "type": "object",
@@ -7170,10 +7226,7 @@
             "$ref": "#/components/schemas/HandoffDraftListMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "HandoffGenerationJobDto": {
         "type": "object",
@@ -7183,12 +7236,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUEUED",
-              "PROCESSING",
-              "SUCCEEDED",
-              "FAILED"
-            ],
+            "enum": ["QUEUED", "PROCESSING", "SUCCEEDED", "FAILED"],
             "type": "string"
           },
           "failureCode": {
@@ -7200,10 +7248,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "jobId",
-          "status"
-        ]
+        "required": ["jobId", "status"]
       },
       "HandoffDraftClinicalSectionsDto": {
         "type": "object",
@@ -7240,10 +7285,7 @@
         "type": "object",
         "properties": {
           "sourceType": {
-            "enum": [
-              "TIMELINE_EVENT",
-              "TASK"
-            ],
+            "enum": ["TIMELINE_EVENT", "TASK"],
             "type": "string"
           },
           "sourceId": {
@@ -7259,10 +7301,7 @@
             "format": "date-time"
           },
           "excerptKind": {
-            "enum": [
-              "SUMMARY",
-              "TASK_TITLE"
-            ],
+            "enum": ["SUMMARY", "TASK_TITLE"],
             "type": "string"
           },
           "excerpt": {
@@ -7345,11 +7384,7 @@
             "format": "date-time"
           },
           "effectivePriority": {
-            "enum": [
-              "CRITICAL",
-              "HIGH",
-              "NORMAL"
-            ],
+            "enum": ["CRITICAL", "HIGH", "NORMAL"],
             "type": "string"
           },
           "version": {
@@ -7357,12 +7392,7 @@
             "minimum": 1
           }
         },
-        "required": [
-          "taskId",
-          "title",
-          "effectivePriority",
-          "version"
-        ]
+        "required": ["taskId", "title", "effectivePriority", "version"]
       },
       "HandoffDraftWarningDto": {
         "type": "object",
@@ -7373,10 +7403,7 @@
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "CRITICAL",
-              "RECOMMENDED"
-            ]
+            "enum": ["CRITICAL", "RECOMMENDED"]
           },
           "answer": {
             "type": "string",
@@ -7389,12 +7416,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "itemId",
-          "severity",
-          "message",
-          "isIncludedInAiInput"
-        ]
+        "required": ["itemId", "severity", "message", "isIncludedInAiInput"]
       },
       "HandoffDraftDetailDataDto": {
         "type": "object",
@@ -7404,11 +7426,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "GENERATING",
-              "DRAFT",
-              "FINALIZED"
-            ],
+            "enum": ["GENERATING", "DRAFT", "FINALIZED"],
             "type": "string"
           },
           "version": {
@@ -7432,9 +7450,7 @@
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "NURSING_HANDOFF_V1"
-            ]
+            "enum": ["NURSING_HANDOFF_V1"]
           },
           "includeUnverified": {
             "type": "boolean"
@@ -7483,10 +7499,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "CreateHandoffDraftRequestDto": {
         "type": "object",
@@ -7497,20 +7510,14 @@
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "NURSING_HANDOFF_V1"
-            ],
+            "enum": ["NURSING_HANDOFF_V1"],
             "example": "NURSING_HANDOFF_V1"
           },
           "includeUnverified": {
             "type": "boolean"
           }
         },
-        "required": [
-          "precheckId",
-          "templateId",
-          "includeUnverified"
-        ]
+        "required": ["precheckId", "templateId", "includeUnverified"]
       },
       "CreatedHandoffDraftDataDto": {
         "type": "object",
@@ -7521,15 +7528,10 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "GENERATING"
-            ]
+            "enum": ["GENERATING"]
           }
         },
-        "required": [
-          "handoffId",
-          "status"
-        ]
+        "required": ["handoffId", "status"]
       },
       "CreatedHandoffDraftResponseDto": {
         "type": "object",
@@ -7541,10 +7543,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "UpdateHandoffClinicalSectionsRequestDto": {
         "type": "object",
@@ -7594,10 +7593,7 @@
             "$ref": "#/components/schemas/UpdateHandoffClinicalSectionsRequestDto"
           }
         },
-        "required": [
-          "patientId",
-          "sections"
-        ]
+        "required": ["patientId", "sections"]
       },
       "UpdateHandoffDraftRequestDto": {
         "type": "object",
@@ -7625,11 +7621,7 @@
             "maximum": 2147483647
           }
         },
-        "required": [
-          "patients",
-          "taskIds",
-          "version"
-        ]
+        "required": ["patients", "taskIds", "version"]
       },
       "UpdatedHandoffDraftDataDto": {
         "type": "object",
@@ -7640,9 +7632,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "DRAFT"
-            ]
+            "enum": ["DRAFT"]
           },
           "version": {
             "type": "number",
@@ -7653,12 +7643,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "handoffId",
-          "status",
-          "version",
-          "updatedAt"
-        ]
+        "required": ["handoffId", "status", "version", "updatedAt"]
       },
       "UpdatedHandoffDraftResponseDto": {
         "type": "object",
@@ -7670,10 +7655,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "FinalizeHandoffRequestDto": {
         "type": "object",
@@ -7684,17 +7666,11 @@
             "maximum": 2147483647
           },
           "unverifiedHandling": {
-            "enum": [
-              "RESOLVED",
-              "KEEP_WITH_WARNING"
-            ],
+            "enum": ["RESOLVED", "KEEP_WITH_WARNING"],
             "type": "string"
           }
         },
-        "required": [
-          "version",
-          "unverifiedHandling"
-        ]
+        "required": ["version", "unverifiedHandling"]
       },
       "FinalizedHandoffDataDto": {
         "type": "object",
@@ -7705,9 +7681,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "FINALIZED"
-            ]
+            "enum": ["FINALIZED"]
           },
           "finalizedAt": {
             "type": "string",
@@ -7718,12 +7692,7 @@
             "minimum": 1
           }
         },
-        "required": [
-          "handoffId",
-          "status",
-          "finalizedAt",
-          "version"
-        ]
+        "required": ["handoffId", "status", "finalizedAt", "version"]
       },
       "FinalizedHandoffResponseDto": {
         "type": "object",
@@ -7735,19 +7704,13 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "CreateHandoffAcknowledgementRequestDto": {
         "type": "object",
         "properties": {
           "status": {
-            "enum": [
-              "QUESTIONED",
-              "ACKNOWLEDGED"
-            ],
+            "enum": ["QUESTIONED", "ACKNOWLEDGED"],
             "type": "string"
           },
           "comment": {
@@ -7756,9 +7719,7 @@
             "maxLength": 1000
           }
         },
-        "required": [
-          "status"
-        ]
+        "required": ["status"]
       },
       "HandoffAcknowledgementDataDto": {
         "type": "object",
@@ -7768,10 +7729,7 @@
             "format": "uuid"
           },
           "status": {
-            "enum": [
-              "QUESTIONED",
-              "ACKNOWLEDGED"
-            ],
+            "enum": ["QUESTIONED", "ACKNOWLEDGED"],
             "type": "string"
           },
           "acknowledgedAt": {
@@ -7779,11 +7737,7 @@
             "format": "date-time"
           }
         },
-        "required": [
-          "acknowledgementId",
-          "status",
-          "acknowledgedAt"
-        ]
+        "required": ["acknowledgementId", "status", "acknowledgedAt"]
       },
       "HandoffAcknowledgementResponseDto": {
         "type": "object",
@@ -7795,10 +7749,7 @@
             "$ref": "#/components/schemas/ApiMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       },
       "HandoffHistoryMetadataDto": {
         "type": "object",
@@ -7812,10 +7763,7 @@
             "minimum": 1
           },
           "unverifiedHandling": {
-            "enum": [
-              "RESOLVED",
-              "KEEP_WITH_WARNING"
-            ],
+            "enum": ["RESOLVED", "KEEP_WITH_WARNING"],
             "type": "string"
           },
           "warningItemIds": {
@@ -7826,10 +7774,7 @@
             }
           },
           "status": {
-            "enum": [
-              "QUESTIONED",
-              "ACKNOWLEDGED"
-            ],
+            "enum": ["QUESTIONED", "ACKNOWLEDGED"],
             "type": "string"
           }
         }
@@ -7866,13 +7811,7 @@
             "$ref": "#/components/schemas/HandoffHistoryMetadataDto"
           }
         },
-        "required": [
-          "eventId",
-          "type",
-          "actorId",
-          "occurredAt",
-          "metadata"
-        ]
+        "required": ["eventId", "type", "actorId", "occurredAt", "metadata"]
       },
       "HandoffHistoryDataDto": {
         "type": "object",
@@ -7884,9 +7823,7 @@
             }
           }
         },
-        "required": [
-          "items"
-        ]
+        "required": ["items"]
       },
       "HandoffHistoryPageMetaDto": {
         "type": "object",
@@ -7896,9 +7833,7 @@
             "nullable": true
           }
         },
-        "required": [
-          "nextCursor"
-        ]
+        "required": ["nextCursor"]
       },
       "HandoffHistoryMetaDto": {
         "type": "object",
@@ -7911,10 +7846,7 @@
             "$ref": "#/components/schemas/HandoffHistoryPageMetaDto"
           }
         },
-        "required": [
-          "requestId",
-          "page"
-        ]
+        "required": ["requestId", "page"]
       },
       "HandoffHistoryResponseDto": {
         "type": "object",
@@ -7926,10 +7858,7 @@
             "$ref": "#/components/schemas/HandoffHistoryMetaDto"
           }
         },
-        "required": [
-          "data",
-          "meta"
-        ]
+        "required": ["data", "meta"]
       }
     }
   },

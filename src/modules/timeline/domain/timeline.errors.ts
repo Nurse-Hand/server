@@ -21,3 +21,25 @@ export class TimelinePeriodInvalidError extends ApplicationError {
     this.name = TimelinePeriodInvalidError.name;
   }
 }
+
+export class TimelineEventNotFoundError extends ApplicationError {
+  constructor() {
+    super({
+      code: 'TIMELINE_EVENT_NOT_FOUND',
+      kind: 'NOT_FOUND',
+      publicMessage: 'Timeline 이벤트를 찾을 수 없습니다.',
+    });
+    this.name = TimelineEventNotFoundError.name;
+  }
+}
+
+export class TimelineEventUpdateInvalidError extends ApplicationError {
+  constructor(message: string) {
+    super({
+      code: 'TIMELINE_EVENT_UPDATE_INVALID',
+      kind: 'BAD_REQUEST',
+      publicMessage: message,
+    });
+    this.name = TimelineEventUpdateInvalidError.name;
+  }
+}
