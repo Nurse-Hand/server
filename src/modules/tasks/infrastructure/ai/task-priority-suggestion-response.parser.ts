@@ -8,6 +8,7 @@ import {
   TASK_PRIORITY_SUGGESTION_REASON_LIMIT,
   TASK_PRIORITY_SUGGESTION_REASON_MAX_LENGTH,
   type TaskPriority,
+  type TaskPriorityAiInput,
 } from '../../domain/task.types';
 
 export type ParsedTaskPrioritySuggestion = {
@@ -101,8 +102,13 @@ function readScore(value: unknown): number {
   return value;
 }
 
-function readAiPriority(value: unknown): 'CRITICAL' | 'HIGH' | 'NORMAL' {
-  if (value !== 'CRITICAL' && value !== 'HIGH' && value !== 'NORMAL') {
+function readAiPriority(value: unknown): TaskPriorityAiInput {
+  if (
+    value !== 'CRITICAL' &&
+    value !== 'HIGH' &&
+    value !== 'NORMAL' &&
+    value !== 'LOW'
+  ) {
     invalidResponse();
   }
   return value;

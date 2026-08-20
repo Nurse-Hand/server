@@ -1,7 +1,7 @@
 import type {
   TaskListSort,
   TaskPriority,
-  TaskPriorityAiPriority,
+  TaskPriorityAiInput,
 } from './task.types';
 
 const PRIORITY_RANK: Readonly<Record<TaskPriority, number>> = {
@@ -49,10 +49,8 @@ export type TaskPrioritySuggestionOrderingValue = {
   aiScore: number;
 };
 
-export function mapAiTaskPriority(
-  priority: TaskPriorityAiPriority,
-): TaskPriority {
-  return priority;
+export function mapAiTaskPriority(priority: TaskPriorityAiInput): TaskPriority {
+  return priority === 'LOW' ? 'NORMAL' : priority;
 }
 
 export function compareTaskPrioritySuggestions(
