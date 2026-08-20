@@ -3,17 +3,20 @@
 
   const STORAGE_KEY = 'nurse-hand-rounding-mvp-lab';
   const DATA = window.__ROUNDING_MVP_LAB_DATA__;
+  const API = window.__ROUNDING_MVP_API__;
 
-  if (!DATA) {
+  if (!DATA || !API) {
     document.body.innerHTML =
-      "<main style='padding:24px;font-family:system-ui'>embedded mockdata를 찾을 수 없습니다.</main>";
+      "<main style='padding:24px;font-family:system-ui'>하네스 데이터 또는 API client를 찾을 수 없습니다.</main>";
     return;
   }
 
   const elements = {
     screens: Array.from(document.querySelectorAll('[data-screen]')),
     navTargets: Array.from(document.querySelectorAll('[data-nav-target]')),
-    navItems: Array.from(document.querySelectorAll('.nav-item[data-nav-target]')),
+    navItems: Array.from(
+      document.querySelectorAll('.nav-item[data-nav-target]'),
+    ),
     modeRadios: Array.from(document.querySelectorAll('input[name="mode"]')),
     personaRadios: Array.from(
       document.querySelectorAll('input[name="persona"]'),
@@ -21,6 +24,8 @@
     baseUrl: document.getElementById('base-url'),
     senderSessionId: document.getElementById('sender-session-id'),
     receiverSessionId: document.getElementById('receiver-session-id'),
+    senderShiftId: document.getElementById('sender-shift-id'),
+    handoffDate: document.getElementById('handoff-date'),
     modeBadge: document.getElementById('mode-badge'),
     scenarioCaption: document.getElementById('scenario-caption'),
     sessionState: document.getElementById('session-state'),
@@ -98,8 +103,9 @@
           description: 'SENDER/RECEIVER demo session 발급',
         };
       },
-      applyReal(realData) {
+      async applyReal(realData) {
         syncDemoSessions(realData);
+        return loadRealPatients();
       },
       mockHandler() {
         syncDemoSessions(DATA.expectedResults.demoSession.mockResponse.data);
@@ -141,35 +147,51 @@
           path: DATA.rounding.sessionTemplate.apiPaths.startSession,
           requiresDemoSession: true,
           body: {
-            startedAt: `${DATA.rounding.roundingDate}T09:10:00+09:00`,
-            note: `${DATA.rounding.sessionTemplate.sessionLabel} / synthetic ${DATA.rounding.visitPlan.length} visits`,
+            startedAt: new Date().toISOString(),
+            note: `${DATA.rounding.sessionTemplate.sessionLabel} / browser lab`,
           },
           description: '라운딩 세션 시작',
         };
       },
-      applyReal(realData) {
+      async applyReal(realData) {
         state.ui.activeScreen = 'rounding';
         state.session.status = 'IN_PROGRESS';
         state.session.sessionId =
           realData.id || realData.sessionId || state.session.sessionId;
+        state.session.startedAt =
+          realData.startedAt || new Date().toISOString();
         state.session.currentVisitIndex = 0;
         state.session.completedVisitIds = [];
         state.session.records = {};
+        state.session.visitIntervals = {};
+        state.session.lastSegmentEndedAt = null;
+        state.analysis.job = null;
+        state.analysis.confirmation = null;
         state.flags.analysisReady = false;
+        state.flags.evidenceReady = false;
         state.flags.tasksReady = false;
         state.flags.precheckReady = false;
         state.flags.handoffReady = false;
+        if (state.real.visitPlan.length === 0) {
+          return loadRealPatients();
+        }
       },
       mockHandler() {
         const data = DATA.expectedResults.sessionStart.mockResponse.data;
         state.ui.activeScreen = 'rounding';
         state.session.status = 'IN_PROGRESS';
         state.session.sessionId = data.sessionId;
+        state.session.startedAt = data.startedAt;
         state.session.currentVisitIndex = 0;
         state.session.completedVisitIds = [];
         state.session.records = {};
         state.session.completedAt = null;
+        state.session.visitIntervals = {};
+        state.session.lastSegmentEndedAt = null;
+        state.analysis.job = null;
+        state.analysis.confirmation = null;
         state.flags.analysisReady = false;
+        state.flags.evidenceReady = false;
         state.flags.tasksReady = false;
         state.flags.precheckReady = false;
         state.flags.handoffReady = false;
@@ -204,18 +226,10 @@
             '다음 환자 이동',
           );
         }
-        if (!hasAssignedUpload(currentVisit().visitId)) {
-          return failResult(
-            'warning',
-            '현재 환자에 연결된 녹음 파일이 없습니다.',
-            '오른쪽 패널에서 파일 업로드',
-          );
-        }
         return null;
       },
       buildRequest() {
         const visit = currentVisit();
-        const audioSource = getAudioSourceForVisit(visit);
         return {
           method: 'POST',
           path: DATA.rounding.sessionTemplate.apiPaths.createRecord.replace(
@@ -227,13 +241,10 @@
             patientId: visit.patientId,
             startedAt: estimateVisitStartedAt(visit),
             endedAt: estimateVisitEndedAt(visit),
-            note: `${visit.roundLabel} / ${visit.summaryHint} / audio=${audioSource.fileName}`,
+            note: `${visit.roundLabel} / ${visit.summaryHint}`,
           },
           labMetadata: {
             visitId: visit.visitId,
-            audioAssetId: visit.audioAssetId,
-            sourceType: audioSource.sourceType,
-            ...audioSource.meta,
           },
           description: '현재 환자 기록 저장',
         };
@@ -296,10 +307,7 @@
             '현재 환자 종료',
           );
         }
-        if (
-          state.session.currentVisitIndex >=
-          DATA.rounding.visitPlan.length - 1
-        ) {
+        if (state.session.currentVisitIndex >= activeVisitPlan().length - 1) {
           return failResult(
             'warning',
             '마지막 방문입니다.',
@@ -358,8 +366,7 @@
           );
         }
         if (
-          state.session.completedVisitIds.length !==
-          DATA.rounding.visitPlan.length
+          state.session.completedVisitIds.length !== activeVisitPlan().length
         ) {
           return failResult(
             'warning',
@@ -378,14 +385,15 @@
           ),
           requiresDemoSession: true,
           body: {
-            completedAt: `${DATA.rounding.roundingDate}T14:55:00+09:00`,
+            completedAt: completionTimestamp(),
           },
           description: '라운딩 세션 종료',
         };
       },
-      applyReal() {
+      applyReal(realData) {
         state.session.status = 'COMPLETED';
-        state.session.completedAt = `${DATA.rounding.roundingDate}T14:55:00+09:00`;
+        state.session.completedAt =
+          realData.completedAt || new Date().toISOString();
       },
       mockHandler() {
         state.session.status = 'COMPLETED';
@@ -403,8 +411,8 @@
             },
           },
           detailText:
-            '2차 라운딩까지 종료했습니다. 이제 서버 분석, task 추출, handoff 흐름을 확인할 수 있습니다.',
-          nextAction: '서버 분석',
+            '2차 라운딩까지 종료했습니다. 이제 오디오 업로드·분석, 업무 목록, handoff 흐름을 확인할 수 있습니다.',
+          nextAction: '오디오 업로드·분석',
           summaryLines: [
             `sessionId: ${state.session.sessionId}`,
             `completedVisitCount: ${state.session.completedVisitIds.length}`,
@@ -414,66 +422,80 @@
       },
     },
     'analyze-server': {
-      label: '서버 분석',
+      label: '오디오 업로드·분석',
       transport: 'http',
       guard() {
         if (state.session.completedVisitIds.length === 0) {
           return failResult(
             'warning',
-            '분석할 기록이 없습니다.',
+            '업로드할 라운딩 기록이 없습니다.',
             '현재 환자 종료',
+          );
+        }
+        if (!state.uploads.roundingLibrary[0]?.file) {
+          return failResult(
+            'warning',
+            '세션 전체 녹음 File이 연결되지 않았습니다.',
+            '오른쪽 패널에서 세션 오디오 파일 선택',
           );
         }
         return null;
       },
       buildRequest() {
+        const multipartFiles = [state.uploads.roundingLibrary[0].file];
         return {
           method: 'POST',
-          path: DATA.rounding.sessionTemplate.apiPaths.audioAnalyze.replace(
-            '{sessionId}',
-            state.session.sessionId,
-          ),
+          path: DATA.rounding.sessionTemplate.apiPaths.audioUpload,
           requiresDemoSession: true,
-          body: {
-            sessionId: state.session.sessionId,
-            items: completedVisitResults().map((visitResult) => {
-              const visit = getVisitById(visitResult.visitId);
-              const audioSource = getAudioSourceForVisit(visit);
-              return {
-                visitId: visit.visitId,
-                patientId: visit.patientId,
-                audioAssetId: visit.audioAssetId,
-                sourceType: audioSource.sourceType,
-                fileName: audioSource.fileName,
-                ...audioSource.meta,
-              };
-            }),
-            quickNotes: state.uploads.quickNotes.map((item) => ({
-              quickNoteId: item.id,
-              patientId: item.patientId,
-              topic: item.topic,
-              fileName: item.fileName,
-              size: item.size,
-              sourceType: 'QUICK_NOTE',
-            })),
+          multipartFiles,
+          body: multipartFiles.map((file) => ({
+            field: 'file',
+            fileName: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            size: file.size,
+          })),
+          afterMultipart(uploadedFiles) {
+            const firstAudioFile = uploadedFiles[0];
+            return {
+              method: 'POST',
+              path: DATA.rounding.sessionTemplate.apiPaths.analysisStart.replace(
+                '{sessionId}',
+                state.session.sessionId,
+              ),
+              requiresDemoSession: true,
+              body: {
+                audioFileId: firstAudioFile.id,
+              },
+            };
           },
-          description: '오디오 chunk 기반 서버 분석',
+          description:
+            '실제 File 객체를 multipart/form-data로 업로드한 뒤 라운딩 분석 Job 시작',
+          summaryPaths: [
+            'POST /api/v1/files/audio',
+            'POST /api/v1/rounding-sessions/{sessionId}/analysis-jobs',
+          ],
         };
       },
-      applyReal() {
-        state.flags.analysisReady = true;
+      applyReal(realData) {
+        state.uploads.storedFiles = realData.uploadedFiles || [];
+        state.analysis.job = realData.analysisJob || null;
+        state.flags.analysisReady = state.analysis.job?.status === 'SUCCEEDED';
       },
       mockHandler() {
         state.flags.analysisReady = true;
+        state.analysis.job =
+          DATA.expectedResults.roundingAnalysis.mockResponse.data.analysisJob;
+        state.uploads.storedFiles =
+          DATA.expectedResults.roundingAnalysis.mockResponse.data.uploadedFiles;
         return {
-          responsePayload: DATA.expectedResults.analysisJob.mockResponse,
-          detailText:
-            '6개 visit 기준 evidence 추출과 patient match review summary를 생성했습니다.',
-          nextAction: 'Evidence 또는 업무 후보',
+          responsePayload: DATA.expectedResults.roundingAnalysis.mockResponse,
+          detailText: 'synthetic 오디오 저장·분석 결과를 표시했습니다.',
+          nextAction: '스크립트 또는 Evidence 확인',
           summaryLines: [
-            'processedVisitCount: 6',
-            'patientMatchReviewCount: 2',
-            'evidenceCount: 14',
+            'POST /api/v1/files/audio',
+            'POST /api/v1/rounding-sessions/{sessionId}/analysis-jobs',
+            'transport: multipart/form-data',
+            'analysis status: SUCCEEDED',
           ],
         };
       },
@@ -490,16 +512,20 @@
         };
       },
       mockHandler() {
+        const script =
+          state.config.mode !== 'mock' && state.analysis.job?.fullText
+            ? state.analysis.job.fullText
+            : DATA.expectedResults.scripts.fullTranscript;
         return {
           responsePayload: {
             data: {
-              script: DATA.expectedResults.scripts.fullTranscript,
+              script,
             },
             meta: {
               requestId: 'local-full-script',
             },
           },
-          detailText: DATA.expectedResults.scripts.fullTranscript,
+          detailText: script,
           nextAction: 'Top3 후보 또는 Evidence',
           summaryLines: [
             '6개 visit synthetic transcript',
@@ -523,9 +549,21 @@
         };
       },
       mockHandler() {
-        const patientScript = DATA.expectedResults.scripts.patientScripts.find(
-          (item) => item.patientId === currentVisit().patientId,
-        );
+        const patientId = currentVisit().patientId;
+        const realScript = state.analysis.job?.utterances
+          ?.filter((item) => item.patientId === patientId)
+          .map((item) => item.text)
+          .join('\n');
+        const patientScript =
+          state.config.mode !== 'mock' && realScript
+            ? {
+                patientId,
+                patientLabel: patientLabel(patientId),
+                combinedScript: realScript,
+              }
+            : DATA.expectedResults.scripts.patientScripts.find(
+                (item) => item.patientId === patientId,
+              );
         return {
           responsePayload: {
             data: patientScript,
@@ -557,6 +595,28 @@
         };
       },
       mockHandler() {
+        if (
+          state.config.mode !== 'mock' &&
+          state.analysis.job?.speakerMatches?.length
+        ) {
+          return {
+            responsePayload: {
+              data: state.analysis.job.speakerMatches,
+              meta: { requestId: 'local-real-speaker-matches' },
+            },
+            detailText: state.analysis.job.speakerMatches
+              .map(
+                (match) =>
+                  `${match.rank}. ${match.displayName} - similarity ${match.similarity}`,
+              )
+              .join('\n'),
+            nextAction: 'Evidence 확인',
+            summaryLines: [
+              `analysisJob: ${state.analysis.job.jobId}`,
+              `candidates: ${state.analysis.job.speakerMatches.length}`,
+            ],
+          };
+        }
         const visitResult = currentVisitResult();
         return {
           responsePayload: {
@@ -581,60 +641,13 @@
     },
     'show-evidence': {
       label: 'Evidence',
-      transport: 'local',
-      guard() {
-        if (state.session.completedVisitIds.length === 0) {
-          return failResult(
-            'warning',
-            '표시할 evidence가 없습니다.',
-            '현재 환자 종료',
-          );
-        }
-        return null;
-      },
-      buildRequest() {
-        return {
-          method: 'LOCAL',
-          path: 'lab://show-evidence',
-          requiresDemoSession: false,
-          body: {
-            visitId: currentVisit().visitId,
-          },
-          description: '현재 방문 evidence 보기',
-        };
-      },
-      mockHandler() {
-        const visitResult = currentVisitResult();
-        return {
-          responsePayload: {
-            data: visitResult.evidence,
-            meta: {
-              requestId: 'local-evidence',
-            },
-          },
-          detailText: visitResult.evidence
-            .map((item) => `${item.kind}: ${item.summary} (${item.evidenceId})`)
-            .join('\n'),
-          nextAction: '업무 후보',
-          summaryLines: [
-            `patient: ${patientLabel(visitResult.patientId)}`,
-            `evidenceCount: ${visitResult.evidence.length}`,
-          ],
-        };
-      },
-    },
-    'extract-tasks': {
-      label: '업무 후보',
       transport: 'http',
       guard() {
-        if (
-          !state.flags.analysisReady &&
-          state.session.completedVisitIds.length === 0
-        ) {
+        if (!state.flags.analysisReady || !state.analysis.job) {
           return failResult(
             'warning',
-            '분석 결과가 아직 없습니다.',
-            '서버 분석',
+            '확정할 분석 결과가 없습니다.',
+            '오디오 업로드·분석',
           );
         }
         return null;
@@ -642,36 +655,80 @@
       buildRequest() {
         return {
           method: 'POST',
-          path: DATA.rounding.sessionTemplate.apiPaths.tasksExtract,
+          path: DATA.rounding.sessionTemplate.apiPaths.analysisConfirm.replace(
+            '{sessionId}',
+            state.session.sessionId,
+          ),
           requiresDemoSession: true,
           body: {
-            sessionId: state.session.sessionId,
-            recordIds: Object.values(state.session.records),
-            evidenceIds: completedVisitResults().flatMap((item) =>
-              item.evidence.map((evidence) => evidence.evidenceId),
-            ),
+            jobId: state.analysis.job.jobId,
+            utterances: state.analysis.job.utterances.map((utterance) => ({
+              utteranceId: utterance.utteranceId,
+              patientId: utterance.patientId,
+              speakerRole: utterance.speakerRole,
+              important: utterance.important,
+            })),
           },
-          description: '업무 추출 job 생성',
+          description: '간호사 확인 결과로 Evidence·Timeline 확정 저장',
         };
       },
-      applyReal() {
+      applyReal(realData) {
+        state.analysis.confirmation = realData;
+        state.flags.evidenceReady = true;
+      },
+      mockHandler() {
+        state.analysis.confirmation =
+          DATA.expectedResults.roundingAnalysisConfirmation.mockResponse.data;
+        state.flags.evidenceReady = true;
+        const evidences = state.analysis.confirmation.evidences;
+        return {
+          responsePayload:
+            DATA.expectedResults.roundingAnalysisConfirmation.mockResponse,
+          detailText: evidences
+            .map(
+              (item) =>
+                `${item.topic}: ${item.textForRetrieval} (${item.evidenceId})`,
+            )
+            .join('\n'),
+          nextAction: '업무 목록 또는 인수인계 질문',
+          summaryLines: [
+            'POST /api/v1/rounding-sessions/{sessionId}/analysis-confirmation',
+            `evidenceCount: ${evidences.length}`,
+          ],
+        };
+      },
+    },
+    'show-tasks': {
+      label: '업무 목록',
+      transport: 'http',
+      buildRequest() {
+        return {
+          method: 'GET',
+          path: `${DATA.rounding.sessionTemplate.apiPaths.tasksList}?date=${currentSeoulDate()}`,
+          requiresDemoSession: true,
+          description: '간호사가 직접 생성한 당일 업무 조회',
+        };
+      },
+      applyReal(realData) {
+        state.real.tasks = realData.items || [];
         state.flags.tasksReady = true;
       },
       mockHandler() {
         state.flags.tasksReady = true;
         return {
-          responsePayload: DATA.expectedResults.taskExtractionJob.mockResponse,
-          detailText:
-            DATA.expectedResults.taskExtractionJob.mockResponse.data.candidates
-              .map(
-                (candidate) =>
-                  `${patientLabel(candidate.patientId)} / ${candidate.title} / ${candidate.effectivePriority}`,
-              )
-              .join('\n'),
+          responsePayload: {
+            data: {
+              items: DATA.tasks.items,
+            },
+            meta: { requestId: 'local-task-list' },
+          },
+          detailText: DATA.tasks.items
+            .map((task) => `${task.title} / ${task.effectivePriority}`)
+            .join('\n'),
           nextAction: '인수인계 질문',
           summaryLines: [
-            'taskExtraction status: SUCCEEDED',
-            `candidates: ${DATA.expectedResults.taskExtractionJob.mockResponse.data.candidates.length}`,
+            'GET /api/v1/tasks',
+            `manual tasks: ${DATA.tasks.items.length}`,
           ],
         };
       },
@@ -680,11 +737,18 @@
       label: '인수인계 질문',
       transport: 'http',
       guard() {
-        if (!state.flags.tasksReady) {
+        if (!state.flags.evidenceReady) {
           return failResult(
             'warning',
-            '업무 후보가 아직 없습니다.',
-            '업무 후보',
+            '확정된 Evidence가 아직 없습니다.',
+            'Evidence 확인',
+          );
+        }
+        if (state.config.mode !== 'mock' && !state.config.senderShiftId) {
+          return failResult(
+            'warning',
+            '실제 precheck에는 Sender shift UUID가 필요합니다.',
+            '개발 연결 설정에 NurseShift.id 입력',
           );
         }
         return null;
@@ -694,22 +758,36 @@
           method: 'POST',
           path: DATA.rounding.sessionTemplate.apiPaths.handoffPrecheck,
           requiresDemoSession: true,
+          requiresIdempotency: true,
+          idempotencyScope: 'handoff-precheck',
           body: {
-            sessionId: state.session.sessionId,
-            receiverNurseId: nurseByPersona('RECEIVER').nurseId,
-            patientIds: uniqueCompletedPatientIds(),
-            taskIds: DATA.tasks.items.map((task) => task.taskId),
+            shiftId: state.config.senderShiftId,
+            targetDuty: 'EVENING',
+            date: state.config.handoffDate,
+          },
+          poll: {
+            path(data) {
+              return `/api/v1/handoff-prechecks/${data.precheckId}`;
+            },
+            readStatus(data) {
+              return data.status;
+            },
+            terminalStatuses: ['SUCCEEDED', 'FAILED'],
+            successStatuses: ['SUCCEEDED'],
           },
           description: 'handoff precheck 생성',
         };
       },
-      applyReal() {
+      applyReal(realData) {
         state.ui.activeScreen = 'handoff';
         state.flags.precheckReady = true;
+        state.handoff.precheckId = realData.precheckId;
       },
       mockHandler() {
         state.ui.activeScreen = 'handoff';
         state.flags.precheckReady = true;
+        state.handoff.precheckId =
+          DATA.expectedResults.handoffPrecheck.mockResponse.data.precheckId;
         return {
           responsePayload: DATA.expectedResults.handoffPrecheck.mockResponse,
           detailText:
@@ -742,35 +820,47 @@
           method: 'POST',
           path: DATA.rounding.sessionTemplate.apiPaths.handoffDraft,
           requiresDemoSession: true,
+          requiresIdempotency: true,
+          idempotencyScope: 'handoff-draft',
           body: {
-            sessionId: state.session.sessionId,
-            senderNurseId: nurseByPersona('SENDER').nurseId,
-            receiverNurseId: nurseByPersona('RECEIVER').nurseId,
-            patientIds: uniqueCompletedPatientIds(),
-            precheckId:
-              DATA.expectedResults.handoffPrecheck.mockResponse.data.precheckId,
+            precheckId: state.handoff.precheckId,
+            templateId: 'NURSING_HANDOFF_V1',
+            includeUnverified: false,
+          },
+          poll: {
+            path(data) {
+              return `/api/v1/handoffs/${data.handoffId}`;
+            },
+            readStatus(data) {
+              return data.status === 'GENERATING'
+                ? data.generationJob?.status
+                : data.status;
+            },
+            terminalStatuses: ['DRAFT', 'FINALIZED', 'SUCCEEDED', 'FAILED'],
+            successStatuses: ['DRAFT', 'FINALIZED', 'SUCCEEDED'],
           },
           description: 'handoff draft 생성',
         };
       },
-      applyReal() {
+      applyReal(realData) {
         state.ui.activeScreen = 'handoff';
         state.flags.handoffReady = true;
+        state.handoff.handoffId = realData.handoffId;
       },
       mockHandler() {
         state.ui.activeScreen = 'handoff';
         state.flags.handoffReady = true;
+        state.handoff.handoffId =
+          DATA.expectedResults.handoffDraft.mockResponse.data.handoffId;
         return {
           responsePayload: DATA.expectedResults.handoffDraft.mockResponse,
-          detailText:
-            DATA.expectedResults.handoffDraft.mockResponse.data.sections
-              .map((section) => `${section.section}. ${section.content}`)
-              .join('\n\n'),
-          nextAction:
-            DATA.expectedResults.handoffDraft.mockResponse.data.nextAction,
+          detailText: summarizeHandoffDraft(
+            DATA.expectedResults.handoffDraft.mockResponse.data,
+          ),
+          nextAction: '초안 검토·수정 또는 최종 확정',
           summaryLines: [
             `handoffId: ${DATA.expectedResults.handoffDraft.mockResponse.data.handoffId}`,
-            'SBAR draft 생성 완료',
+            '6개 임상 section draft 생성 완료',
           ],
         };
       },
@@ -900,6 +990,18 @@
       renderAll();
     });
 
+    elements.senderShiftId.addEventListener('input', () => {
+      state.config.senderShiftId = elements.senderShiftId.value.trim();
+      persistConfig();
+      renderAll();
+    });
+
+    elements.handoffDate.addEventListener('input', () => {
+      state.config.handoffDate = elements.handoffDate.value;
+      persistConfig();
+      renderAll();
+    });
+
     if (elements.patientSearchInput) {
       elements.patientSearchInput.addEventListener('input', () => {
         state.ui.patientSearch = elements.patientSearchInput.value.trim();
@@ -1003,10 +1105,26 @@
       const requestError = validateRealRequest(requestShape);
       if (!requestError) {
         apiOutcome = await executeHttp(requestShape);
+        if (apiOutcome.ok && apiOutcome.status === 202 && requestShape.poll) {
+          apiOutcome = await pollHttp(
+            requestShape.poll,
+            extractResponseData(apiOutcome.body),
+          );
+        }
         if (apiOutcome.ok) {
           const realData = extractResponseData(apiOutcome.body);
           if (action.applyReal) {
-            action.applyReal(realData);
+            const applyOutcome = await action.applyReal(realData);
+            if (applyOutcome?.ok === false) {
+              const failure = failureFromApiOutcome(applyOutcome, requestShape);
+              setResult(
+                action.label,
+                failure,
+                requestPreview,
+                applyOutcome.body,
+              );
+              return;
+            }
           }
           const successResult = {
             tone: 'accent',
@@ -1018,7 +1136,9 @@
                 : `${action.label} 실응답 수신`,
             nextAction: inferNextAction(actionId, 'real'),
             summaryLines: [
-              `${requestShape.method} ${requestShape.path}`,
+              ...(requestShape.summaryPaths || [
+                `${requestShape.method} ${requestShape.path}`,
+              ]),
               `status: ${apiOutcome.status}`,
               'origin: real',
             ],
@@ -1034,7 +1154,7 @@
         }
       }
 
-      if (mode === 'real') {
+      if (mode === 'real' || requestError || !apiOutcome?.isRouteNotFound) {
         const failure = apiOutcome
           ? failureFromApiOutcome(apiOutcome, requestShape)
           : failResult('danger', requestError.message, requestError.nextAction);
@@ -1045,21 +1165,6 @@
           apiOutcome ? apiOutcome.body : null,
         );
         return;
-      }
-
-      if (!apiOutcome) {
-        apiOutcome = {
-          ok: false,
-          isNotImplemented: false,
-          status: 0,
-          statusText: requestError.message,
-          body: {
-            error: {
-              code: requestError.code,
-              message: requestError.message,
-            },
-          },
-        };
       }
     }
 
@@ -1079,10 +1184,12 @@
     return {
       config: {
         mode: config.mode || 'mock',
-        baseUrl: config.baseUrl || 'http://localhost:3000',
+        baseUrl: config.baseUrl || defaultApiBaseUrl(),
         activePersona: config.activePersona || 'SENDER',
         senderSessionId: config.senderSessionId || '',
         receiverSessionId: config.receiverSessionId || '',
+        senderShiftId: config.senderShiftId || '',
+        handoffDate: config.handoffDate || currentSeoulDate(),
       },
       ui: {
         activeScreen: config.activeScreen || 'home',
@@ -1097,10 +1204,28 @@
         currentVisitIndex: 0,
         completedVisitIds: [],
         completedAt: null,
+        startedAt: null,
         records: {},
+        visitIntervals: {},
+        lastSegmentEndedAt: null,
       },
+      handoff: {
+        precheckId: null,
+        handoffId: null,
+      },
+      analysis: {
+        job: null,
+        confirmation: null,
+      },
+      real: {
+        patients: [],
+        visitPlan: [],
+        tasks: [],
+      },
+      idempotencyKeys: {},
       flags: {
         analysisReady: false,
+        evidenceReady: false,
         tasksReady: false,
         precheckReady: false,
         handoffReady: false,
@@ -1112,6 +1237,7 @@
         quickNoteTopic: 'OBSERVATION',
         quickNotes: [],
         quickNoteRecording: false,
+        storedFiles: [],
       },
       lastActionLabel: 'none',
       lastRequest: {},
@@ -1172,6 +1298,8 @@
     elements.baseUrl.value = state.config.baseUrl;
     elements.senderSessionId.value = state.config.senderSessionId;
     elements.receiverSessionId.value = state.config.receiverSessionId;
+    elements.senderShiftId.value = state.config.senderShiftId;
+    elements.handoffDate.value = state.config.handoffDate;
     if (elements.patientSearchInput) {
       elements.patientSearchInput.value = state.ui.patientSearch;
     }
@@ -1199,7 +1327,8 @@
 
   function renderScreens() {
     elements.screens.forEach((screen) => {
-      const isActive = screen.getAttribute('data-screen') === state.ui.activeScreen;
+      const isActive =
+        screen.getAttribute('data-screen') === state.ui.activeScreen;
       screen.classList.toggle('active', isActive);
     });
 
@@ -1272,18 +1401,18 @@
         })
         .join('');
 
-      Array.from(elements.patientList.querySelectorAll('[data-patient-id]')).forEach(
-        (button) => {
-          button.addEventListener('click', () => {
-            const patientId = button.getAttribute('data-patient-id');
-            if (!patientId) {
-              return;
-            }
-            state.ui.selectedPatientId = patientId;
-            navigateTo('patient-detail');
-          });
-        },
-      );
+      Array.from(
+        elements.patientList.querySelectorAll('[data-patient-id]'),
+      ).forEach((button) => {
+        button.addEventListener('click', () => {
+          const patientId = button.getAttribute('data-patient-id');
+          if (!patientId) {
+            return;
+          }
+          state.ui.selectedPatientId = patientId;
+          navigateTo('patient-detail');
+        });
+      });
     }
 
     const patient = patientById(state.ui.selectedPatientId);
@@ -1426,7 +1555,7 @@
 
   function renderHeader() {
     elements.modeBadge.textContent = state.config.mode;
-    elements.scenarioCaption.textContent = `${DATA.rounding.sessionTemplate.wardLabel} · ${DATA.rounding.roundingDate}`;
+    elements.scenarioCaption.textContent = `${DATA.rounding.sessionTemplate.wardLabel} · ${state.config.mode === 'mock' ? DATA.rounding.roundingDate : currentSeoulDate()}`;
     elements.sessionState.textContent = state.session.status;
     applyTone(
       elements.modeBadge,
@@ -1438,22 +1567,26 @@
     );
     elements.nextActionPill.textContent = state.lastResult.nextAction;
     applyTone(elements.nextActionPill, state.lastResult.tone);
-    elements.manifestNote.textContent = `${countAssignedUploads()}/${DATA.rounding.visitPlan.length} 파일 연결`;
+    elements.manifestNote.textContent = `${countAssignedUploads()}/${activeVisitPlan().length} 파일 연결`;
   }
 
   function renderSessionSummary() {
     const items = [
       {
-        value: `${state.session.completedVisitIds.length}/${DATA.rounding.visitPlan.length}`,
+        value: `${state.session.completedVisitIds.length}/${activeVisitPlan().length}`,
         label: '환자 방문',
       },
       {
         value: state.flags.analysisReady ? '완료' : '대기',
-        label: 'STT·화자',
+        label: '음성 분석',
+      },
+      {
+        value: state.flags.evidenceReady ? '완료' : '대기',
+        label: 'Evidence 확정',
       },
       {
         value: state.flags.tasksReady ? '완료' : '대기',
-        label: '업무 추출',
+        label: '업무 조회',
       },
       {
         value: state.flags.handoffReady ? '완료' : '대기',
@@ -1472,7 +1605,7 @@
   }
 
   function renderRoute() {
-    elements.visitRoute.innerHTML = DATA.rounding.visitPlan
+    elements.visitRoute.innerHTML = activeVisitPlan()
       .map((visit, index) => {
         const classes = ['route-stop'];
         if (index === state.session.currentVisitIndex) {
@@ -1481,7 +1614,7 @@
         if (state.session.completedVisitIds.includes(visit.visitId)) {
           classes.push('completed');
         }
-        const patient = patientById(visit.patientId);
+        const patient = patientForVisit(visit);
         const status = state.session.completedVisitIds.includes(visit.visitId)
           ? '완료'
           : index === state.session.currentVisitIndex
@@ -1503,12 +1636,15 @@
 
   function renderCurrentVisit() {
     const visit = currentVisit();
-    const patient = patientById(visit.patientId);
+    const patient = patientForVisit(visit);
     const audioSource = getAudioSourceForVisit(visit);
     const visitResult = currentVisitResult();
     const completed = isCurrentVisitCompleted();
     const safetyFlags = patient.safetyFlags
-      .map((flag) => `<span class="mini-status warning">${escapeHtml(flag)}</span>`)
+      .map(
+        (flag) =>
+          `<span class="mini-status warning">${escapeHtml(flag)}</span>`,
+      )
       .join('');
     elements.currentVisit.innerHTML = `
       <article class="visit-card">
@@ -1555,14 +1691,15 @@
     renderQuickNotePatientOptions();
 
     if (elements.uploadStatus) {
-      elements.uploadStatus.textContent = `${countAssignedUploads()}/${DATA.rounding.visitPlan.length} 연결`;
+      elements.uploadStatus.textContent = `${countAssignedUploads()}/${activeVisitPlan().length} 연결`;
     }
 
     if (elements.roundingUploadList) {
-      elements.roundingUploadList.innerHTML = DATA.rounding.visitPlan
+      elements.roundingUploadList.innerHTML = activeVisitPlan()
         .map((visit, index) => {
-          const patient = patientById(visit.patientId);
-          const assignedFileId = state.uploads.visitFileMap[visit.visitId] || '';
+          const patient = patientForVisit(visit);
+          const assignedFileId =
+            state.uploads.visitFileMap[visit.visitId] || '';
           const fileEntry = state.uploads.roundingLibrary.find(
             (item) => item.id === assignedFileId,
           );
@@ -1599,7 +1736,9 @@
         .join('');
 
       Array.from(
-        elements.roundingUploadList.querySelectorAll('[data-visit-file-select]'),
+        elements.roundingUploadList.querySelectorAll(
+          '[data-visit-file-select]',
+        ),
       ).forEach((select) => {
         select.addEventListener('change', () => {
           const visitId = select.getAttribute('data-visit-file-select');
@@ -1644,7 +1783,9 @@
           .join('');
 
         Array.from(
-          elements.quicknoteUploadList.querySelectorAll('[data-remove-quicknote]'),
+          elements.quicknoteUploadList.querySelectorAll(
+            '[data-remove-quicknote]',
+          ),
         ).forEach((button) => {
           button.addEventListener('click', () => {
             const noteId = button.getAttribute('data-remove-quicknote');
@@ -1690,7 +1831,9 @@
     const summaryItems = state.lastResult.summaryLines
       .map((line) => `<li>${escapeHtml(line)}</li>`)
       .join('');
-    const detail = escapeHtml(state.lastResult.detailText || '아직 실행된 결과가 없습니다.');
+    const detail = escapeHtml(
+      state.lastResult.detailText || '아직 실행된 결과가 없습니다.',
+    );
     return `
       <article class="readable-detail">
         <div class="visit-card-header">
@@ -1747,7 +1890,7 @@
       return (
         state.session.status !== 'IN_PROGRESS' ||
         !isCurrentVisitCompleted() ||
-        state.session.currentVisitIndex >= DATA.rounding.visitPlan.length - 1
+        state.session.currentVisitIndex >= activeVisitPlan().length - 1
       );
     }
     if (actionId === 'complete-rounding') {
@@ -1756,14 +1899,11 @@
     if (actionId === 'analyze-server') {
       return state.session.completedVisitIds.length === 0;
     }
-    if (actionId === 'extract-tasks') {
-      return (
-        !state.flags.analysisReady &&
-        state.session.completedVisitIds.length === 0
-      );
+    if (actionId === 'show-evidence') {
+      return !state.flags.analysisReady;
     }
     if (actionId === 'show-handoff-precheck') {
-      return !state.flags.tasksReady;
+      return !state.flags.evidenceReady;
     }
     if (actionId === 'show-handoff-draft') {
       return !state.flags.precheckReady;
@@ -1785,7 +1925,9 @@
         requestShape.method === 'LOCAL'
           ? requestShape.path
           : joinUrl(state.config.baseUrl, requestShape.path),
-      headers: buildHeaders(requestShape),
+      headers: buildHeaders(requestShape, {
+        multipart: Array.isArray(requestShape.multipartFiles),
+      }),
       body: requestShape.body || null,
       labMetadata: requestShape.labMetadata || null,
       description: requestShape.description,
@@ -1802,66 +1944,108 @@
       };
     }
 
-    if (requestShape.requiresDemoSession && !activeSessionId()) {
-      return {
-        code: 'DEMO_SESSION_REQUIRED',
-        message: 'X-Demo-Session-Id가 없습니다.',
-        nextAction: 'Demo Session 생성',
-      };
-    }
-
     return null;
   }
 
   async function executeHttp(requestShape) {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
-    try {
-      const response = await fetch(
-        joinUrl(state.config.baseUrl, requestShape.path),
-        {
+    if (Array.isArray(requestShape.multipartFiles)) {
+      const uploadedFiles = [];
+      for (const file of requestShape.multipartFiles) {
+        const formData = new FormData();
+        formData.append('file', file, file.name);
+        const outcome = await API.request({
+          baseUrl: state.config.baseUrl,
+          path: requestShape.path,
           method: requestShape.method,
-          headers: buildHeaders(requestShape),
-          body: requestShape.body
-            ? JSON.stringify(requestShape.body)
-            : undefined,
-          signal: controller.signal,
-        },
-      );
-      const text = await response.text();
-      const body = parseResponseBody(text);
-      return {
-        ok: response.ok,
-        isNotImplemented: [404, 405, 501].includes(response.status),
-        status: response.status,
-        statusText: response.statusText,
-        body,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        isNotImplemented: false,
-        status: 0,
-        statusText: error.name === 'AbortError' ? 'timeout' : error.message,
-        body: {
-          error: {
-            code: error.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR',
-            message: error.message,
+          headers: buildHeaders(requestShape, { multipart: true }),
+          formData,
+        });
+        if (!outcome.ok) {
+          return outcome;
+        }
+        uploadedFiles.push(extractResponseData(outcome.body));
+      }
+      if (requestShape.afterMultipart) {
+        const followUp = requestShape.afterMultipart(uploadedFiles);
+        const analysisOutcome = await API.request({
+          baseUrl: state.config.baseUrl,
+          path: followUp.path,
+          method: followUp.method,
+          headers: buildHeaders(followUp),
+          jsonBody: followUp.body,
+        });
+        if (!analysisOutcome.ok) {
+          return analysisOutcome;
+        }
+        return {
+          ...analysisOutcome,
+          body: {
+            data: {
+              uploadedFiles,
+              analysisJob: extractResponseData(analysisOutcome.body),
+            },
+            meta: analysisOutcome.body?.meta || {
+              requestId: createRequestId(),
+            },
           },
+        };
+      }
+      return {
+        ok: true,
+        isRouteNotFound: false,
+        status: 201,
+        statusText: 'Created',
+        body: {
+          data: { uploadedFiles, status: 'STORED' },
+          meta: { requestId: createRequestId() },
         },
       };
-    } finally {
-      window.clearTimeout(timeoutId);
     }
+
+    return API.request({
+      baseUrl: state.config.baseUrl,
+      path: requestShape.path,
+      method: requestShape.method,
+      headers: buildHeaders(requestShape),
+      ...(requestShape.body === undefined
+        ? {}
+        : { jsonBody: requestShape.body }),
+    });
   }
 
-  function buildHeaders(requestShape) {
+  function pollHttp(pollConfig, reservationData) {
+    return API.poll({
+      request: () =>
+        API.request({
+          baseUrl: state.config.baseUrl,
+          path: pollConfig.path(reservationData),
+          method: 'GET',
+          headers: buildHeaders({
+            method: 'GET',
+            requiresDemoSession: true,
+          }),
+        }),
+      readStatus: pollConfig.readStatus,
+      terminalStatuses: pollConfig.terminalStatuses,
+      successStatuses: pollConfig.successStatuses,
+    });
+  }
+
+  function buildHeaders(requestShape, options = {}) {
     const headers = {
-      'Content-Type': 'application/json',
       'X-Request-Id': createRequestId(),
     };
-    if (requestShape.requiresDemoSession) {
+    if (!options.multipart && requestShape.method !== 'GET') {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (requestShape.requiresDemoSession && activeSessionId()) {
       headers['X-Demo-Session-Id'] = activeSessionId();
+    }
+    if (requestShape.requiresIdempotency) {
+      headers['X-Idempotency-Key'] = stableIdempotencyKey(
+        requestShape.idempotencyScope,
+        requestShape,
+      );
     }
     return headers;
   }
@@ -1898,21 +2082,19 @@
   }
 
   function failureFromApiOutcome(apiOutcome, requestShape) {
-    const tone = apiOutcome.isNotImplemented ? 'warning' : 'danger';
+    const tone = apiOutcome.isRouteNotFound ? 'warning' : 'danger';
     return {
       tone,
-      statusText: apiOutcome.isNotImplemented ? 'not-implemented' : 'failed',
+      statusText: apiOutcome.isRouteNotFound ? 'not-implemented' : 'failed',
       originText: 'real',
       detailText: `${requestShape.method} ${requestShape.path} -> ${apiOutcome.status} ${apiOutcome.statusText}`,
-      nextAction: apiOutcome.isNotImplemented
+      nextAction: apiOutcome.isRouteNotFound
         ? 'mock mode 또는 fallback 사용'
         : 'response payload 확인',
       summaryLines: [
         `${requestShape.method} ${requestShape.path}`,
         `status: ${apiOutcome.status}`,
-        apiOutcome.isNotImplemented
-          ? 'API not implemented or unavailable'
-          : 'API failed',
+        apiOutcome.isRouteNotFound ? 'API route not implemented' : 'API failed',
       ],
       responsePayload: apiOutcome.body,
     };
@@ -2044,9 +2226,7 @@
           content: `${candidate.title} · ${candidate.rationale}`,
           highlight: candidate.rulePriority === 'HIGH',
           alert:
-            candidate.rulePriority === 'HIGH'
-              ? '지속적인 모니터링 필요'
-              : '',
+            candidate.rulePriority === 'HIGH' ? '지속적인 모니터링 필요' : '',
         });
       });
     });
@@ -2062,7 +2242,7 @@
   }
 
   function currentVisit() {
-    return DATA.rounding.visitPlan[state.session.currentVisitIndex];
+    return activeVisitPlan()[state.session.currentVisitIndex];
   }
 
   function currentVisitResult() {
@@ -2070,19 +2250,50 @@
   }
 
   function estimateVisitStartedAt(visit) {
-    const visitIndex = DATA.rounding.visitPlan.findIndex(
+    if (state.config.mode !== 'mock' && state.session.startedAt) {
+      return realVisitInterval(visit).startedAt;
+    }
+    const visitIndex = activeVisitPlan().findIndex(
       (item) => item.visitId === visit.visitId,
     );
-
     return formatRoundingTime(9 * 60 + 10 + visitIndex * 20);
   }
 
   function estimateVisitEndedAt(visit) {
-    const visitIndex = DATA.rounding.visitPlan.findIndex(
+    if (state.config.mode !== 'mock' && state.session.startedAt) {
+      return realVisitInterval(visit).endedAt;
+    }
+    const visitIndex = activeVisitPlan().findIndex(
       (item) => item.visitId === visit.visitId,
     );
-
     return formatRoundingTime(9 * 60 + 15 + visitIndex * 20);
+  }
+
+  function realVisitInterval(visit) {
+    if (state.session.visitIntervals[visit.visitId]) {
+      return state.session.visitIntervals[visit.visitId];
+    }
+
+    const sessionStartedAt = new Date(state.session.startedAt).getTime();
+    const previousEndedAt = state.session.lastSegmentEndedAt
+      ? new Date(state.session.lastSegmentEndedAt).getTime()
+      : sessionStartedAt;
+    const startedAtMs = Math.max(sessionStartedAt, previousEndedAt);
+    const endedAtMs = Math.max(Date.now(), startedAtMs + 1);
+    const interval = {
+      startedAt: new Date(startedAtMs).toISOString(),
+      endedAt: new Date(endedAtMs).toISOString(),
+    };
+    state.session.visitIntervals[visit.visitId] = interval;
+    state.session.lastSegmentEndedAt = interval.endedAt;
+    return interval;
+  }
+
+  function completionTimestamp() {
+    const lastSegmentEndedAt = state.session.lastSegmentEndedAt
+      ? new Date(state.session.lastSegmentEndedAt).getTime()
+      : 0;
+    return new Date(Math.max(Date.now(), lastSegmentEndedAt)).toISOString();
   }
 
   function formatRoundingTime(totalMinutes) {
@@ -2115,20 +2326,18 @@
   }
 
   function getVisitResultById(visitId) {
+    const visit = activeVisitPlan().find((item) => item.visitId === visitId);
     return DATA.expectedResults.visitResults.find(
-      (item) => item.visitId === visitId,
+      (item) => item.visitId === (visit?.mockVisitId || visitId),
     );
   }
 
   function getVisitById(visitId) {
-    return DATA.rounding.visitPlan.find((visit) => visit.visitId === visitId);
+    return activeVisitPlan().find((visit) => visit.visitId === visitId);
   }
 
   function getAudioSourceForVisit(visit) {
-    const uploadedFileId = state.uploads.visitFileMap[visit.visitId];
-    const uploadedFile = state.uploads.roundingLibrary.find(
-      (item) => item.id === uploadedFileId,
-    );
+    const uploadedFile = getUploadedFileForVisit(visit.visitId);
 
     if (uploadedFile) {
       return {
@@ -2156,22 +2365,30 @@
     };
   }
 
+  function getUploadedFileForVisit(visitId) {
+    const uploadedFileId = state.uploads.visitFileMap[visitId];
+    return state.uploads.roundingLibrary.find(
+      (item) => item.id === uploadedFileId,
+    );
+  }
+
   function hasAssignedUpload(visitId) {
     return !!state.uploads.visitFileMap[visitId];
   }
 
   function handleRoundingUpload(fileList) {
-    const files = Array.from(fileList || []);
+    const files = Array.from(fileList || []).slice(0, 1);
     state.uploads.roundingLibrary = files.map((file, index) => ({
       id: `rounding-file-${Date.now()}-${index}`,
+      file,
       name: file.name,
       size: file.size,
       type: file.type,
       lastModified: file.lastModified,
     }));
     state.uploads.visitFileMap = {};
-    DATA.rounding.visitPlan.forEach((visit, index) => {
-      const file = state.uploads.roundingLibrary[index];
+    activeVisitPlan().forEach((visit) => {
+      const file = state.uploads.roundingLibrary[0];
       if (file) {
         state.uploads.visitFileMap[visit.visitId] = file.id;
       }
@@ -2186,16 +2403,17 @@
     }
     const nextItems = files.map((file, index) => ({
       id: `quick-note-${Date.now()}-${index}`,
+      file,
       fileName: file.name,
       size: file.size,
       type: file.type,
       patientId: state.uploads.quickNotePatientId,
       topic: state.uploads.quickNoteTopic,
     }));
-    state.uploads.quickNotes = [...nextItems, ...state.uploads.quickNotes].slice(
-      0,
-      12,
-    );
+    state.uploads.quickNotes = [
+      ...nextItems,
+      ...state.uploads.quickNotes,
+    ].slice(0, 12);
     renderAll();
   }
 
@@ -2231,7 +2449,7 @@
   }
 
   function countAssignedUploads() {
-    return DATA.rounding.visitPlan.filter(
+    return activeVisitPlan().filter(
       (visit) => !!state.uploads.visitFileMap[visit.visitId],
     ).length;
   }
@@ -2250,17 +2468,45 @@
   }
 
   function topicLabel(topic) {
-    return {
-      OBSERVATION: '관찰사항',
-      TREATMENT: '처치',
-      PAIN: '통증',
-      RESPIRATION: '호흡',
-      DIET: '식이',
-    }[topic] || topic;
+    return (
+      {
+        OBSERVATION: '관찰사항',
+        TREATMENT: '처치',
+        PAIN: '통증',
+        RESPIRATION: '호흡',
+        DIET: '식이',
+      }[topic] || topic
+    );
   }
 
   function patientLabel(patientId) {
-    return patientById(patientId).patientLabel;
+    const realPatient = state.real.patients.find(
+      (patient) => patient.patientId === patientId,
+    );
+    return (
+      realPatient?.displayName ||
+      patientById(patientId)?.patientLabel ||
+      patientId
+    );
+  }
+
+  function patientForVisit(visit) {
+    const realPatient = state.real.patients.find(
+      (patient) => patient.patientId === visit.patientId,
+    );
+    if (!realPatient) {
+      return patientById(visit.patientId);
+    }
+    const templateVisit = DATA.rounding.visitPlan.find(
+      (item) => item.visitId === visit.mockVisitId,
+    );
+    const templatePatient = patientById(templateVisit.patientId);
+    return {
+      ...templatePatient,
+      patientId: realPatient.patientId,
+      patientLabel: realPatient.displayName,
+      roomLabel: realPatient.roomLabel,
+    };
   }
 
   function patientById(patientId) {
@@ -2323,8 +2569,121 @@
     );
   }
 
+  function activeVisitPlan() {
+    if (state.config.mode !== 'mock' && state.real.visitPlan.length > 0) {
+      return state.real.visitPlan;
+    }
+    return DATA.rounding.visitPlan;
+  }
+
+  async function loadRealPatients() {
+    const headers = { 'X-Request-Id': createRequestId() };
+    if (state.config.senderSessionId) {
+      headers['X-Demo-Session-Id'] = state.config.senderSessionId;
+    }
+    const outcome = await API.request({
+      baseUrl: state.config.baseUrl,
+      path: '/api/v1/patients',
+      method: 'GET',
+      headers,
+    });
+    if (!outcome.ok) {
+      return outcome;
+    }
+
+    const patients = extractResponseData(outcome.body).items || [];
+    if (patients.length === 0) {
+      return {
+        ok: false,
+        isRouteNotFound: false,
+        status: 422,
+        statusText: 'No assigned patients',
+        body: {
+          error: {
+            code: 'REAL_PATIENTS_EMPTY',
+            message: '실제 demo session에 배정된 환자가 없습니다.',
+          },
+        },
+      };
+    }
+
+    state.real.patients = patients;
+    state.real.visitPlan = [1, 2].flatMap((roundNumber) =>
+      patients.map((patient, patientIndex) => {
+        const template = DATA.rounding.visitPlan.find(
+          (visit, visitIndex) =>
+            visit.roundNumber === roundNumber &&
+            visitIndex % DATA.patients.items.length === patientIndex,
+        );
+        if (!template) {
+          throw new Error('실제 환자용 라운딩 template를 찾을 수 없습니다.');
+        }
+        return {
+          ...template,
+          visitId: `real-r${roundNumber}-${patient.patientId}`,
+          patientId: patient.patientId,
+          mockVisitId: template.visitId,
+        };
+      }),
+    );
+    state.session.currentVisitIndex = 0;
+    state.uploads.visitFileMap = {};
+    return outcome;
+  }
+
+  function stableIdempotencyKey(scope, requestShape) {
+    const requestIdentity = JSON.stringify({
+      method: requestShape.method,
+      path: requestShape.path,
+      body: requestShape.body || null,
+    });
+    const scopedRequest = `${scope}:${requestIdentity}`;
+    if (!state.idempotencyKeys[scopedRequest]) {
+      state.idempotencyKeys[scopedRequest] = createRequestId();
+    }
+    return state.idempotencyKeys[scopedRequest];
+  }
+
+  function currentSeoulDate() {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  }
+
+  function defaultApiBaseUrl() {
+    if (
+      window.location.protocol === 'http:' ||
+      window.location.protocol === 'https:'
+    ) {
+      return window.location.origin;
+    }
+    return 'http://localhost:3000';
+  }
+
+  function summarizeHandoffDraft(draft) {
+    const sectionLabels = [
+      ['patientStatus', 'PATIENT_STATUS'],
+      ['pain', 'PAIN'],
+      ['treatment', 'TREATMENT'],
+      ['diet', 'DIET'],
+      ['activity', 'ACTIVITY'],
+      ['observation', 'OBSERVATION'],
+    ];
+    return (draft.patients || [])
+      .flatMap((patient) =>
+        sectionLabels.map(
+          ([key, label]) => `${label}: ${patient.sections[key] || ''}`,
+        ),
+      )
+      .join('\n');
+  }
+
   function lastVisit() {
-    return DATA.rounding.visitPlan[DATA.rounding.visitPlan.length - 1];
+    const plan = activeVisitPlan();
+    return plan[plan.length - 1];
   }
 
   function joinUrl(baseUrl, path) {
@@ -2367,12 +2726,15 @@
       return currentVisit() === lastVisit() ? '전체 라운딩 종료' : '다음 환자';
     }
     if (actionId === 'complete-rounding') {
-      return '서버 분석';
+      return '오디오 업로드·분석';
     }
     if (actionId === 'analyze-server') {
-      return '업무 후보';
+      return '스크립트 또는 Evidence 확인';
     }
-    if (actionId === 'extract-tasks') {
+    if (actionId === 'show-evidence') {
+      return '업무 목록 또는 인수인계 질문';
+    }
+    if (actionId === 'show-tasks') {
       return '인수인계 질문';
     }
     if (actionId === 'show-handoff-precheck') {

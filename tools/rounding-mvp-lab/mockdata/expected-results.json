@@ -255,16 +255,16 @@
           "taskCandidateId": "taskcand-r1-p103-1",
           "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59103",
           "title": "14:30 보행 후 SpO2 재확인",
-          "suggestedPriority": "MEDIUM",
-          "rulePriority": "MEDIUM",
+          "suggestedPriority": "NORMAL",
+          "rulePriority": "NORMAL",
           "rationale": "활동 후 산소포화도 변동 재평가 필요"
         },
         {
           "taskCandidateId": "taskcand-r1-p103-2",
           "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59104",
           "title": "I&O 누락분 입력 확인",
-          "suggestedPriority": "MEDIUM",
-          "rulePriority": "MEDIUM",
+          "suggestedPriority": "NORMAL",
+          "rulePriority": "NORMAL",
           "rationale": "인수인계 전 chart completeness 확보 필요"
         }
       ]
@@ -458,57 +458,246 @@
       }
     ]
   },
-  "analysisJob": {
+  "audioUpload": {
     "mockResponse": {
       "data": {
-        "jobId": "analysis-job-20260819",
-        "status": "SUCCEEDED",
-        "processedVisitCount": 6,
-        "patientMatchReviewCount": 2,
-        "evidenceCount": 14,
-        "nextAction": "Evidence와 Task 후보를 확인하세요."
+        "uploadedFiles": [
+          {
+            "id": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a101",
+            "kind": "AUDIO",
+            "originalName": "synthetic-rounding.m4a",
+            "mimeType": "audio/mp4",
+            "sizeBytes": 1024,
+            "checksum": "synthetic-checksum",
+            "createdAt": "2026-08-19T05:55:00.000Z"
+          }
+        ],
+        "status": "STORED"
       },
       "meta": {
         "requestId": "00000000-0000-4000-8000-000000000104"
       }
     }
   },
-  "taskExtractionJob": {
+  "roundingAnalysis": {
     "mockResponse": {
       "data": {
-        "jobId": "task-job-20260819",
-        "status": "SUCCEEDED",
-        "candidates": [
+        "uploadedFiles": [
           {
-            "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59101",
-            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
-            "title": "14:00 배액량 재측정",
-            "effectivePriority": "HIGH",
-            "evidenceIds": ["ev-r1-p101-2", "ev-r2-p101-1"]
-          },
-          {
-            "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59102",
-            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
-            "title": "13:30 혈당 재측정",
-            "effectivePriority": "HIGH",
-            "evidenceIds": ["ev-r1-p102-2", "ev-r2-p102-1"]
-          },
-          {
-            "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59103",
-            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
-            "title": "14:30 보행 후 SpO2 재확인",
-            "effectivePriority": "MEDIUM",
-            "evidenceIds": ["ev-r1-p103-1", "ev-r2-p103-1"]
-          },
-          {
-            "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59104",
-            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
-            "title": "I&O 누락분 입력 확인",
-            "effectivePriority": "MEDIUM",
-            "evidenceIds": ["ev-r1-p103-3"]
+            "id": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a101",
+            "kind": "AUDIO",
+            "originalName": "synthetic-rounding.wav",
+            "mimeType": "audio/wav",
+            "sizeBytes": 1024,
+            "checksum": "synthetic-checksum",
+            "createdAt": "2026-08-19T05:55:00.000Z"
           }
         ],
-        "nextAction": "Precheck 질문을 검토하세요."
+        "analysisJob": {
+          "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a201",
+          "status": "SUCCEEDED",
+          "roundingSessionId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a001",
+          "audioFileId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a101",
+          "fullText": "통증 3점이며 배액 40mL입니다. 저녁 전에 혈당을 다시 확인합니다.",
+          "utterances": [
+            {
+              "utteranceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a301",
+              "speakerLabel": "SPEAKER_00",
+              "speakerRole": "PATIENT_CANDIDATE",
+              "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+              "startedAtMs": 0,
+              "endedAtMs": 3200,
+              "text": "통증 3점이며 배액 40mL입니다.",
+              "confidence": 0.92,
+              "important": true
+            },
+            {
+              "utteranceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a302",
+              "speakerLabel": "SPEAKER_01",
+              "speakerRole": "NURSE",
+              "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+              "startedAtMs": 3300,
+              "endedAtMs": 6100,
+              "text": "저녁 전에 혈당을 다시 확인합니다.",
+              "confidence": 0.95,
+              "important": true
+            }
+          ],
+          "speakerMatches": [
+            {
+              "speakerLabel": "SPEAKER_00",
+              "rank": 1,
+              "candidatePatientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+              "displayName": "P-7A-101",
+              "similarity": 0.92
+            }
+          ],
+          "failureCode": null,
+          "createdAt": "2026-08-19T05:55:01.000Z",
+          "updatedAt": "2026-08-19T05:55:01.000Z"
+        }
+      },
+      "meta": {
+        "requestId": "00000000-0000-4000-8000-000000000105"
+      }
+    }
+  },
+  "roundingAnalysisConfirmation": {
+    "mockResponse": {
+      "data": {
+        "job": {
+          "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a201",
+          "status": "SUCCEEDED",
+          "roundingSessionId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a001",
+          "audioFileId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5a101",
+          "fullText": "통증 3점이며 배액 40mL입니다. 저녁 전에 혈당을 다시 확인합니다.",
+          "utterances": [],
+          "speakerMatches": [],
+          "failureCode": null,
+          "createdAt": "2026-08-19T05:55:01.000Z",
+          "updatedAt": "2026-08-19T05:55:02.000Z"
+        },
+        "evidences": [
+          {
+            "evidenceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b201",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+            "topic": "PAIN",
+            "handoffSection": "pain",
+            "keywords": ["통증", "배액"],
+            "importanceFlags": ["follow_up_needed"],
+            "requiresNurseConfirmation": false,
+            "textForRetrieval": "통증 3점이며 배액 40mL입니다.",
+            "sourceUtteranceIds": ["018f1da8-6c39-4f1d-8f2f-0f9bc2f5a301"],
+            "timelineEventId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b301",
+            "createdAt": "2026-08-19T05:55:02.000Z"
+          },
+          {
+            "evidenceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b202",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+            "topic": "TREATMENT",
+            "handoffSection": "treatment",
+            "keywords": ["혈당", "재확인"],
+            "importanceFlags": ["follow_up_needed"],
+            "requiresNurseConfirmation": false,
+            "textForRetrieval": "저녁 전에 혈당을 다시 확인합니다.",
+            "sourceUtteranceIds": ["018f1da8-6c39-4f1d-8f2f-0f9bc2f5a302"],
+            "timelineEventId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b302",
+            "createdAt": "2026-08-19T05:55:02.000Z"
+          }
+        ],
+        "timelineEventIds": [
+          "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b301",
+          "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b302"
+        ]
+      },
+      "meta": {
+        "requestId": "00000000-0000-4000-8000-000000000106"
+      }
+    }
+  },
+  "taskExtractionJob": {
+    "reservationResponse": {
+      "data": {
+        "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e001",
+        "status": "QUEUED"
+      },
+      "meta": {
+        "requestId": "00000000-0000-4000-8000-000000000105"
+      }
+    },
+    "mockResponse": {
+      "data": {
+        "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e001",
+        "status": "SUCCEEDED",
+        "failure": null,
+        "candidates": [
+          {
+            "candidateId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e101",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+            "title": "14:00 배액량 재측정",
+            "description": null,
+            "dueAt": "2026-08-19T14:00:00+09:00",
+            "workDate": "2026-08-19",
+            "aiSuggestion": {
+              "suggestedPriority": "HIGH",
+              "reasons": ["라운딩에서 재측정 시각이 확인됨"],
+              "confidence": "MEDIUM"
+            },
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b101"
+              }
+            ],
+            "duplicateTaskId": null,
+            "appliedTaskId": null
+          },
+          {
+            "candidateId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e102",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+            "title": "13:30 혈당 재측정",
+            "description": null,
+            "dueAt": "2026-08-19T13:30:00+09:00",
+            "workDate": "2026-08-19",
+            "aiSuggestion": {
+              "suggestedPriority": "HIGH",
+              "reasons": ["혈당 추적 계획이 확인됨"],
+              "confidence": "MEDIUM"
+            },
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b102"
+              }
+            ],
+            "duplicateTaskId": null,
+            "appliedTaskId": null
+          },
+          {
+            "candidateId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e103",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+            "title": "14:30 보행 후 SpO2 재확인",
+            "description": null,
+            "dueAt": "2026-08-19T14:30:00+09:00",
+            "workDate": "2026-08-19",
+            "aiSuggestion": {
+              "suggestedPriority": "NORMAL",
+              "reasons": ["활동 후 재평가가 필요함"],
+              "confidence": "MEDIUM"
+            },
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b103"
+              }
+            ],
+            "duplicateTaskId": null,
+            "appliedTaskId": null
+          },
+          {
+            "candidateId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5e104",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+            "title": "I&O 누락분 입력 확인",
+            "description": null,
+            "dueAt": "2026-08-19T15:00:00+09:00",
+            "workDate": "2026-08-19",
+            "aiSuggestion": {
+              "suggestedPriority": "NORMAL",
+              "reasons": ["기록 완결성 확인이 필요함"],
+              "confidence": "MEDIUM"
+            },
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b203"
+              }
+            ],
+            "duplicateTaskId": null,
+            "appliedTaskId": null
+          }
+        ],
+        "createdAt": "2026-08-19T05:56:00.000Z",
+        "updatedAt": "2026-08-19T05:56:01.000Z"
       },
       "meta": {
         "requestId": "00000000-0000-4000-8000-000000000105"
@@ -516,31 +705,92 @@
     }
   },
   "handoffPrecheck": {
+    "reservationResponse": {
+      "data": {
+        "precheckId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c001",
+        "status": "QUEUED"
+      },
+      "meta": {
+        "requestId": "00000000-0000-4000-8000-000000000106"
+      }
+    },
     "mockResponse": {
       "data": {
         "precheckId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c001",
+        "version": 1,
+        "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c101",
         "status": "SUCCEEDED",
+        "failureCode": null,
+        "retryable": null,
+        "modelVersion": "deterministic-precheck-v1",
+        "contractVersion": "handoff-precheck-v1",
+        "generatedAt": "2026-08-19T05:57:00.000Z",
+        "summary": {
+          "critical": 2,
+          "recommended": 1
+        },
         "items": [
           {
-            "itemId": "precheck-1",
-            "severity": "REQUIRED",
+            "itemId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c201",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+            "severity": "CRITICAL",
             "question": "P-7A-101 배액량 40mL 재측정 시각과 drain trend를 인수인계 메모에 반영했나요?",
-            "evidenceIds": ["ev-r1-p101-2", "ev-r2-p101-1"]
+            "reason": "미완료 추적 업무가 있음",
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b201",
+                "sourceReference": "timeline:synthetic:drain",
+                "occurredAt": "2026-08-19T05:40:00.000Z",
+                "excerptKind": "SUMMARY",
+                "excerpt": "배액 40mL 재측정"
+              }
+            ],
+            "answer": "INCLUDE_HANDOFF",
+            "comment": null,
+            "version": 1
           },
           {
-            "itemId": "precheck-2",
-            "severity": "REQUIRED",
+            "itemId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c202",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
+            "severity": "CRITICAL",
             "question": "P-7A-102 혈당 164 이후 저녁 전 추가 체크 계획이 전달되나요?",
-            "evidenceIds": ["ev-r1-p102-2", "ev-r2-p102-1"]
+            "reason": "HIGH 업무가 인계 대상임",
+            "evidence": [
+              {
+                "sourceType": "TASK",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59102",
+                "sourceReference": "task:synthetic:glucose",
+                "occurredAt": null,
+                "excerptKind": "TASK_TITLE",
+                "excerpt": "13:30 혈당 재측정"
+              }
+            ],
+            "answer": "INCLUDE_HANDOFF",
+            "comment": null,
+            "version": 1
           },
           {
-            "itemId": "precheck-3",
-            "severity": "CHECK",
+            "itemId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5c203",
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
+            "severity": "RECOMMENDED",
             "question": "P-7A-103 산소 감량 판단 보류 사유와 재평가 조건을 적었나요?",
-            "evidenceIds": ["ev-r1-p103-2", "ev-r2-p103-2"]
+            "reason": "관찰 근거를 확인할 수 있음",
+            "evidence": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b203",
+                "sourceReference": "timeline:synthetic:oxygen",
+                "occurredAt": "2026-08-19T05:50:00.000Z",
+                "excerptKind": "SUMMARY",
+                "excerpt": "산소 감량 판단 보류"
+              }
+            ],
+            "answer": "NO_ISSUE",
+            "comment": null,
+            "version": 1
           }
-        ],
-        "nextAction": "Draft 생성 전 답변 여부를 확인하세요."
+        ]
       },
       "meta": {
         "requestId": "00000000-0000-4000-8000-000000000106"
@@ -548,37 +798,68 @@
     }
   },
   "handoffDraft": {
+    "reservationResponse": {
+      "data": {
+        "handoffId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5d001",
+        "status": "GENERATING"
+      },
+      "meta": {
+        "requestId": "00000000-0000-4000-8000-000000000107"
+      }
+    },
     "mockResponse": {
       "data": {
         "handoffId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5d001",
         "status": "DRAFT",
-        "sections": [
+        "version": 1,
+        "date": "2026-08-19",
+        "senderActorId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d62",
+        "receiverActorId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58d64",
+        "generationJob": {
+          "jobId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5d101",
+          "status": "SUCCEEDED",
+          "failureCode": null,
+          "retryable": null
+        },
+        "templateId": "NURSING_HANDOFF_V1",
+        "includeUnverified": false,
+        "patients": [
           {
-            "section": "S",
-            "title": "Situation",
-            "content": "7A 데이 라운딩 기준 즉시 follow-up이 필요한 환자는 P-7A-101, P-7A-102, P-7A-103입니다.",
-            "citations": ["ev-r2-p101-1", "ev-r2-p102-1", "ev-r2-p103-1"]
-          },
-          {
-            "section": "B",
-            "title": "Background",
-            "content": "P-7A-101은 복강경 수술 후 배액 추적 중이고 P-7A-102는 식후 혈당 및 오심 경과를 보는 중이며 P-7A-103은 보행 후 산소포화도 변동을 추적 중입니다.",
-            "citations": ["ev-r1-p101-2", "ev-r1-p102-3", "ev-r1-p103-2"]
-          },
-          {
-            "section": "A",
-            "title": "Assessment",
-            "content": "P-7A-101은 배액 40mL로 trend 보고가 필요하고 P-7A-102는 혈당 164 재확인 후 추가 저혈당 증상은 없으며 P-7A-103은 보행 후 SpO2 95로 회복되지만 산소 감량 판단은 보류 상태입니다.",
-            "citations": ["ev-r2-p101-1", "ev-r2-p102-1", "ev-r2-p103-2"]
-          },
-          {
-            "section": "R",
-            "title": "Recommendation",
-            "content": "evening shift는 P-7A-101 drain trend, P-7A-102 저녁 전 혈당, P-7A-103 산소 감량 조건과 I&O chart completeness를 우선 확인합니다.",
-            "citations": ["ev-r1-p101-2", "ev-r2-p102-1", "ev-r1-p103-3"]
+            "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
+            "sections": {
+              "patientStatus": "통증 2점, 배액 40mL로 확인됨",
+              "pain": "통증 점수 감소 추세",
+              "treatment": "배액관 유지 중",
+              "diet": "특이사항 없음",
+              "activity": "보호자 동행 보행 교육 완료",
+              "observation": "evening shift에서 drain trend 확인"
+            },
+            "aiOriginalSections": {
+              "patientStatus": "통증 2점, 배액 40mL로 확인됨",
+              "pain": "통증 점수 감소 추세",
+              "treatment": "배액관 유지 중",
+              "diet": "특이사항 없음",
+              "activity": "보호자 동행 보행 교육 완료",
+              "observation": "evening shift에서 drain trend 확인"
+            },
+            "citations": [
+              {
+                "sourceType": "TIMELINE_EVENT",
+                "sourceId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f5b201",
+                "sourceReference": "timeline:synthetic:drain",
+                "occurredAt": "2026-08-19T05:40:00.000Z",
+                "excerptKind": "SUMMARY",
+                "excerpt": "배액 40mL 재측정",
+                "section": "PATIENT_STATUS",
+                "wasModified": false
+              }
+            ],
+            "unverified": false
           }
         ],
-        "nextAction": "실제 finalize API는 별도 구현 필요"
+        "tasks": [],
+        "warnings": [],
+        "updatedAt": "2026-08-19T05:58:00.000Z"
       },
       "meta": {
         "requestId": "00000000-0000-4000-8000-000000000107"

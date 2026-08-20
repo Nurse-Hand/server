@@ -7,40 +7,56 @@
       "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58101",
       "title": "14:00 배액량 재측정",
       "rulePriority": "HIGH",
-      "status": "OPEN",
+      "status": "TODO",
       "dueAt": "2026-08-19T14:00:00+09:00",
-      "source": "ROUNDING_RULE",
-      "notes": "1차 라운딩에서 배액량 추적 필요성 확인"
+      "workDate": "2026-08-19",
+      "source": "MANUAL",
+      "description": "1차 라운딩에서 배액량 추적 필요성 확인",
+      "confirmedPriority": null,
+      "effectivePriority": "HIGH",
+      "version": 1
     },
     {
       "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59102",
       "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58102",
       "title": "13:30 혈당 재측정",
       "rulePriority": "HIGH",
-      "status": "OPEN",
+      "status": "TODO",
       "dueAt": "2026-08-19T13:30:00+09:00",
-      "source": "ROUNDING_RULE",
-      "notes": "식사량 절반과 sliding scale follow-up 필요"
+      "workDate": "2026-08-19",
+      "source": "MANUAL",
+      "description": "식사량 절반과 sliding scale follow-up 필요",
+      "confirmedPriority": null,
+      "effectivePriority": "HIGH",
+      "version": 1
     },
     {
       "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59103",
       "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
       "title": "14:30 보행 후 SpO2 재확인",
-      "rulePriority": "MEDIUM",
-      "status": "OPEN",
+      "rulePriority": "NORMAL",
+      "status": "TODO",
       "dueAt": "2026-08-19T14:30:00+09:00",
-      "source": "ROUNDING_RULE",
-      "notes": "산소 1L 유지 상태에서 활동 후 재평가"
+      "workDate": "2026-08-19",
+      "source": "MANUAL",
+      "description": "산소 1L 유지 상태에서 활동 후 재평가",
+      "confirmedPriority": null,
+      "effectivePriority": "NORMAL",
+      "version": 1
     },
     {
       "taskId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f59104",
       "patientId": "018f1da8-6c39-4f1d-8f2f-0f9bc2f58103",
       "title": "I&O 누락분 입력 확인",
-      "rulePriority": "MEDIUM",
-      "status": "OPEN",
+      "rulePriority": "NORMAL",
+      "status": "TODO",
       "dueAt": "2026-08-19T15:00:00+09:00",
-      "source": "ROUNDING_RULE",
-      "notes": "2차 라운딩 전 EMR chart 보완 필요"
+      "workDate": "2026-08-19",
+      "source": "MANUAL",
+      "description": "2차 라운딩 전 EMR chart 보완 필요",
+      "confirmedPriority": null,
+      "effectivePriority": "NORMAL",
+      "version": 1
     }
   ]
 }
