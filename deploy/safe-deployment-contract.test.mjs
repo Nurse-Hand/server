@@ -39,6 +39,11 @@ assertMatch(
 assertIncludes(ciWorkflow, 'node deploy/safe-deployment-contract.test.mjs');
 
 assertIncludes(compose, "command: ['node', 'dist/src/worker-main.js']");
+assertIncludes(
+  compose,
+  "test: ['CMD', 'node', 'dist/src/worker-healthcheck.js']",
+);
+assertIncludes(compose, 'stop_grace_period: 30s');
 assertNoMatch(
   compose,
   /prisma migrate deploy/,
@@ -54,6 +59,11 @@ assertIncludes(
   deployScript,
   'up -d --no-deps api worker',
   'API and worker must be replaced and rolled back together',
+);
+assertNoMatch(
+  deployScript,
+  /\$\{status\}" == "running"/,
+  'Worker readiness must require a successful heartbeat healthcheck',
 );
 
 process.stdout.write('safe deployment contract tests passed\n');

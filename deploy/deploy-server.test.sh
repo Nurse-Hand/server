@@ -77,7 +77,11 @@ if [[ "$1" == "inspect" ]]; then
       elif [[ "${FAKE_SCENARIO}" == "baseline-worker-health-fail" \
         && "${container_name}" == 'nurse-hand-worker' \
         && "${active_phase}" == 'baseline' ]]; then
-        echo 'exited'
+        echo 'unhealthy'
+      elif [[ "${FAKE_SCENARIO}" == "baseline-worker-running" \
+        && "${container_name}" == 'nurse-hand-worker' \
+        && "${active_phase}" == 'baseline' ]]; then
+        echo 'running'
       elif [[ "${FAKE_SCENARIO}" == "api-health-fail" \
         && "${container_name}" == 'nurse-hand-server' \
         && "${active_phase}" == 'replacement' ]]; then
@@ -85,13 +89,9 @@ if [[ "$1" == "inspect" ]]; then
       elif [[ "${FAKE_SCENARIO}" == "worker-health-fail" \
         && "${container_name}" == 'nurse-hand-worker' \
         && "${active_phase}" == 'replacement' ]]; then
-        echo 'exited'
+        echo 'unhealthy'
       else
-        if [[ "${container_name}" == 'nurse-hand-worker' ]]; then
-          echo 'running'
-        else
-          echo 'healthy'
-        fi
+        echo 'healthy'
       fi
       ;;
   esac
@@ -237,7 +237,7 @@ test_failure_before_replacement() {
 
 test_unhealthy_baseline_stops_before_mutation() {
   local scenario root
-  for scenario in baseline-api-health-fail baseline-worker-health-fail baseline-external-health-fail; do
+  for scenario in baseline-api-health-fail baseline-worker-health-fail baseline-worker-running baseline-external-health-fail; do
     root="$(create_scenario "${scenario}")"
     if run_deploy "${root}" "${scenario}"; then
       fail_test "${scenario} unexpectedly succeeded"

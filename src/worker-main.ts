@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { TaskHandoffJobDispatcher } from './modules/job-execution/task-handoff-job.dispatcher';
 import { WorkerAppModule } from './worker-app.module';
+import { clearWorkerHeartbeat, writeWorkerHeartbeat } from './worker-heartbeat';
 
 const DEFAULT_POLL_INTERVAL_MILLISECONDS = 1_000;
 const WORKER_DRAIN_TIMEOUT_MILLISECONDS = 20_000;
@@ -10,6 +11,7 @@ const APPLICATION_CLOSE_TIMEOUT_MILLISECONDS = 5_000;
 async function bootstrap(): Promise<void> {
   const logger = new Logger('WorkerBootstrap');
   const pollIntervalMilliseconds = readPollIntervalMilliseconds();
+  await clearWorkerHeartbeat();
   const app = await NestFactory.createApplicationContext(WorkerAppModule, {
     logger: ['error', 'log', 'warn'],
   });
@@ -52,7 +54,10 @@ async function bootstrap(): Promise<void> {
 
   while (!shuttingDown) {
     try {
-      await dispatcher.runOnce();
+      const cycleCompleted = await dispatcher.runOnce();
+      if (cycleCompleted) {
+        await writeWorkerHeartbeat();
+      }
     } catch {
       logger.error({
         event: 'worker_cycle_failed',
@@ -99,4 +104,10 @@ async function waitForCompletion(
   }
 }
 
-void bootstrap();
+void bootstrap().catch(() => {
+  new Logger('WorkerBootstrap').error({
+    event: 'worker_bootstrap_failed',
+    errorType: 'UnknownError',
+  });
+  process.exit(1);
+});

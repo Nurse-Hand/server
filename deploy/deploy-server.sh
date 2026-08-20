@@ -138,7 +138,7 @@ wait_for_container_readiness() {
         "${container_name}" 2>/dev/null || true
     )"
 
-    if [[ "${status}" == "healthy" || "${status}" == "running" ]]; then
+    if [[ "${status}" == "healthy" ]]; then
       consecutive_successes=$((consecutive_successes + 1))
       if ((consecutive_successes >= required_successes)); then
         return 0

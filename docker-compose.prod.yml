@@ -88,7 +88,11 @@ services:
       - '${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}:/data/nurse-hand/uploads'
     command: ['node', 'dist/src/worker-main.js']
     healthcheck:
-      disable: true
+      test: ['CMD', 'node', 'dist/src/worker-healthcheck.js']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   ai:
     image: ${NURSE_HAND_AI_IMAGE:-jadest03/nurse-hand-ai:latest}
