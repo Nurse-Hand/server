@@ -27,7 +27,7 @@ services:
     container_name: nurse-hand-server
     restart: unless-stopped
     env_file:
-      - path: .env
+      - path: ${NURSE_HAND_ENV_FILE:-.env}
         required: false
     depends_on:
       db:
@@ -46,9 +46,6 @@ services:
       AI_PRIORITY_TIMEOUT_MS: ${AI_PRIORITY_TIMEOUT_MS:-15000}
     volumes:
       - '${FILE_STORAGE_HOST_ROOT:-/data/nurse-hand/uploads}:/data/nurse-hand/uploads'
-    command: >
-      sh -c "npx prisma migrate deploy &&
-      node dist/src/main.js"
     healthcheck:
       test:
         [

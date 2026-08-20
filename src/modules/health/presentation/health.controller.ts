@@ -17,11 +17,11 @@ export class HealthController {
 
   @Get()
   @SkipDemoSession()
-  @ApiOperation({ summary: '서버 liveness 확인' })
+  @ApiOperation({ summary: '서버와 데이터베이스 readiness 확인' })
   @ApiOkResponse({ type: HealthResponseDto })
   @ApiInternalServerErrorResponse({ type: ApiErrorResponseDto })
-  getHealth(): HealthDataDto {
-    const result = this.healthService.getHealth();
+  async getHealth(): Promise<HealthDataDto> {
+    const result = await this.healthService.getHealth();
 
     return {
       status: result.status,
